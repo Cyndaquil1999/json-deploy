@@ -7,9 +7,12 @@ serve(async (req) => {
   const url = new URL(req.url);
   const path = url.pathname;
 
+  console.log(path);
+
   // "/data/" で始まるリクエストに対応
   if (path.startsWith("/data/")) {
     const filename = path.replace("/data/", "");
+    console.log(filename);
     const filePath = `${DATA_DIR}/${filename}`;
 
     try {
