@@ -71,15 +71,30 @@ serve(async (req) => {
   }
 
   if (path.startsWith("/data/")) {
+    // ファイル名からデータを取得し表示
     const filename = path.replace("/data/", ""); // パスからファイル名を取得
+    console.log(filename);
     const filePath = `${DATA_DIR}/${filename}.json`; // ファイル名に拡張子を追加
 
     try {
       const content = await Deno.readTextFile(filePath);
 
-      return new Response(content, {
-        headers: { "Content-Type": "application/json" },
-      });
+      return new Response(
+        `
+        <!DOCTYPE html>
+        <html>
+          <head><title>${filename}</title></head>
+          <body>
+            <h1>File: ${filename}</h1>
+            <pre>${escapeHTML(content)}</pre>
+            <a href="/data">Back to /data</a>
+          </body>
+        </html>
+        `,
+        {
+          headers: { "Content-Type": "text/html" },
+        }
+      );
     } catch (error) {
       if (error instanceof Deno.errors.NotFound) {
         return new Response("File not found", { status: 404 });
