@@ -4,19 +4,11 @@ import { serve } from "https://deno.land/std@0.193.0/http/server.ts";
 const DATA_DIR = "./data";
 
 // ヘルパー関数: ディレクトリ内のファイル一覧を取得
-async function getFileList(
-  dir: string
-): Promise<{ name: string; content: string }[]> {
-  const files: { name: string; content: string }[] = [];
+async function getFileList(dir: string): Promise<string[]> {
+  const files: string[] = [];
   for await (const entry of Deno.readDir(dir)) {
     if (entry.isFile) {
-      const filePath = `${dir}/${entry.name}`;
-      try {
-        const content = await Deno.readTextFile(filePath);
-        files.push({ name: entry.name, content });
-      } catch (error) {
-        console.error(`Failed to read file: ${filePath}`, error);
-      }
+      files.push(entry.name);
     }
   }
   return files;
@@ -48,16 +40,11 @@ serve(async (req) => {
   }
 
   if (path === "/data") {
-    // `/data` ページ: ディレクトリ内のファイルとその内容を表示
+    // `/data` ページ: ディレクトリ内のファイルリンクを表示
     try {
       const files = await getFileList(DATA_DIR);
-      const fileEntries = files
-        .map(
-          (file) =>
-            `<li><strong>${file.name}</strong><pre>${escapeHTML(
-              file.content
-            )}</pre></li>`
-        )
+      const links = files
+        .map((file) => `<li><a href="/data/${file}">${file}</a></li>`)
         .join("");
 
       return new Response(
@@ -68,7 +55,7 @@ serve(async (req) => {
           <body>
             <h1>Data Files</h1>
             <ul>
-              ${fileEntries}
+              ${links}
             </ul>
           </body>
         </html>
@@ -84,16 +71,30 @@ serve(async (req) => {
   }
 
   if (path.startsWith("/data/")) {
-    // JSON ファイルの配信
+    // 各ファイルの内容を個別ページで表示
     const filename = path.replace("/data/", "");
     console.log(filename);
     const filePath = `${DATA_DIR}/${filename}`;
 
     try {
-      const json = await Deno.readTextFile(filePath);
-      return new Response(json, {
-        headers: { "Content-Type": "application/json" },
-      });
+      const content = await Deno.readTextFile(filePath);
+
+      return new Response(
+        `
+        <!DOCTYPE html>
+        <html>
+          <head><title>${filename}</title></head>
+          <body>
+            <h1>File: ${filename}</h1>
+            <pre>${escapeHTML(content)}</pre>
+            <a href="/data">Back to /data</a>
+          </body>
+        </html>
+        `,
+        {
+          headers: { "Content-Type": "text/html" },
+        }
+      );
     } catch (error) {
       if (error instanceof Deno.errors.NotFound) {
         return new Response("File not found", { status: 404 });
@@ -114,5 +115,6 @@ function escapeHTML(str: string): string {
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
 }
