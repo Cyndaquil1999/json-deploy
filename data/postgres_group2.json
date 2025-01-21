@@ -1,0 +1,2435 @@
+{
+  "repo_name": "postgres",
+  "release_pr_map": {
+    "v0.19.3": [
+      {
+        "pr_number": 473,
+        "title": "Allow `using` keyword with pool clients",
+        "body": "Related to #472\r\n\r\n- [x] PoolClient\r\n- [x] test for `using client = await POOL.connect();`",
+        "html_url": "https://github.com/denodrivers/postgres/pull/473",
+        "comments": [
+          "This PR can be merged independently",
+          "Amended formating",
+          "Amended linting, sorry :-)",
+          "I fixed another deno lint error. Now everything should be green I hope",
+          "You can run `deno fmt --check` , `deno lint`, `deno test --doc client.ts mod.ts pool.ts client/ connection/ query/ utils/` from your project terminal if you want to anticipate what will fail.",
+          "Yeah, I discovered it late, thank you for merging!",
+          "Pipeline failed on main branch on `deno fmt --check` :man_facepalming: ",
+          "Please make a new PR to fix"
+        ]
+      },
+      {
+        "pr_number": 474,
+        "title": "chore: correct formatting strategy for publishing on JSR",
+        "body": "Currently, the workflow to publish on jsr first modifies the imports, then checks if the formatting is correct.\r\nSince the new imports are shorter, it can happen that an import statements spanning multiple lines, becomes short enough to fit in a single line (which `deno fmt` mandates).\r\n\r\nA solution, as proposed in this PR, is to check the formatting before converting the code, and then reformat again after the code is converted.",
+        "html_url": "https://github.com/denodrivers/postgres/pull/474",
+        "comments": ["Good catch! Thank you."]
+      },
+      {
+        "pr_number": 475,
+        "title": "Document `using` keyword syntax",
+        "body": "Refs #472 \r\n\r\n- [x] add missing documentation\r\n- [x] bump version (patch)",
+        "html_url": "https://github.com/denodrivers/postgres/pull/475",
+        "comments": [
+          "Thanks @bombillazo for merging.\r\n~All documentation is published but version is not bumped.~\r\n\r\n~Who can help with this?~\r\n~It may confuse users because published docs is for code not published in registries.~\r\n\r\n~Is there need for manually triger full release?~\r\n\r\nEdit:\r\nIt looks fine now :-)"
+        ]
+      }
+    ],
+    "v0.19.2": [
+      {
+        "pr_number": 471,
+        "title": "Fix undefine variable bug",
+        "body": null,
+        "html_url": "https://github.com/denodrivers/postgres/pull/471",
+        "comments": []
+      }
+    ],
+    "v0.19.1": [
+      {
+        "pr_number": 470,
+        "title": "Handle array type custom decoders",
+        "body": "- **feat: add logic to handle array types for custom decoders**\n- **chore: update docs**\n",
+        "html_url": "https://github.com/denodrivers/postgres/pull/470",
+        "comments": []
+      }
+    ],
+    "v0.19.0": [
+      {
+        "pr_number": 466,
+        "title": "Refactor camelCase",
+        "body": "Fixes #426",
+        "html_url": "https://github.com/denodrivers/postgres/pull/466",
+        "comments": []
+      },
+      {
+        "pr_number": 467,
+        "title": "Feat: Add debugging logs control",
+        "body": "Fixes #216, #254",
+        "html_url": "https://github.com/denodrivers/postgres/pull/467",
+        "comments": []
+      },
+      {
+        "pr_number": 469,
+        "title": "Add query to error option",
+        "body": "Fixes #216\r\n",
+        "html_url": "https://github.com/denodrivers/postgres/pull/469",
+        "comments": []
+      },
+      {
+        "pr_number": 468,
+        "title": "Bump version",
+        "body": null,
+        "html_url": "https://github.com/denodrivers/postgres/pull/468",
+        "comments": []
+      }
+    ],
+    "v0.18.1": [],
+    "v.0.18.1": [],
+    "v0.18.0": [
+      {
+        "pr_number": 452,
+        "title": "docs: remove pinned version imports",
+        "body": "This will make upcoming JSR support a little cleaner.",
+        "html_url": "https://github.com/denodrivers/postgres/pull/452",
+        "comments": []
+      },
+      {
+        "pr_number": 453,
+        "title": "feat: JSR + `/x` support",
+        "body": "The script was used for the publishing of the first version. Check it out: https://jsr.io/@bartlomieju/postgres@0.17.2",
+        "html_url": "https://github.com/denodrivers/postgres/pull/453",
+        "comments": [
+          "> LGTM, will this also take care of replacing the comment examples?\r\n\r\nYep!",
+          "Bartek, I'm going to merge now. Please feel free to review it afterwards."
+        ]
+      },
+      {
+        "pr_number": 454,
+        "title": "chore: cleanups and documentation relating to JSR",
+        "body": "Couple bits to add to recent JSR support.",
+        "html_url": "https://github.com/denodrivers/postgres/pull/454",
+        "comments": []
+      },
+      {
+        "pr_number": 456,
+        "title": "Add decode strategy control",
+        "body": "FIxes #450\r\n\r\nIt gives developers control over the decoding strategy employed by the driver when returning row data.\r\nThe default is `auto` (the current behavior) while adding `string` mode so all data is returned as a string and the user can take care of parsing the data in their application.",
+        "html_url": "https://github.com/denodrivers/postgres/pull/456",
+        "comments": ["@bartlomieju any feedback?\r\n"]
+      },
+      {
+        "pr_number": 460,
+        "title": "\"user experience\" -> \"developer experience\"",
+        "body": "\"User experience\" typically implies end-users as opposed to the software developers. \"Developer experience\" a better choice IMO since it is a [popular phrase](https://github.blog/2023-06-08-developer-experience-what-is-it-and-why-should-you-care/) and because it is less ambiguous.",
+        "html_url": "https://github.com/denodrivers/postgres/pull/460",
+        "comments": []
+      },
+      {
+        "pr_number": 461,
+        "title": "Custom decoders",
+        "body": "Fixes https://github.com/denodrivers/postgres/issues/239\r\n\r\nAllows developers to pass their custom decoder functions to parse any OID column type as they see fit.",
+        "html_url": "https://github.com/denodrivers/postgres/pull/461",
+        "comments": []
+      },
+      {
+        "pr_number": 462,
+        "title": "Update package version",
+        "body": null,
+        "html_url": "https://github.com/denodrivers/postgres/pull/462",
+        "comments": []
+      }
+    ],
+    "v0.17.2": [],
+    "ls": [],
+    "v0.17.1": [
+      {
+        "pr_number": 407,
+        "title": "Amend typo",
+        "body": null,
+        "html_url": "https://github.com/denodrivers/postgres/pull/407",
+        "comments": [
+          "@bartlomieju, what merging strategy will be used in this repo? I think this is fairly safe to merge, but I want to know the approach to use.",
+          "@bombillazo I think we should go with \"Squash and merge\" as a default. I find it easier for contributors and maintainers if there's no need to rebase (and force push) in-progress branches"
+        ]
+      },
+      {
+        "pr_number": 437,
+        "title": "fix commit chaining",
+        "body": "Hi there, first time contributor here..\r\n\r\nThis should fix the commit chaining bug. I didn't see a CONTRIBUTING.md so wasn't sure about the guidance for tests. I looked at the tests around chaining and don't see an obvious way to assert that the underlying calls were made without something like sinon in place. \r\n\r\nThanks!",
+        "html_url": "https://github.com/denodrivers/postgres/pull/437",
+        "comments": [
+          "See issue: https://github.com/denodrivers/postgres/issues/427"
+        ]
+      },
+      {
+        "pr_number": 439,
+        "title": "Update GH actions versions",
+        "body": null,
+        "html_url": "https://github.com/denodrivers/postgres/pull/439",
+        "comments": []
+      },
+      {
+        "pr_number": 440,
+        "title": "Branch 0.17.0",
+        "body": null,
+        "html_url": "https://github.com/denodrivers/postgres/pull/440",
+        "comments": []
+      },
+      {
+        "pr_number": 441,
+        "title": "Bump release version",
+        "body": null,
+        "html_url": "https://github.com/denodrivers/postgres/pull/441",
+        "comments": []
+      }
+    ],
+    "v0.17.0": [
+      {
+        "pr_number": 413,
+        "title": "Bump to Deno 1.26.2",
+        "body": "Closes #412",
+        "html_url": "https://github.com/denodrivers/postgres/pull/413",
+        "comments": []
+      },
+      {
+        "pr_number": 440,
+        "title": "Branch 0.17.0",
+        "body": null,
+        "html_url": "https://github.com/denodrivers/postgres/pull/440",
+        "comments": []
+      }
+    ],
+    "v0.16.1": [
+      {
+        "pr_number": 404,
+        "title": "fix: Don't send options connection parameter unless supplied",
+        "body": "Closes #403 ",
+        "html_url": "https://github.com/denodrivers/postgres/pull/404",
+        "comments": []
+      }
+    ],
+    "v0.16.0": [
+      {
+        "pr_number": 375,
+        "title": "chore: Upgrade to Deno 1.17",
+        "body": null,
+        "html_url": "https://github.com/denodrivers/postgres/pull/375",
+        "comments": []
+      },
+      {
+        "pr_number": 387,
+        "title": "fix: Fix transaction behavior for clientArray",
+        "body": "Closes #379",
+        "html_url": "https://github.com/denodrivers/postgres/pull/387",
+        "comments": []
+      },
+      {
+        "pr_number": 388,
+        "title": "docs: Remove references to transaction.end",
+        "body": "Closes #380",
+        "html_url": "https://github.com/denodrivers/postgres/pull/388",
+        "comments": []
+      },
+      {
+        "pr_number": 394,
+        "title": "fix: permission denied when starting development services on macOS",
+        "body": "Without execution permissions, `docker-compose up postgres_clear postgres_md5 postgres_scram` fails with errors:\r\n\r\n```\r\npostgres-fork-postgres_md5-1    | /usr/local/bin/docker-entrypoint.sh: running /docker-entrypoint-initdb.d/initialize_test_server.sh\r\npostgres-fork-postgres_md5-1    | /usr/local/bin/docker-entrypoint.sh: line 169: /docker-entrypoint-initdb.d/initialize_test_server.sh: Permission denied\r\n```\r\n\r\nAll socket-related tests failed because I do not know how to expose sockets to macOS host. I\u2019m grateful if someone can let me know how to do that. But at least I can run the tests under macOS.",
+        "html_url": "https://github.com/denodrivers/postgres/pull/394",
+        "comments": []
+      },
+      {
+        "pr_number": 391,
+        "title": "fix: concurrent connect-then-release cycles do not throw (#378)",
+        "body": "This PR fixes #378 (concurrent connect-then-release cycles may throw) by modifying `DeferredAccessStack` (`push` and `pop` to be specific). `deferred.resolve` and `await d` is executed asynchronously (other statements may be executed in between); access to `#elements` is not performed as expected (racing happens).\r\n\r\nI see some overlapping logic between `DeferredStack` and `DeferredAccessStack`. To keep consistency, `push` and `pop` of `DeferredStack` are also modified using the same pattern. `#array` is also renamed to `#elements`. I am not sure if the modification to `DeferredStack` solves real-world problems but I think there\u2019re chances these two classes will be consolidated/combined/refactored I do not want such discrepancy confuses somebody then.\r\n\r\nA test case is included. Please let me know if there\u2019s something to improve.",
+        "html_url": "https://github.com/denodrivers/postgres/pull/391",
+        "comments": [
+          "> there are chances these two classes will be consolidated/combined/refactored\r\n\r\nMaybe, to be honest right now I'm just keeping DeferredStack around because it's more performant (since it doesn't need to do any checking of the elements before push/popping them), not because it's really that much different"
+        ]
+      },
+      {
+        "pr_number": 393,
+        "title": "fix: remove \u201cthere is no transaction in progress\u201d warning (#392)",
+        "body": "This PR attempts to remove unnecessary \u201cthere is no transaction in progress\u201d warning. See [the discussion](https://github.com/denodrivers/postgres/issues/392) for details.",
+        "html_url": "https://github.com/denodrivers/postgres/pull/393",
+        "comments": []
+      },
+      {
+        "pr_number": 390,
+        "title": "Minor README.md update",
+        "body": "Just a typo",
+        "html_url": "https://github.com/denodrivers/postgres/pull/390",
+        "comments": []
+      },
+      {
+        "pr_number": 384,
+        "title": "chore: update comments",
+        "body": "'await' has no effect for `.release()`.\r\n\r\nhttps://github.com/denodrivers/postgres/issues/332",
+        "html_url": "https://github.com/denodrivers/postgres/pull/384",
+        "comments": []
+      },
+      {
+        "pr_number": 383,
+        "title": "docs: Minor edit",
+        "body": null,
+        "html_url": "https://github.com/denodrivers/postgres/pull/383",
+        "comments": []
+      },
+      {
+        "pr_number": 396,
+        "title": "feat: Pass options to the database on connection",
+        "body": "Closes #395 \r\n\r\nTODO:\r\n- [x] Escape spaces in values\r\n- [x] Handle options from PGOPTIONS\r\n- [x] Handle options from connection string\r\n- [x] Docs",
+        "html_url": "https://github.com/denodrivers/postgres/pull/396",
+        "comments": []
+      },
+      {
+        "pr_number": 397,
+        "title": "feat: Add support for 'verify-ca' and 'verify-full' TLS modes",
+        "body": null,
+        "html_url": "https://github.com/denodrivers/postgres/pull/397",
+        "comments": []
+      },
+      {
+        "pr_number": 399,
+        "title": "feat: Add interval option for connections",
+        "body": "Closes #314",
+        "html_url": "https://github.com/denodrivers/postgres/pull/399",
+        "comments": []
+      }
+    ],
+    "v0.15.0": [
+      {
+        "pr_number": 367,
+        "title": "chore: Add CI step for doc testing",
+        "body": "Closes #295",
+        "html_url": "https://github.com/denodrivers/postgres/pull/367",
+        "comments": []
+      },
+      {
+        "pr_number": 369,
+        "title": "chore: Add no-check testing step",
+        "body": "Closes #305",
+        "html_url": "https://github.com/denodrivers/postgres/pull/369",
+        "comments": []
+      },
+      {
+        "pr_number": 371,
+        "title": "chore: Document no-env test",
+        "body": null,
+        "html_url": "https://github.com/denodrivers/postgres/pull/371",
+        "comments": []
+      },
+      {
+        "pr_number": 370,
+        "title": "feat: Support Unix socket connection",
+        "body": "Closes #149\r\n\r\n- [x] Guess the route for the unix socket when passing a folder\r\n- [x] Test reconnection\r\n- [x] Default to unix sockets instead of localhost\r\n- [x] Document unix socket on connection strings (requires absolute, must be encoded, etc)\r\n- [x] Document unix socket required permissions\r\n- [x] Document unix socket as default when no host is specified in connection options\r\n- [x] Document unix socket as default when no host is specified in connection string\r\n- [x] Find a way of dealing with unstable",
+        "html_url": "https://github.com/denodrivers/postgres/pull/370",
+        "comments": []
+      },
+      {
+        "pr_number": 373,
+        "title": "chore: Fix deprecated dependencies",
+        "body": "This increases library size by a good chunk, still negligible though considering std/hash would have been removed eventually\r\n\r\nBefore: `dependencies: 52 unique (total 315.58KB)`\r\nAfter: `dependencies: 55 unique (total 521.96KB)`",
+        "html_url": "https://github.com/denodrivers/postgres/pull/373",
+        "comments": []
+      },
+      {
+        "pr_number": 374,
+        "title": "Named parameters",
+        "body": "Closes #223\r\nSupersedes #358",
+        "html_url": "https://github.com/denodrivers/postgres/pull/374",
+        "comments": []
+      }
+    ],
+    "v0.14.3": [
+      {
+        "pr_number": 354,
+        "title": "docs: Reflect changes on startTls API and camelcase queries",
+        "body": null,
+        "html_url": "https://github.com/denodrivers/postgres/pull/354",
+        "comments": []
+      },
+      {
+        "pr_number": 362,
+        "title": "chore: Remove uses of std/hash and manual derivation in favor of subtle crypto",
+        "body": null,
+        "html_url": "https://github.com/denodrivers/postgres/pull/362",
+        "comments": []
+      },
+      {
+        "pr_number": 363,
+        "title": "fix: Fix authentication method tests",
+        "body": "Unbeknownst to me, Postgres deprecated clear password authentication and set SCRAM-SHA-256 as the default authentication method instead of md5. Problem is, they still allow those values in `pg_hba.conf`, so up to this point there was no way to know this authentication methods weren't being tested",
+        "html_url": "https://github.com/denodrivers/postgres/pull/363",
+        "comments": []
+      },
+      {
+        "pr_number": 365,
+        "title": "fix: Handle unexpected database disconnection",
+        "body": "Closes #355",
+        "html_url": "https://github.com/denodrivers/postgres/pull/365",
+        "comments": []
+      }
+    ],
+    "v0.14.2": [
+      {
+        "pr_number": 353,
+        "title": "fix: Handle validation error on data processing",
+        "body": null,
+        "html_url": "https://github.com/denodrivers/postgres/pull/353",
+        "comments": []
+      }
+    ],
+    "v0.14.1": [
+      {
+        "pr_number": 352,
+        "title": "fix: Camelcase implementation and duplicated field name handling",
+        "body": "This fixes an incorrect transformation of camelcase names such as `variableX_y` -> `variablexY` instead of `variableXY` while also validating that the implicit fields returned by the database aren't duplicated",
+        "html_url": "https://github.com/denodrivers/postgres/pull/352",
+        "comments": []
+      }
+    ],
+    "v0.14.0": [
+      {
+        "pr_number": 343,
+        "title": "feat: #310 camelcase option",
+        "body": "I have made new fork as the old one was way too old.\r\nImplemented camelcase option in QueryObjectConfig, added unit tests for camelcase (without, false, true).\r\n\r\nBR",
+        "html_url": "https://github.com/denodrivers/postgres/pull/343",
+        "comments": []
+      },
+      {
+        "pr_number": 342,
+        "title": "chore: fixed typo required -> require",
+        "body": "only fixed typo required -> require  \r\n> Only 'disable', 'require', and 'prefer' are supported\r\nhttps://github.com/denodrivers/postgres/blob/160608b0617e6dc3dae156a90f099f4022a1a081/connection/connection_params.ts#L145",
+        "html_url": "https://github.com/denodrivers/postgres/pull/342",
+        "comments": []
+      },
+      {
+        "pr_number": 347,
+        "title": "chore: Upgrade to Deno 1.15 and std 0.113",
+        "body": null,
+        "html_url": "https://github.com/denodrivers/postgres/pull/347",
+        "comments": []
+      },
+      {
+        "pr_number": 348,
+        "title": "fix: Typo on oid for uuid array",
+        "body": "Closes #344",
+        "html_url": "https://github.com/denodrivers/postgres/pull/348",
+        "comments": []
+      },
+      {
+        "pr_number": 349,
+        "title": "fix: Parse date string correctly",
+        "body": "The previous implementation had some important flaws that went unnoticed until now, this simply replaces it with std/date parsing",
+        "html_url": "https://github.com/denodrivers/postgres/pull/349",
+        "comments": [
+          "Man, I am so excited when [Temporal](https://tc39.es/proposal-temporal/docs/) finally ships. All of the nonsense like this can finally a thing of the past.",
+          "You read my mind"
+        ]
+      },
+      {
+        "pr_number": 340,
+        "title": "feat: use caCertificates instead of caFile",
+        "body": "In Deno 1.15 CA files can be specified as PEM encoded cert\r\nstrings, rather than as file paths to the PEM encoded certs.\r\n\r\nSee https://github.com/denoland/deno/commit/0d7a417f332a57fb3e89250a1ce250b929d0b2f7\r\n\r\nDependant on #345.",
+        "html_url": "https://github.com/denodrivers/postgres/pull/340",
+        "comments": []
+      },
+      {
+        "pr_number": 350,
+        "title": "chore: Upgrade to Deno 1.16 and std 0.114",
+        "body": null,
+        "html_url": "https://github.com/denodrivers/postgres/pull/350",
+        "comments": []
+      },
+      {
+        "pr_number": 351,
+        "title": "fix: Explicit fields must override camelcase setting on object query",
+        "body": null,
+        "html_url": "https://github.com/denodrivers/postgres/pull/351",
+        "comments": []
+      }
+    ],
+    "v0.13.0": [
+      {
+        "pr_number": 309,
+        "title": "feat: add support for sslmode=disable",
+        "body": "Adds support for sslmode \"disable\".",
+        "html_url": "https://github.com/denodrivers/postgres/pull/309",
+        "comments": [
+          "we need this to be able to use this drive to connect to postgres instances on [fly](https://fly.io/docs/reference/postgres/)"
+        ]
+      },
+      {
+        "pr_number": 320,
+        "title": "fix: Skip TLS encryption correctly and add regression test",
+        "body": "Ref #309",
+        "html_url": "https://github.com/denodrivers/postgres/pull/320",
+        "comments": []
+      },
+      {
+        "pr_number": 318,
+        "title": "chore: Bump to Deno 1.14.1 and std 0.108.0",
+        "body": null,
+        "html_url": "https://github.com/denodrivers/postgres/pull/318",
+        "comments": []
+      },
+      {
+        "pr_number": 321,
+        "title": "fix: Handle ready message on query preparation",
+        "body": "Closes #319",
+        "html_url": "https://github.com/denodrivers/postgres/pull/321",
+        "comments": []
+      },
+      {
+        "pr_number": 323,
+        "title": "fix: Handle ready message on prepared statements",
+        "body": "Closes #322 ",
+        "html_url": "https://github.com/denodrivers/postgres/pull/323",
+        "comments": []
+      },
+      {
+        "pr_number": 324,
+        "title": "fix: Detect array delimiter based on column type",
+        "body": "Closes #316",
+        "html_url": "https://github.com/denodrivers/postgres/pull/324",
+        "comments": []
+      },
+      {
+        "pr_number": 317,
+        "title": "fix: special characters in the URL's password",
+        "body": null,
+        "html_url": "https://github.com/denodrivers/postgres/pull/317",
+        "comments": []
+      },
+      {
+        "pr_number": 308,
+        "title": "feat: support for specifying additional TLS certs",
+        "body": "This commit adds support for specifying additional certificates\r\n(like required for servers with self signed certs), to the client.\r\nThe certificate will be passed to `Deno.startTls` appropriately.\r\n\r\nCloses #284",
+        "html_url": "https://github.com/denodrivers/postgres/pull/308",
+        "comments": [
+          "@lucacasonato Please rebase over latest main, it contains an important fix for TLS connection and the Deno version bump",
+          "Thanks for seeing this through @Soremwar :-)"
+        ]
+      },
+      {
+        "pr_number": 328,
+        "title": "feat: Show tls encryption on session details",
+        "body": null,
+        "html_url": "https://github.com/denodrivers/postgres/pull/328",
+        "comments": []
+      },
+      {
+        "pr_number": 329,
+        "title": "refactor: Test TLS authentication methods and unify postgres containers",
+        "body": "Closes #250",
+        "html_url": "https://github.com/denodrivers/postgres/pull/329",
+        "comments": []
+      },
+      {
+        "pr_number": 330,
+        "title": "fix: Clear session encryption as undefined when connection is closed",
+        "body": null,
+        "html_url": "https://github.com/denodrivers/postgres/pull/330",
+        "comments": []
+      },
+      {
+        "pr_number": 334,
+        "title": "docs: Fix pool examples",
+        "body": "Closes #332 ",
+        "html_url": "https://github.com/denodrivers/postgres/pull/334",
+        "comments": []
+      },
+      {
+        "pr_number": 337,
+        "title": "chore: Upgrade to Postgres 14",
+        "body": null,
+        "html_url": "https://github.com/denodrivers/postgres/pull/337",
+        "comments": []
+      },
+      {
+        "pr_number": 336,
+        "title": "fix: Handle parameter status messages",
+        "body": "Closes #335 ",
+        "html_url": "https://github.com/denodrivers/postgres/pull/336",
+        "comments": []
+      },
+      {
+        "pr_number": 339,
+        "title": "refactor: Normalize testing functions and make compatible with testing lens",
+        "body": null,
+        "html_url": "https://github.com/denodrivers/postgres/pull/339",
+        "comments": []
+      },
+      {
+        "pr_number": 338,
+        "title": "refactor: Cleanup message handling",
+        "body": null,
+        "html_url": "https://github.com/denodrivers/postgres/pull/338",
+        "comments": []
+      }
+    ],
+    "v0.12.0": [
+      {
+        "pr_number": 301,
+        "title": "fix: Close connection on bad verification of TLS availability",
+        "body": "",
+        "html_url": "https://github.com/denodrivers/postgres/pull/301",
+        "comments": []
+      },
+      {
+        "pr_number": 303,
+        "title": "feat: Expose session metadata",
+        "body": "",
+        "html_url": "https://github.com/denodrivers/postgres/pull/303",
+        "comments": []
+      },
+      {
+        "pr_number": 304,
+        "title": "Fix threshold for applying 0 padding when encoding hex",
+        "body": "```diff\r\n-val < 10 ? `0${val.toString(16)}` : val.toString(16))\r\n+val < 0x10 ? `0${val.toString(16)}` : val.toString(16))\r\n```\r\n\r\nE.g. when `val` is 11 it should encode as `\"0b\"` but 11 is not less than 10 so it doesn't get padded.\r\n\r\nThis surfaces from postgres as\r\n`PostgresError: invalid hexadecimal data: odd number of digits`\r\nwhen trying to use `bytea`.",
+        "html_url": "https://github.com/denodrivers/postgres/pull/304",
+        "comments": [
+          "Hi there @voltrevo, thank you for your contribution",
+          "@Soremwar The `\"\\\\x02af4\"` test had to be updated because it was padding incorrectly. Nevertheless, I've added another one that shows the issue more clearly (`[11] -> \"\\\\x0b\"`)."
+        ]
+      },
+      {
+        "pr_number": 313,
+        "title": "fix: Allow single character in object query fields",
+        "body": null,
+        "html_url": "https://github.com/denodrivers/postgres/pull/313",
+        "comments": []
+      },
+      {
+        "pr_number": 302,
+        "title": "feat: Add reconnection configuration on Client",
+        "body": "Closes #292 ",
+        "html_url": "https://github.com/denodrivers/postgres/pull/302",
+        "comments": [
+          "After some thought, I believe the first approach to this PR is the wrong way to solve this problem. I wanted to reattempt the current operation 'til completion or until connection attempts ran out, but I believe this will only cause queries that are not meant to be executed twice to be, well, executed twice (INSERT, UPDATE, DELETE, basically any operation that affects database data)\r\n\r\nSo I'm gonna switch to a more simplistic approach, the queries will fail and remain failed. The client will attempt to reconnect as much times as indicated __only__ on startup, and when a query fails due to bad connection, the underlying connection will be closed and the query error will be reported back to the user\r\n\r\nThis should also add a new behavior: Closed connections will attempt to be reopened everytime a query is executed, instead of telling the user that the connection must be reopened. This behavior can be disabled by passing zero as the attempt number in the connection options"
+        ]
+      },
+      {
+        "pr_number": 315,
+        "title": "docs: Fix pool abstraction example error handling",
+        "body": "Closes #276",
+        "html_url": "https://github.com/denodrivers/postgres/pull/315",
+        "comments": []
+      }
+    ],
+    "v0.11.3": [],
+    "0.11.3": [],
+    "v0.11.2": [
+      {
+        "pr_number": 282,
+        "title": "fixed Deno.conn",
+        "body": "This PR should close #281 as it removes the generic from Deno.Conn. I am not sure which implications it has by changing this, but from the tests, it seems like everything still works as intended.",
+        "html_url": "https://github.com/denodrivers/postgres/pull/282",
+        "comments": [
+          "I can confirm that this change works for Nessie",
+          "Thank you Halvard :)"
+        ]
+      }
+    ],
+    "v0.11.1": [],
+    "0.10.0": [],
+    "v0.11.0": [
+      {
+        "pr_number": 269,
+        "title": "refactor: [BREAKING] Remove direct query methods from pool",
+        "body": "",
+        "html_url": "https://github.com/denodrivers/postgres/pull/269",
+        "comments": []
+      },
+      {
+        "pr_number": 270,
+        "title": "refactor: Cleanup pool connection and add pool docs",
+        "body": "- This allows users to reinitialize a pool connection after it as been closed\r\n- This changes pool behavior by not initiating any connection before a client is requested, previous behavior opened one connection in advance",
+        "html_url": "https://github.com/denodrivers/postgres/pull/270",
+        "comments": []
+      },
+      {
+        "pr_number": 271,
+        "title": "Unifiy client and pool tests",
+        "body": "",
+        "html_url": "https://github.com/denodrivers/postgres/pull/271",
+        "comments": []
+      },
+      {
+        "pr_number": 272,
+        "title": "docs: Add client docs",
+        "body": "",
+        "html_url": "https://github.com/denodrivers/postgres/pull/272",
+        "comments": []
+      },
+      {
+        "pr_number": 273,
+        "title": "docs: Export public interfaces for doc.deno.land visibility",
+        "body": "",
+        "html_url": "https://github.com/denodrivers/postgres/pull/273",
+        "comments": []
+      },
+      {
+        "pr_number": 275,
+        "title": "chore: Bump to Deno 1.9 and std 0.93.0",
+        "body": "Closes #274 ",
+        "html_url": "https://github.com/denodrivers/postgres/pull/275",
+        "comments": []
+      }
+    ],
+    "v0.10.0": [
+      {
+        "pr_number": 265,
+        "title": "feat: Async Transaction support",
+        "body": "This PR adds the `createTransaction` method that allows to execute transactions as statements. This also locks out external queries in order to ensure no queries are rolled back by mistake on a rollback of the session.\r\n\r\n- [x] Add checks for current transaction\r\n- [x] All terminal errors should terminate the transaction\r\n- [x] Transaction errors should include the transaction name\r\n- [x] Remove `end` method\r\n- [x] Integrate with pool\r\n- [x] Add Postgres doc links for all the public interfaces",
+        "html_url": "https://github.com/denodrivers/postgres/pull/265",
+        "comments": []
+      },
+      {
+        "pr_number": 268,
+        "title": "docs: Transaction usage and options",
+        "body": "",
+        "html_url": "https://github.com/denodrivers/postgres/pull/268",
+        "comments": []
+      }
+    ],
+    "v0.9.0": [
+      {
+        "pr_number": 259,
+        "title": "Add readme about test setup",
+        "body": "This PR adds a quick bit of documentation about how to run the tests within the project, since it took me a minute to figure out how to do so.",
+        "html_url": "https://github.com/denodrivers/postgres/pull/259",
+        "comments": []
+      },
+      {
+        "pr_number": 260,
+        "title": "feat: Allow postgresql:// dsn.driver for compatibility",
+        "body": "Adds postgresql:// driver name support to the dsn format for compatibility with other postgresql clients. This can be really handy in situations where DATABASE_URL environment variables are being used and set automatically by the hosting platform.",
+        "html_url": "https://github.com/denodrivers/postgres/pull/260",
+        "comments": []
+      },
+      {
+        "pr_number": 261,
+        "title": "feat: sslmode dsn support",
+        "body": "libpq dsn support includes an `sslmode` flag to specify various levels of TLS requirement. This PR updates the DSN handling to allow `sslmode=prefer` (which seems to be the library's default) and `sslmode=require` to set `tls.enforce` on the connection.\r\n\r\n@Soremwar I'm hoping in a near future PR to also get specifying a root cert set up as well and getting cert verification going as well, if you're cool with that.",
+        "html_url": "https://github.com/denodrivers/postgres/pull/261",
+        "comments": []
+      },
+      {
+        "pr_number": 262,
+        "title": "refactor: Test authentication methods",
+        "body": "- [x] ~~Generate a certificate for TLS testing~~\r\n\r\nWill be reviewed in an upcoming PR",
+        "html_url": "https://github.com/denodrivers/postgres/pull/262",
+        "comments": []
+      },
+      {
+        "pr_number": 264,
+        "title": "refactor: Move result type to Query constructor",
+        "body": "This refactor will make it easy to create the transaction abstractions",
+        "html_url": "https://github.com/denodrivers/postgres/pull/264",
+        "comments": []
+      },
+      {
+        "pr_number": 266,
+        "title": "refactor: Cleanup Docker testing",
+        "body": "",
+        "html_url": "https://github.com/denodrivers/postgres/pull/266",
+        "comments": []
+      },
+      {
+        "pr_number": 267,
+        "title": "Add support for scram-sha-256 authentication",
+        "body": "This PR adds a support for scram-sha-256 authentication.",
+        "html_url": "https://github.com/denodrivers/postgres/pull/267",
+        "comments": [
+          "The checks seem to have failed due to a network error, but on my computer `docker-compose up` runs fine.",
+          "I tried it locally in my machine and it didn't work either. This is I suspect a problem on how the Docker testing structure is currently executed. I'm gonna try and fix this upstream to make the tests pass",
+          "I had to create a whole new container for scram authentication, since enabling scram would sadly disable authentication for both md5 and clear passwords"
+        ]
+      }
+    ],
+    "v0.8.0": [
+      {
+        "pr_number": 247,
+        "title": "fix: Don't panic on `name_too_long` error",
+        "body": "This PR fixes #246.",
+        "html_url": "https://github.com/denodrivers/postgres/pull/247",
+        "comments": ["LGTM. Thank you @uki00a "]
+      },
+      {
+        "pr_number": 248,
+        "title": "Refactor connections",
+        "body": "This should make it easier to implement new features by simplyfing the message send/recieve workflow implemented, good exercise to understand how postgres connections actually work!",
+        "html_url": "https://github.com/denodrivers/postgres/pull/248",
+        "comments": []
+      },
+      {
+        "pr_number": 249,
+        "title": "SSL support",
+        "body": "- [x] Document use of unstable for TLS\r\n- [ ] Add tests for TLS basic connection\r\n- [ ] Add tests for TLS enforce option",
+        "html_url": "https://github.com/denodrivers/postgres/pull/249",
+        "comments": []
+      },
+      {
+        "pr_number": 251,
+        "title": "feat: Support for template string queries",
+        "body": "",
+        "html_url": "https://github.com/denodrivers/postgres/pull/251",
+        "comments": []
+      },
+      {
+        "pr_number": 252,
+        "title": "Reorder files",
+        "body": "",
+        "html_url": "https://github.com/denodrivers/postgres/pull/252",
+        "comments": []
+      },
+      {
+        "pr_number": 253,
+        "title": "fix: Don't require --unstable for non-encrypted connections",
+        "body": "",
+        "html_url": "https://github.com/denodrivers/postgres/pull/253",
+        "comments": []
+      }
+    ],
+    "v0.7.1": [
+      {
+        "pr_number": 240,
+        "title": "feat: Update to Deno 1.7.1 and std 0.85.0",
+        "body": "We are using std 0.85.0, and hope to upgrade the deno version to reduce unnecessary dependencies.",
+        "html_url": "https://github.com/denodrivers/postgres/pull/240",
+        "comments": []
+      },
+      {
+        "pr_number": 243,
+        "title": "fix: Parse authentication errors",
+        "body": "",
+        "html_url": "https://github.com/denodrivers/postgres/pull/243",
+        "comments": []
+      }
+    ],
+    "v0.7.0": [
+      {
+        "pr_number": 225,
+        "title": "Refactor connection options",
+        "body": "",
+        "html_url": "https://github.com/denodrivers/postgres/pull/225",
+        "comments": []
+      },
+      {
+        "pr_number": 227,
+        "title": "Refactor decoding",
+        "body": "",
+        "html_url": "https://github.com/denodrivers/postgres/pull/227",
+        "comments": []
+      },
+      {
+        "pr_number": 228,
+        "title": "feat: Add tid and tid arrays support",
+        "body": "",
+        "html_url": "https://github.com/denodrivers/postgres/pull/228",
+        "comments": []
+      },
+      {
+        "pr_number": 229,
+        "title": "Add support for timestamp",
+        "body": "",
+        "html_url": "https://github.com/denodrivers/postgres/pull/229",
+        "comments": []
+      },
+      {
+        "pr_number": 230,
+        "title": "docs: Fix README example",
+        "body": "",
+        "html_url": "https://github.com/denodrivers/postgres/pull/230",
+        "comments": ["LGTM. Thanks for your contribution!"]
+      },
+      {
+        "pr_number": 231,
+        "title": "feat: Add date array support",
+        "body": "",
+        "html_url": "https://github.com/denodrivers/postgres/pull/231",
+        "comments": []
+      },
+      {
+        "pr_number": 233,
+        "title": "feat: Add support for lseg and lseg array",
+        "body": "",
+        "html_url": "https://github.com/denodrivers/postgres/pull/233",
+        "comments": []
+      },
+      {
+        "pr_number": 234,
+        "title": "feat: Support for box and box array",
+        "body": "",
+        "html_url": "https://github.com/denodrivers/postgres/pull/234",
+        "comments": []
+      },
+      {
+        "pr_number": 235,
+        "title": "feat: Add support for path and path array",
+        "body": "",
+        "html_url": "https://github.com/denodrivers/postgres/pull/235",
+        "comments": []
+      },
+      {
+        "pr_number": 236,
+        "title": "feat: Add support for polygon and polygon array",
+        "body": "",
+        "html_url": "https://github.com/denodrivers/postgres/pull/236",
+        "comments": []
+      },
+      {
+        "pr_number": 237,
+        "title": "Add Circle type",
+        "body": "",
+        "html_url": "https://github.com/denodrivers/postgres/pull/237",
+        "comments": []
+      },
+      {
+        "pr_number": 238,
+        "title": "feat: BREAKING - Parse unknown types as string",
+        "body": "",
+        "html_url": "https://github.com/denodrivers/postgres/pull/238",
+        "comments": []
+      }
+    ],
+    "v0.6.0": [
+      {
+        "pr_number": 208,
+        "title": "Handle startup errors",
+        "body": "",
+        "html_url": "https://github.com/denodrivers/postgres/pull/208",
+        "comments": []
+      },
+      {
+        "pr_number": 210,
+        "title": "Decouple query as array and as object",
+        "body": "Towards #134\r\n\r\nAlso this improves performance greatly for object based queries, since you don't have to recast as object with `rowsOfObjects`\r\n\r\n- [x] Add parameter in queryObject to map column names",
+        "html_url": "https://github.com/denodrivers/postgres/pull/210",
+        "comments": ["NOTE: Add parameter in queryObject to map column names"]
+      },
+      {
+        "pr_number": 218,
+        "title": "Remove multiQuery method",
+        "body": "Closes #213",
+        "html_url": "https://github.com/denodrivers/postgres/pull/218",
+        "comments": []
+      },
+      {
+        "pr_number": 215,
+        "title": "Add generic return types",
+        "body": "Closes #134 ",
+        "html_url": "https://github.com/denodrivers/postgres/pull/215",
+        "comments": []
+      },
+      {
+        "pr_number": 220,
+        "title": "Update docs",
+        "body": "",
+        "html_url": "https://github.com/denodrivers/postgres/pull/220",
+        "comments": []
+      }
+    ],
+    "v0.5.0": [
+      {
+        "pr_number": 202,
+        "title": "Change test config method",
+        "body": "",
+        "html_url": "https://github.com/denodrivers/postgres/pull/202",
+        "comments": []
+      },
+      {
+        "pr_number": 204,
+        "title": "Add bigint support",
+        "body": "Closes #194 ",
+        "html_url": "https://github.com/denodrivers/postgres/pull/204",
+        "comments": []
+      },
+      {
+        "pr_number": 205,
+        "title": "Enable text based types",
+        "body": "",
+        "html_url": "https://github.com/denodrivers/postgres/pull/205",
+        "comments": []
+      },
+      {
+        "pr_number": 206,
+        "title": "Add xid support",
+        "body": "Closes #117",
+        "html_url": "https://github.com/denodrivers/postgres/pull/206",
+        "comments": []
+      },
+      {
+        "pr_number": 207,
+        "title": "Update to 1.7.0",
+        "body": "",
+        "html_url": "https://github.com/denodrivers/postgres/pull/207",
+        "comments": []
+      }
+    ],
+    "v0.4.6": [
+      {
+        "pr_number": 173,
+        "title": "Fixed Bug in README.md",
+        "body": "Ther error in documentation explicitly used `await` in a non async function. This means that the examples are incorrect and should be fixed.\r\n\r\nBEFORE:\r\n```typescript\r\nimport { Pool } from \"https://deno.land/x/postgres@v0.4.0/mod.ts\";\r\nimport { PoolClient } from \"https://deno.land/x/postgres@v0.4.0/client.ts\";\r\n\r\nconst POOL_CONNECTIONS = 20;\r\nconst dbPool = new Pool({\r\n  user: \"user\",\r\n  password: \"password\",\r\n  database: \"database\",\r\n  hostname: \"hostname\",\r\n  port: 5432,\r\n}, POOL_CONNECTIONS);\r\n\r\nfunction runQuery (query: string) {\r\n  const client: PoolClient = await dbPool.connect();\r\n  const dbResult = await client.query(query);\r\n  client.release();\r\n  return dbResult\r\n}\r\n\r\nrunQuery(\"SELECT * FROM users;\");\r\nrunQuery(\"SELECT * FROM users WHERE id = '1';\");\r\n```\r\nAFTER:\r\n```typescript\r\nimport { Pool } from \"https://deno.land/x/postgres@v0.4.0/mod.ts\";\r\nimport { PoolClient } from \"https://deno.land/x/postgres@v0.4.0/client.ts\";\r\n\r\nconst POOL_CONNECTIONS = 20;\r\nconst dbPool = new Pool({\r\n  user: \"user\",\r\n  password: \"password\",\r\n  database: \"database\",\r\n  hostname: \"hostname\",\r\n  port: 5432,\r\n}, POOL_CONNECTIONS);\r\n\r\nasync function runQuery (query: string) {\r\n  const client: PoolClient = await dbPool.connect();\r\n  const dbResult = await client.query(query);\r\n  client.release();\r\n  return dbResult\r\n}\r\n\r\nrunQuery(\"SELECT * FROM users;\");\r\nrunQuery(\"SELECT * FROM users WHERE id = '1';\");\r\n```",
+        "html_url": "https://github.com/denodrivers/postgres/pull/173",
+        "comments": ["Thanks @Daggy1234 ! \ud83d\udc4d "]
+      },
+      {
+        "pr_number": 173,
+        "title": "Fixed Bug in README.md",
+        "body": "Ther error in documentation explicitly used `await` in a non async function. This means that the examples are incorrect and should be fixed.\r\n\r\nBEFORE:\r\n```typescript\r\nimport { Pool } from \"https://deno.land/x/postgres@v0.4.0/mod.ts\";\r\nimport { PoolClient } from \"https://deno.land/x/postgres@v0.4.0/client.ts\";\r\n\r\nconst POOL_CONNECTIONS = 20;\r\nconst dbPool = new Pool({\r\n  user: \"user\",\r\n  password: \"password\",\r\n  database: \"database\",\r\n  hostname: \"hostname\",\r\n  port: 5432,\r\n}, POOL_CONNECTIONS);\r\n\r\nfunction runQuery (query: string) {\r\n  const client: PoolClient = await dbPool.connect();\r\n  const dbResult = await client.query(query);\r\n  client.release();\r\n  return dbResult\r\n}\r\n\r\nrunQuery(\"SELECT * FROM users;\");\r\nrunQuery(\"SELECT * FROM users WHERE id = '1';\");\r\n```\r\nAFTER:\r\n```typescript\r\nimport { Pool } from \"https://deno.land/x/postgres@v0.4.0/mod.ts\";\r\nimport { PoolClient } from \"https://deno.land/x/postgres@v0.4.0/client.ts\";\r\n\r\nconst POOL_CONNECTIONS = 20;\r\nconst dbPool = new Pool({\r\n  user: \"user\",\r\n  password: \"password\",\r\n  database: \"database\",\r\n  hostname: \"hostname\",\r\n  port: 5432,\r\n}, POOL_CONNECTIONS);\r\n\r\nasync function runQuery (query: string) {\r\n  const client: PoolClient = await dbPool.connect();\r\n  const dbResult = await client.query(query);\r\n  client.release();\r\n  return dbResult\r\n}\r\n\r\nrunQuery(\"SELECT * FROM users;\");\r\nrunQuery(\"SELECT * FROM users WHERE id = '1';\");\r\n```",
+        "html_url": "https://github.com/denodrivers/postgres/pull/173",
+        "comments": ["Thanks @Daggy1234 ! \ud83d\udc4d "]
+      },
+      {
+        "pr_number": 173,
+        "title": "Fixed Bug in README.md",
+        "body": "Ther error in documentation explicitly used `await` in a non async function. This means that the examples are incorrect and should be fixed.\r\n\r\nBEFORE:\r\n```typescript\r\nimport { Pool } from \"https://deno.land/x/postgres@v0.4.0/mod.ts\";\r\nimport { PoolClient } from \"https://deno.land/x/postgres@v0.4.0/client.ts\";\r\n\r\nconst POOL_CONNECTIONS = 20;\r\nconst dbPool = new Pool({\r\n  user: \"user\",\r\n  password: \"password\",\r\n  database: \"database\",\r\n  hostname: \"hostname\",\r\n  port: 5432,\r\n}, POOL_CONNECTIONS);\r\n\r\nfunction runQuery (query: string) {\r\n  const client: PoolClient = await dbPool.connect();\r\n  const dbResult = await client.query(query);\r\n  client.release();\r\n  return dbResult\r\n}\r\n\r\nrunQuery(\"SELECT * FROM users;\");\r\nrunQuery(\"SELECT * FROM users WHERE id = '1';\");\r\n```\r\nAFTER:\r\n```typescript\r\nimport { Pool } from \"https://deno.land/x/postgres@v0.4.0/mod.ts\";\r\nimport { PoolClient } from \"https://deno.land/x/postgres@v0.4.0/client.ts\";\r\n\r\nconst POOL_CONNECTIONS = 20;\r\nconst dbPool = new Pool({\r\n  user: \"user\",\r\n  password: \"password\",\r\n  database: \"database\",\r\n  hostname: \"hostname\",\r\n  port: 5432,\r\n}, POOL_CONNECTIONS);\r\n\r\nasync function runQuery (query: string) {\r\n  const client: PoolClient = await dbPool.connect();\r\n  const dbResult = await client.query(query);\r\n  client.release();\r\n  return dbResult\r\n}\r\n\r\nrunQuery(\"SELECT * FROM users;\");\r\nrunQuery(\"SELECT * FROM users WHERE id = '1';\");\r\n```",
+        "html_url": "https://github.com/denodrivers/postgres/pull/173",
+        "comments": ["Thanks @Daggy1234 ! \ud83d\udc4d "]
+      },
+      {
+        "pr_number": 168,
+        "title": "chore(lint): don't ignore ban-types",
+        "body": "This PR follows up to #166.\r\n\r\n- Bump deno to v1.3.2 in CI\r\n- Fix lint errors",
+        "html_url": "https://github.com/denodrivers/postgres/pull/168",
+        "comments": []
+      },
+      {
+        "pr_number": 168,
+        "title": "chore(lint): don't ignore ban-types",
+        "body": "This PR follows up to #166.\r\n\r\n- Bump deno to v1.3.2 in CI\r\n- Fix lint errors",
+        "html_url": "https://github.com/denodrivers/postgres/pull/168",
+        "comments": []
+      },
+      {
+        "pr_number": 179,
+        "title": "Add json array and jsonb array type",
+        "body": "If you could add the \"hacktoberfest-accepted\" label to this PR it would be great!",
+        "html_url": "https://github.com/denodrivers/postgres/pull/179",
+        "comments": [
+          "fab!\r\n\r\n> If you could add the \"hacktoberfest-accepted\" label to this PR it would be great!\r\n\r\nHopefully this doesn't open us up to being spammed :) "
+        ]
+      },
+      {
+        "pr_number": 179,
+        "title": "Add json array and jsonb array type",
+        "body": "If you could add the \"hacktoberfest-accepted\" label to this PR it would be great!",
+        "html_url": "https://github.com/denodrivers/postgres/pull/179",
+        "comments": [
+          "fab!\r\n\r\n> If you could add the \"hacktoberfest-accepted\" label to this PR it would be great!\r\n\r\nHopefully this doesn't open us up to being spammed :) "
+        ]
+      },
+      {
+        "pr_number": 179,
+        "title": "Add json array and jsonb array type",
+        "body": "If you could add the \"hacktoberfest-accepted\" label to this PR it would be great!",
+        "html_url": "https://github.com/denodrivers/postgres/pull/179",
+        "comments": [
+          "fab!\r\n\r\n> If you could add the \"hacktoberfest-accepted\" label to this PR it would be great!\r\n\r\nHopefully this doesn't open us up to being spammed :) "
+        ]
+      },
+      {
+        "pr_number": 179,
+        "title": "Add json array and jsonb array type",
+        "body": "If you could add the \"hacktoberfest-accepted\" label to this PR it would be great!",
+        "html_url": "https://github.com/denodrivers/postgres/pull/179",
+        "comments": [
+          "fab!\r\n\r\n> If you could add the \"hacktoberfest-accepted\" label to this PR it would be great!\r\n\r\nHopefully this doesn't open us up to being spammed :) "
+        ]
+      },
+      {
+        "pr_number": 187,
+        "title": "Upgrade to Deno 1.6.0",
+        "body": "",
+        "html_url": "https://github.com/denodrivers/postgres/pull/187",
+        "comments": [
+          "@hayd Would you prefer the variables to be renamed to upper case or just lint ignore them?",
+          "Thanks @Soremwar! renaming is good.\r\nI don't know if the Oid is case sensitive though?",
+          "Done @hayd\r\nI renamed all variables to uppercase and opted for snake case in the oid",
+          "@hayd Can you give a quick review to this? 1.6.0 is really needed right now"
+        ]
+      },
+      {
+        "pr_number": 187,
+        "title": "Upgrade to Deno 1.6.0",
+        "body": "",
+        "html_url": "https://github.com/denodrivers/postgres/pull/187",
+        "comments": [
+          "@hayd Would you prefer the variables to be renamed to upper case or just lint ignore them?",
+          "Thanks @Soremwar! renaming is good.\r\nI don't know if the Oid is case sensitive though?",
+          "Done @hayd\r\nI renamed all variables to uppercase and opted for snake case in the oid",
+          "@hayd Can you give a quick review to this? 1.6.0 is really needed right now"
+        ]
+      },
+      {
+        "pr_number": 187,
+        "title": "Upgrade to Deno 1.6.0",
+        "body": "",
+        "html_url": "https://github.com/denodrivers/postgres/pull/187",
+        "comments": [
+          "@hayd Would you prefer the variables to be renamed to upper case or just lint ignore them?",
+          "Thanks @Soremwar! renaming is good.\r\nI don't know if the Oid is case sensitive though?",
+          "Done @hayd\r\nI renamed all variables to uppercase and opted for snake case in the oid",
+          "@hayd Can you give a quick review to this? 1.6.0 is really needed right now"
+        ]
+      },
+      {
+        "pr_number": 187,
+        "title": "Upgrade to Deno 1.6.0",
+        "body": "",
+        "html_url": "https://github.com/denodrivers/postgres/pull/187",
+        "comments": [
+          "@hayd Would you prefer the variables to be renamed to upper case or just lint ignore them?",
+          "Thanks @Soremwar! renaming is good.\r\nI don't know if the Oid is case sensitive though?",
+          "Done @hayd\r\nI renamed all variables to uppercase and opted for snake case in the oid",
+          "@hayd Can you give a quick review to this? 1.6.0 is really needed right now"
+        ]
+      },
+      {
+        "pr_number": 187,
+        "title": "Upgrade to Deno 1.6.0",
+        "body": "",
+        "html_url": "https://github.com/denodrivers/postgres/pull/187",
+        "comments": [
+          "@hayd Would you prefer the variables to be renamed to upper case or just lint ignore them?",
+          "Thanks @Soremwar! renaming is good.\r\nI don't know if the Oid is case sensitive though?",
+          "Done @hayd\r\nI renamed all variables to uppercase and opted for snake case in the oid",
+          "@hayd Can you give a quick review to this? 1.6.0 is really needed right now"
+        ]
+      },
+      {
+        "pr_number": 187,
+        "title": "Upgrade to Deno 1.6.0",
+        "body": "",
+        "html_url": "https://github.com/denodrivers/postgres/pull/187",
+        "comments": [
+          "@hayd Would you prefer the variables to be renamed to upper case or just lint ignore them?",
+          "Thanks @Soremwar! renaming is good.\r\nI don't know if the Oid is case sensitive though?",
+          "Done @hayd\r\nI renamed all variables to uppercase and opted for snake case in the oid",
+          "@hayd Can you give a quick review to this? 1.6.0 is really needed right now"
+        ]
+      },
+      {
+        "pr_number": 187,
+        "title": "Upgrade to Deno 1.6.0",
+        "body": "",
+        "html_url": "https://github.com/denodrivers/postgres/pull/187",
+        "comments": [
+          "@hayd Would you prefer the variables to be renamed to upper case or just lint ignore them?",
+          "Thanks @Soremwar! renaming is good.\r\nI don't know if the Oid is case sensitive though?",
+          "Done @hayd\r\nI renamed all variables to uppercase and opted for snake case in the oid",
+          "@hayd Can you give a quick review to this? 1.6.0 is really needed right now"
+        ]
+      },
+      {
+        "pr_number": 187,
+        "title": "Upgrade to Deno 1.6.0",
+        "body": "",
+        "html_url": "https://github.com/denodrivers/postgres/pull/187",
+        "comments": [
+          "@hayd Would you prefer the variables to be renamed to upper case or just lint ignore them?",
+          "Thanks @Soremwar! renaming is good.\r\nI don't know if the Oid is case sensitive though?",
+          "Done @hayd\r\nI renamed all variables to uppercase and opted for snake case in the oid",
+          "@hayd Can you give a quick review to this? 1.6.0 is really needed right now"
+        ]
+      }
+    ],
+    "v0.4.5": [
+      {
+        "pr_number": 175,
+        "title": "Update to 1.4.0 and workaround TS1371",
+        "body": "Fixes #174 ",
+        "html_url": "https://github.com/denodrivers/postgres/pull/175",
+        "comments": []
+      },
+      {
+        "pr_number": 175,
+        "title": "Update to 1.4.0 and workaround TS1371",
+        "body": "Fixes #174 ",
+        "html_url": "https://github.com/denodrivers/postgres/pull/175",
+        "comments": []
+      },
+      {
+        "pr_number": 175,
+        "title": "Update to 1.4.0 and workaround TS1371",
+        "body": "Fixes #174 ",
+        "html_url": "https://github.com/denodrivers/postgres/pull/175",
+        "comments": []
+      }
+    ],
+    "v0.4.4": [
+      {
+        "pr_number": 161,
+        "title": "Documentation: Port is of type number but examples uses string",
+        "body": "The port field in the client object is of type `number` but in the examples it is showcased as a string\r\n```javascript\r\n const client = new Client({\r\n    user: \"user\",\r\n    database: \"test\",\r\n    hostname: \"localhost\",\r\n    port: \"5432\"\r\n  });\r\n```\r\nWhich raised the following error on build: \r\n`error: Uncaught InvalidData: data did not match any variant of untagged enum ArgsEnum`\r\n\r\n",
+        "html_url": "https://github.com/denodrivers/postgres/pull/161",
+        "comments": ["Thanks @bidoubiwa !"]
+      },
+      {
+        "pr_number": 166,
+        "title": "chore: update for deno 1.3.0 & std 0.67.0 (resolves #165)",
+        "body": "This updates the std dependencies to 0.67.0, to work with Deno 1.3.0.\r\n\r\nThe only notable change required for this is the removal of the `delete` statements for various non-null asserted members of the `Connection` class. TS4.0 made deleting non-optional members a compile-time error.\r\n\r\nResolves #165",
+        "html_url": "https://github.com/denodrivers/postgres/pull/166",
+        "comments": [
+          "@hayd Hello! My first time contributing to this project.\r\n\r\nI use this package in a couple personal projects, and I'd like to update to Deno 1.3.x. I think this PR addresses it, but I'd love any feedback.\r\n\r\nThanks!",
+          "Thanks @glmdev ! I will publish a release for this change. \ud83d\udc4d "
+        ]
+      },
+      {
+        "pr_number": 161,
+        "title": "Documentation: Port is of type number but examples uses string",
+        "body": "The port field in the client object is of type `number` but in the examples it is showcased as a string\r\n```javascript\r\n const client = new Client({\r\n    user: \"user\",\r\n    database: \"test\",\r\n    hostname: \"localhost\",\r\n    port: \"5432\"\r\n  });\r\n```\r\nWhich raised the following error on build: \r\n`error: Uncaught InvalidData: data did not match any variant of untagged enum ArgsEnum`\r\n\r\n",
+        "html_url": "https://github.com/denodrivers/postgres/pull/161",
+        "comments": ["Thanks @bidoubiwa !"]
+      },
+      {
+        "pr_number": 166,
+        "title": "chore: update for deno 1.3.0 & std 0.67.0 (resolves #165)",
+        "body": "This updates the std dependencies to 0.67.0, to work with Deno 1.3.0.\r\n\r\nThe only notable change required for this is the removal of the `delete` statements for various non-null asserted members of the `Connection` class. TS4.0 made deleting non-optional members a compile-time error.\r\n\r\nResolves #165",
+        "html_url": "https://github.com/denodrivers/postgres/pull/166",
+        "comments": [
+          "@hayd Hello! My first time contributing to this project.\r\n\r\nI use this package in a couple personal projects, and I'd like to update to Deno 1.3.x. I think this PR addresses it, but I'd love any feedback.\r\n\r\nThanks!",
+          "Thanks @glmdev ! I will publish a release for this change. \ud83d\udc4d "
+        ]
+      }
+    ],
+    "v0.4.3": [
+      {
+        "pr_number": 139,
+        "title": "chore: add deno lint to ci",
+        "body": "Closes https://github.com/deno-postgres/deno-postgres/issues/138",
+        "html_url": "https://github.com/denodrivers/postgres/pull/139",
+        "comments": ["Very nice!"]
+      },
+      {
+        "pr_number": 139,
+        "title": "chore: add deno lint to ci",
+        "body": "Closes https://github.com/deno-postgres/deno-postgres/issues/138",
+        "html_url": "https://github.com/denodrivers/postgres/pull/139",
+        "comments": ["Very nice!"]
+      },
+      {
+        "pr_number": 139,
+        "title": "chore: add deno lint to ci",
+        "body": "Closes https://github.com/deno-postgres/deno-postgres/issues/138",
+        "html_url": "https://github.com/denodrivers/postgres/pull/139",
+        "comments": ["Very nice!"]
+      },
+      {
+        "pr_number": 143,
+        "title": "Add functionality for array like types",
+        "body": "Fixes #136 #137 \r\n\r\nCopied/Ported postgres-array\r\nAdded oid handling in decode\r\nFixed int2 and int4 handling for array like fields\r\nAdded bunch of tests for array and nested array types\r\n",
+        "html_url": "https://github.com/denodrivers/postgres/pull/143",
+        "comments": ["Fantastic! These tests look great."]
+      },
+      {
+        "pr_number": 143,
+        "title": "Add functionality for array like types",
+        "body": "Fixes #136 #137 \r\n\r\nCopied/Ported postgres-array\r\nAdded oid handling in decode\r\nFixed int2 and int4 handling for array like fields\r\nAdded bunch of tests for array and nested array types\r\n",
+        "html_url": "https://github.com/denodrivers/postgres/pull/143",
+        "comments": ["Fantastic! These tests look great."]
+      },
+      {
+        "pr_number": 143,
+        "title": "Add functionality for array like types",
+        "body": "Fixes #136 #137 \r\n\r\nCopied/Ported postgres-array\r\nAdded oid handling in decode\r\nFixed int2 and int4 handling for array like fields\r\nAdded bunch of tests for array and nested array types\r\n",
+        "html_url": "https://github.com/denodrivers/postgres/pull/143",
+        "comments": ["Fantastic! These tests look great."]
+      },
+      {
+        "pr_number": 150,
+        "title": "[update-docs] Add further documentation",
+        "body": "Fixes #145 \r\n\r\nFixes #147 \r\n\r\nAdds documentation on the returned type for a query. This fixes issues for people who use `deno lint` (it throws a lot of errors when executing on `result` or `client`)",
+        "html_url": "https://github.com/denodrivers/postgres/pull/150",
+        "comments": []
+      },
+      {
+        "pr_number": 150,
+        "title": "[update-docs] Add further documentation",
+        "body": "Fixes #145 \r\n\r\nFixes #147 \r\n\r\nAdds documentation on the returned type for a query. This fixes issues for people who use `deno lint` (it throws a lot of errors when executing on `result` or `client`)",
+        "html_url": "https://github.com/denodrivers/postgres/pull/150",
+        "comments": []
+      },
+      {
+        "pr_number": 151,
+        "title": "[#127] Expose and rename _ready prop on Pool class",
+        "body": "Fixes #127 \r\n\r\nRenames `Pool#_ready` to `Pool#ready`, and exposes it",
+        "html_url": "https://github.com/denodrivers/postgres/pull/151",
+        "comments": ["LGTM, thanks!"]
+      },
+      {
+        "pr_number": 152,
+        "title": "chore: bump Deno to v1.2.0",
+        "body": "- Bumped Deno to v1.2.0 in CI.\r\n- Bumped std to v0.61.0.\r\n  - `copyBytes` has been moved from `std/io/util.ts` to `std/bytes/mod.ts`.\r\n  - `assertStrContains` has been renamed to `assertStringContains`.\r\n- Fixed `array_parser.ts` and `packet_reader.ts` to pass \"deno lint\".",
+        "html_url": "https://github.com/denodrivers/postgres/pull/152",
+        "comments": [
+          "@bartlomieju Would it be possible to get a varsion release for Deno 1.2? \ud83d\ude04 "
+        ]
+      },
+      {
+        "pr_number": 151,
+        "title": "[#127] Expose and rename _ready prop on Pool class",
+        "body": "Fixes #127 \r\n\r\nRenames `Pool#_ready` to `Pool#ready`, and exposes it",
+        "html_url": "https://github.com/denodrivers/postgres/pull/151",
+        "comments": ["LGTM, thanks!"]
+      },
+      {
+        "pr_number": 150,
+        "title": "[update-docs] Add further documentation",
+        "body": "Fixes #145 \r\n\r\nFixes #147 \r\n\r\nAdds documentation on the returned type for a query. This fixes issues for people who use `deno lint` (it throws a lot of errors when executing on `result` or `client`)",
+        "html_url": "https://github.com/denodrivers/postgres/pull/150",
+        "comments": []
+      },
+      {
+        "pr_number": 150,
+        "title": "[update-docs] Add further documentation",
+        "body": "Fixes #145 \r\n\r\nFixes #147 \r\n\r\nAdds documentation on the returned type for a query. This fixes issues for people who use `deno lint` (it throws a lot of errors when executing on `result` or `client`)",
+        "html_url": "https://github.com/denodrivers/postgres/pull/150",
+        "comments": []
+      },
+      {
+        "pr_number": 159,
+        "title": "Bump Deno to v1.2.2, replace checksum lib for std/hash",
+        "body": "- Replaced x/checksum library for std/hash implementation\r\n- Upgraded Deno to v1.2.2 and std to v0.63.0\r\n\r\n### Important\r\nPlease add a release tag to this so people don't have to pull from master or commit hash\r\n(_Real shocking images_)\r\n![image](https://user-images.githubusercontent.com/42647963/89082782-a78d7280-d354-11ea-817d-78b572262ca4.png)\r\n",
+        "html_url": "https://github.com/denodrivers/postgres/pull/159",
+        "comments": [
+          "> * Replaced x/checksum library for std/hash implementation\r\n> * Upgraded Deno to v1.2.2 and std to v0.63.0\r\n> \r\n> ### Important\r\n> Please add a release tag to this so people don't have to pull from master or commit hash\r\n> (_Real shocking images_)\r\n> ![image](https://user-images.githubusercontent.com/42647963/89082782-a78d7280-d354-11ea-817d-78b572262ca4.png)\r\n\r\nThanks for your pull requests, i hope it merged",
+          "@hayd Could you please review this?\r\nAnd if possible make the release tag happen so it can work with the new version of the Deno registry",
+          "Great, thanks @Soremwar ~, will tag after merge~! Tagged v0.4.3."
+        ]
+      },
+      {
+        "pr_number": 159,
+        "title": "Bump Deno to v1.2.2, replace checksum lib for std/hash",
+        "body": "- Replaced x/checksum library for std/hash implementation\r\n- Upgraded Deno to v1.2.2 and std to v0.63.0\r\n\r\n### Important\r\nPlease add a release tag to this so people don't have to pull from master or commit hash\r\n(_Real shocking images_)\r\n![image](https://user-images.githubusercontent.com/42647963/89082782-a78d7280-d354-11ea-817d-78b572262ca4.png)\r\n",
+        "html_url": "https://github.com/denodrivers/postgres/pull/159",
+        "comments": [
+          "> * Replaced x/checksum library for std/hash implementation\r\n> * Upgraded Deno to v1.2.2 and std to v0.63.0\r\n> \r\n> ### Important\r\n> Please add a release tag to this so people don't have to pull from master or commit hash\r\n> (_Real shocking images_)\r\n> ![image](https://user-images.githubusercontent.com/42647963/89082782-a78d7280-d354-11ea-817d-78b572262ca4.png)\r\n\r\nThanks for your pull requests, i hope it merged",
+          "@hayd Could you please review this?\r\nAnd if possible make the release tag happen so it can work with the new version of the Deno registry",
+          "Great, thanks @Soremwar ~, will tag after merge~! Tagged v0.4.3."
+        ]
+      }
+    ],
+    "v0.4.2": [
+      {
+        "pr_number": 129,
+        "title": "Use a per Connection query lock",
+        "body": "This ensures a Client can not do concurrent queries over the same connection\r\n\r\nFixes #123 \r\n\r\nNote: This may also need to be done on connect/_startup, as if you call that twice/concurrently there could be an issue \ud83e\udd37 , I haven't tested that.",
+        "html_url": "https://github.com/denodrivers/postgres/pull/129",
+        "comments": [
+          "This seems a bit simpler than my approach, for sure. I will play with it.",
+          "FYI it seems github actions is stuck due to a [github incident](https://www.githubstatus.com/).\r\nHopefully it'll go green once it's back to normal...",
+          "I like the simplicity of your solution! Kudos!"
+        ]
+      },
+      {
+        "pr_number": 129,
+        "title": "Use a per Connection query lock",
+        "body": "This ensures a Client can not do concurrent queries over the same connection\r\n\r\nFixes #123 \r\n\r\nNote: This may also need to be done on connect/_startup, as if you call that twice/concurrently there could be an issue \ud83e\udd37 , I haven't tested that.",
+        "html_url": "https://github.com/denodrivers/postgres/pull/129",
+        "comments": [
+          "This seems a bit simpler than my approach, for sure. I will play with it.",
+          "FYI it seems github actions is stuck due to a [github incident](https://www.githubstatus.com/).\r\nHopefully it'll go green once it's back to normal...",
+          "I like the simplicity of your solution! Kudos!"
+        ]
+      },
+      {
+        "pr_number": 132,
+        "title": "resloves #99",
+        "body": "Resolves: error: Uncaught Error: Don't know how to parse column type: 1042",
+        "html_url": "https://github.com/denodrivers/postgres/pull/132",
+        "comments": [
+          "@hayd would you please review and merge this pull request",
+          "Awesome! Could you add a test for this case?",
+          "Hi @hayd , thanks for your response. I have updated the pull request. Yet I am not sure how to conduct the test locally.",
+          "Hmm, GitHub actions didn't trigger, I wonder why that would be! Thanks for adding the test, will merge soon.",
+          "Thanks",
+          " believe I've turned on actions on the repo (it seems like it was turned off when moving org).\r\n\r\ntested locally and passing \ud83d\udc4d thank you!"
+        ]
+      },
+      {
+        "pr_number": 132,
+        "title": "resloves #99",
+        "body": "Resolves: error: Uncaught Error: Don't know how to parse column type: 1042",
+        "html_url": "https://github.com/denodrivers/postgres/pull/132",
+        "comments": [
+          "@hayd would you please review and merge this pull request",
+          "Awesome! Could you add a test for this case?",
+          "Hi @hayd , thanks for your response. I have updated the pull request. Yet I am not sure how to conduct the test locally.",
+          "Hmm, GitHub actions didn't trigger, I wonder why that would be! Thanks for adding the test, will merge soon.",
+          "Thanks",
+          " believe I've turned on actions on the repo (it seems like it was turned off when moving org).\r\n\r\ntested locally and passing \ud83d\udc4d thank you!"
+        ]
+      },
+      {
+        "pr_number": 132,
+        "title": "resloves #99",
+        "body": "Resolves: error: Uncaught Error: Don't know how to parse column type: 1042",
+        "html_url": "https://github.com/denodrivers/postgres/pull/132",
+        "comments": [
+          "@hayd would you please review and merge this pull request",
+          "Awesome! Could you add a test for this case?",
+          "Hi @hayd , thanks for your response. I have updated the pull request. Yet I am not sure how to conduct the test locally.",
+          "Hmm, GitHub actions didn't trigger, I wonder why that would be! Thanks for adding the test, will merge soon.",
+          "Thanks",
+          " believe I've turned on actions on the repo (it seems like it was turned off when moving org).\r\n\r\ntested locally and passing \ud83d\udc4d thank you!"
+        ]
+      },
+      {
+        "pr_number": 133,
+        "title": "Fix docs to match API",
+        "body": "Currently the website: https://deno-postgres.com/#/?id=queries\r\nHas the following example:\r\n```ts\r\nimport { Client } from \"https://deno.land/x/postgres/mod.ts\";\r\n\r\nasync function main() {\r\n  const client = new Client({\r\n    user: \"user\",\r\n    database: \"test\",\r\n    host: \"localhost\",\r\n    port: \"5432\"\r\n  });\r\n  await client.connect();\r\n  const result = await client.query(\"SELECT * FROM people;\");\r\n  console.log(result.rows);\r\n  await client.end();\r\n}\r\n\r\nmain();\r\n```\r\n\r\nBut when running the example locally it fails with the following error:\r\n```\r\nerror: TS2345 [ERROR]: Argument of type '{ user: string; database: string; host: string; port: number; }' is not assignable to parameter of type 'string | ConnectionOptions | undefined'.\r\n  Object literal may only specify known properties, and 'host' does not exist in type 'ConnectionOptions'.\r\n    host: \"localhost\",\r\n    ~~~~~~~~~~~~~~~~~\r\n```\r\n\r\nBased on the following function:\r\nhttps://github.com/deno-postgres/deno-postgres/blob/d23393ec888b9f8e39aa0a9269be4ce728e28d8b/connection_params.ts#L115\r\n\r\nAnd testing locally I found that the correct property is `hostname` instead.\r\n",
+        "html_url": "https://github.com/denodrivers/postgres/pull/133",
+        "comments": ["Oops, thanks!"]
+      },
+      {
+        "pr_number": 135,
+        "title": "fmt for master",
+        "body": "",
+        "html_url": "https://github.com/denodrivers/postgres/pull/135",
+        "comments": ["Thanks!"]
+      },
+      {
+        "pr_number": 135,
+        "title": "fmt for master",
+        "body": "",
+        "html_url": "https://github.com/denodrivers/postgres/pull/135",
+        "comments": ["Thanks!"]
+      },
+      {
+        "pr_number": 133,
+        "title": "Fix docs to match API",
+        "body": "Currently the website: https://deno-postgres.com/#/?id=queries\r\nHas the following example:\r\n```ts\r\nimport { Client } from \"https://deno.land/x/postgres/mod.ts\";\r\n\r\nasync function main() {\r\n  const client = new Client({\r\n    user: \"user\",\r\n    database: \"test\",\r\n    host: \"localhost\",\r\n    port: \"5432\"\r\n  });\r\n  await client.connect();\r\n  const result = await client.query(\"SELECT * FROM people;\");\r\n  console.log(result.rows);\r\n  await client.end();\r\n}\r\n\r\nmain();\r\n```\r\n\r\nBut when running the example locally it fails with the following error:\r\n```\r\nerror: TS2345 [ERROR]: Argument of type '{ user: string; database: string; host: string; port: number; }' is not assignable to parameter of type 'string | ConnectionOptions | undefined'.\r\n  Object literal may only specify known properties, and 'host' does not exist in type 'ConnectionOptions'.\r\n    host: \"localhost\",\r\n    ~~~~~~~~~~~~~~~~~\r\n```\r\n\r\nBased on the following function:\r\nhttps://github.com/deno-postgres/deno-postgres/blob/d23393ec888b9f8e39aa0a9269be4ce728e28d8b/connection_params.ts#L115\r\n\r\nAnd testing locally I found that the correct property is `hostname` instead.\r\n",
+        "html_url": "https://github.com/denodrivers/postgres/pull/133",
+        "comments": ["Oops, thanks!"]
+      }
+    ],
+    "v0.4.1": [
+      {
+        "pr_number": 116,
+        "title": "Update README.md",
+        "body": "Bringing the README.md in line with the code changes.",
+        "html_url": "https://github.com/denodrivers/postgres/pull/116",
+        "comments": []
+      },
+      {
+        "pr_number": 122,
+        "title": "prevent undefined error when using accessors prior to pool connecting.",
+        "body": "I'm trying to port https://github.com/joeandaverde/tinypg to Deno using this driver. \r\n\r\nRunning into a few issues and fixing along the way.",
+        "html_url": "https://github.com/denodrivers/postgres/pull/122",
+        "comments": []
+      },
+      {
+        "pr_number": 125,
+        "title": "Add support for Oid type 1007, array of ints",
+        "body": "",
+        "html_url": "https://github.com/denodrivers/postgres/pull/125",
+        "comments": []
+      },
+      {
+        "pr_number": 96,
+        "title": "feat: add support for getting result metadata",
+        "body": "- This PR tries to resolve #95.",
+        "html_url": "https://github.com/denodrivers/postgres/pull/96",
+        "comments": ["@bartlomieju Thanks!"]
+      }
+    ],
+    "v0.4.0": [
+      {
+        "pr_number": 114,
+        "title": "rename connection params host->hostname and change port type",
+        "body": "Closes #113 \r\n\r\nI took the liberty to also refactor the creation of the connection_params.ts params because I found the code a bit hard to follow and modify. Let me know what you think.\r\n\r\nI also think `parseDsn` should be moved into `connection_params.ts` and tested through createParams instead. If you agree, I'll do that as well.",
+        "html_url": "https://github.com/denodrivers/postgres/pull/114",
+        "comments": []
+      },
+      {
+        "pr_number": 118,
+        "title": "[Fix] Connection string parsing",
+        "body": "The URL api is aligned to match the one in the browser, which mean that in both cases passing a connection string with the following format:\r\n```log\r\npostgres://fizz:buzz@deno.land:8000/test_database?application_name=myapp\r\n```\r\nThe URL api won't parse the url correctly due to the API not recognizing the protocol/driver in the url, that is why this PR replaces the protocol with `http` in order to parse the url correctly through the URL api.",
+        "html_url": "https://github.com/denodrivers/postgres/pull/118",
+        "comments": []
+      },
+      {
+        "pr_number": 119,
+        "title": "chore: upgrade Deno to 1.0.0",
+        "body": "",
+        "html_url": "https://github.com/denodrivers/postgres/pull/119",
+        "comments": []
+      }
+    ],
+    "v0.3.11": [
+      {
+        "pr_number": 112,
+        "title": "Update to Deno v0.42",
+        "body": "This PR updates Deno-Postgres to work under Deno v0.42",
+        "html_url": "https://github.com/denodrivers/postgres/pull/112",
+        "comments": [
+          "Tests must be run with `--allow-env` access\r\nI was wondering if explicit access allowed in the code would be a good idea\r\n\r\nEdit: NVM"
+        ]
+      }
+    ],
+    "v0.3.10": [
+      {
+        "pr_number": 109,
+        "title": "Moved from Travis to Github CI",
+        "body": "",
+        "html_url": "https://github.com/denodrivers/postgres/pull/109",
+        "comments": []
+      },
+      {
+        "pr_number": 110,
+        "title": "Replace CI badge from Travis to Github",
+        "body": "@bartlomieju I realized that we forgot to update the CI badge in the readme.\r\nThis pr closes #67 ",
+        "html_url": "https://github.com/denodrivers/postgres/pull/110",
+        "comments": []
+      },
+      {
+        "pr_number": 108,
+        "title": "Adding support for multi statement queries",
+        "body": "fixes #8 ",
+        "html_url": "https://github.com/denodrivers/postgres/pull/108",
+        "comments": [
+          "I see that name and encoder is used by Query (query.ts), should i also remove this if it is not used?",
+          "> I see that name and encoder is used by Query (query.ts), should i also remove this if it is not used?\r\n\r\n@bartlomieju ^",
+          "> > I see that name and encoder is used by Query (query.ts), should i also remove this if it is not used?\r\n> \r\n> @bartlomieju ^\r\n\r\nYes, sounds good to me",
+          "@bartlomieju Master is merged into this and this pr is ready now \ud83d\udc4d ",
+          "@bartlomieju Quick question, should I resolve the conversations? Also, is there anything else we should include here, or can we merge it? \ud83d\ude04 "
+        ]
+      },
+      {
+        "pr_number": 111,
+        "title": "chore: bump ci and deps to 0.41.0",
+        "body": "",
+        "html_url": "https://github.com/denodrivers/postgres/pull/111",
+        "comments": []
+      }
+    ],
+    "v0.3.9": [
+      {
+        "pr_number": 94,
+        "title": "fix: add support for numeric type",
+        "body": "This PR closes #93.",
+        "html_url": "https://github.com/denodrivers/postgres/pull/94",
+        "comments": []
+      },
+      {
+        "pr_number": 98,
+        "title": "fix: add support for void type",
+        "body": "This PR closes #97.",
+        "html_url": "https://github.com/denodrivers/postgres/pull/98",
+        "comments": [
+          "Is an empty string really an appropriate type for this? Wouldn't a better solution be `Symbol('void')` ?",
+          "@jakajancar \r\n\r\nI chose the empty string because it matches the result of [node-postgres](https://node-postgres.com/) library.\r\n\r\n```javascript\r\nconst { Client } = require('pg');\r\n(async () => {\r\n  const client = new Client({\r\n    host: '127.0.0.1',\r\n    port: 5432,\r\n    user: 'postgres',\r\n    database: 'deno_postgres',\r\n    password: 'postgres',\r\n  });\r\n  try {\r\n    await client.connect();\r\n    const res = await client.query('SELECT pg_sleep(0.01)');\r\n    console.log(res.rows);\r\n  } finally {\r\n    await client.end();\r\n  }\r\n})();\r\n```\r\n\r\nThe output is as follows:\r\n\r\n```javascript\r\n[ { pg_sleep: '' } ]\r\n```\r\n\r\nBut indeed, it might be useful to allow users to pass in custom parsers ([like node-postgres does](https://node-postgres.com/features/queries#Types)) :thinking:\r\n",
+          "Ah, ok, makes sense.\r\nPersonally I care more about SSL and LISTEN/NOTIFY than custom parsers :)"
+        ]
+      },
+      {
+        "pr_number": 101,
+        "title": "rowsOfObjects fix",
+        "body": "",
+        "html_url": "https://github.com/denodrivers/postgres/pull/101",
+        "comments": ["Fixes issue #100"]
+      },
+      {
+        "pr_number": 104,
+        "title": "Fix typos on PostgresError Interface",
+        "body": "Fixes #103 \r\n\r\nFixed some typos on PostgresError field interface.\r\n\r\nI think the parameter assignation should be handled differently, cause currently it is overlooking the interface and making it hard to spot errors like this",
+        "html_url": "https://github.com/denodrivers/postgres/pull/104",
+        "comments": []
+      },
+      {
+        "pr_number": 106,
+        "title": "chore: bump Deno to v0.39.0",
+        "body": "This PR closes #105.\r\n- Run `deno fmt` for all TypeScript files (69e93cb)\r\n- Bumped Deno to v0.39.0 in CI\r\n- Bumped deno_std to v0.39.0\r\n- Bumped checksum to v1.2.0\r\n  - compilation of checksum@v1.0.1 fails on Deno@v0.39.0\r\n- Fixed the `Pool.end` because it leaks resources ([8b73869](https://github.com/buildondata/deno-postgres/pull/106/commits/8b73869c72063dd33e6350936ad45473f1ca87b2#diff-abbe517e83766bfd209816919082cb37))\r\n",
+        "html_url": "https://github.com/denodrivers/postgres/pull/106",
+        "comments": []
+      }
+    ],
+    "v0.3.8": [
+      {
+        "pr_number": 92,
+        "title": "fix: treat PostgreSQL's bigint type as String instead of Number",
+        "body": "This PR closes #91.",
+        "html_url": "https://github.com/denodrivers/postgres/pull/92",
+        "comments": [
+          "@uki00a https://github.com/buildondata/deno-postgres/releases/tag/v0.3.8",
+          "Thanks @bartlomieju!"
+        ]
+      }
+    ],
+    "v0.3.7": [
+      {
+        "pr_number": 83,
+        "title": "Fix hash md5 password",
+        "body": "This PR fixes hashMd5Password function. \r\n\r\nThis function is used like the below in `connection.ts`:\r\n```ts\r\n    const password = hashMd5Password(\r\n      this.connParams.password,\r\n      this.connParams.user,\r\n      salt\r\n    );\r\n```\r\nHowever the paramter order of user and password is reversed in the function definition, and therefore this produces wrong md5 hash for authentication.\r\n\r\nI checked I can connect to my postgres instance on AWS RDS with this patch applied.",
+        "html_url": "https://github.com/denodrivers/postgres/pull/83",
+        "comments": ["@bartlomieju Thanks!"]
+      },
+      {
+        "pr_number": 85,
+        "title": "refactor: separate test_deps.ts from deps.ts",
+        "body": "This PR separates `test_deps.ts` from `deps.ts` and reduces the download size of the library.\r\n\r\ncloses #84 ",
+        "html_url": "https://github.com/denodrivers/postgres/pull/85",
+        "comments": []
+      },
+      {
+        "pr_number": 90,
+        "title": "chore: bump Deno to v0.35.0",
+        "body": "",
+        "html_url": "https://github.com/denodrivers/postgres/pull/90",
+        "comments": []
+      },
+      {
+        "pr_number": 89,
+        "title": "Add support for oid types",
+        "body": "- This PR closes #88.\r\n- Added support for oid types.\r\n  - https://www.postgresql.org/docs/11/datatype-oid.html\r\n- Ran `deno fmt` against `decode.ts` and `tests/data_types.ts`.",
+        "html_url": "https://github.com/denodrivers/postgres/pull/89",
+        "comments": [
+          "https://travis-ci.com/buildondata/deno-postgres/builds/151413237\r\n\r\nOh, `deno fmt --check` fails...\r\n\r\nShould I fix this problem in this PR?",
+          "Yikes, Deno is very outdated and now uses a new formatter. I've opened a PR to bump version: https://github.com/buildondata/deno-postgres/pull/90",
+          "Thanks @bartlomieju!\r\n\r\nI'll rebase this on master.",
+          "Released in v0.3.7\r\nhttps://github.com/buildondata/deno-postgres/releases/tag/v0.3.7",
+          "@bartlomieju Thanks!"
+        ]
+      }
+    ],
+    "v0.3.6": [
+      {
+        "pr_number": 81,
+        "title": "chore: bump Deno to v0.31.0",
+        "body": "",
+        "html_url": "https://github.com/denodrivers/postgres/pull/81",
+        "comments": []
+      },
+      {
+        "pr_number": 79,
+        "title": "fix: Add 'uuid' column type to decodeText",
+        "body": "",
+        "html_url": "https://github.com/denodrivers/postgres/pull/79",
+        "comments": ["Thanks @killbond007 "]
+      }
+    ],
+    "v0.3.5": [
+      {
+        "pr_number": 77,
+        "title": "fix: Add 'name' column type to decodeText (#76)",
+        "body": "Resolves #76 \r\n\r\nThis PR fixes 'name' column type parsing method is not implemented.\r\nThis change ensures that the 'name' type is handled properly and the following query can be executed without error.\r\n\r\n    SELECT * FROM information_schema.tables",
+        "html_url": "https://github.com/denodrivers/postgres/pull/77",
+        "comments": []
+      },
+      {
+        "pr_number": 78,
+        "title": "chore: bump Deno and deps to v0.26.0",
+        "body": "",
+        "html_url": "https://github.com/denodrivers/postgres/pull/78",
+        "comments": []
+      }
+    ],
+    "v0.3.4": [
+      {
+        "pr_number": 75,
+        "title": "Use deferred from std@v0.22.0",
+        "body": "and bump deno to v0.22.0.\r\n\r\ncc @bartlomieju ",
+        "html_url": "https://github.com/denodrivers/postgres/pull/75",
+        "comments": [
+          "@hayd is there a reason to use `deferred` from standard library? AFAICR I copied it over because of it being moved around and it's pretty short so... \u00af\\_(\u30c4)_/\u00af",
+          "IMO it makes sense to use the std definition, which is different from the one in deno-postgres. It was moved/deleted before but it's there to stay now.",
+          "@hayd SGTM, I'll land once you get it to green",
+          "Green! (I hadn't spotted the fmt error.)",
+          "Nice, thank you!"
+        ]
+      }
+    ],
+    "v0.3.3": [
+      {
+        "pr_number": 74,
+        "title": "bump Deno to v0.20.0",
+        "body": "",
+        "html_url": "https://github.com/denodrivers/postgres/pull/74",
+        "comments": []
+      }
+    ],
+    "v0.3.2": [
+      {
+        "pr_number": 66,
+        "title": "fixes for typescript strict mode",
+        "body": "This should now compile with \"strict\": true in tsconfig.json.\r\n\r\nI did not update the tsconfig because I was waiting for https://github.com/manyuanrong/deno-checksum/pull/1 to land, which it now has, but I'm not quite sure how to update deps.\r\n\r\nThanks for the library!\r\n\r\n",
+        "html_url": "https://github.com/denodrivers/postgres/pull/66",
+        "comments": [
+          "I Realized you can change deps to a gitsha, so I made a commit that bumps the deps, and a separate one that changes tsconfig so you can merge what you want. \r\n\r\nThe tests aren't passing on my box on master, so I'm not exactly sure what's going on with CI, but it compiles.",
+          "Thanks for the feedback. I left comments on why the things that are weird are weird. Also, I didn't know about Record<K,V>, that is a lot easier to handle! Thanks!",
+          "I think I have addressed all of your issues."
+        ]
+      },
+      {
+        "pr_number": 71,
+        "title": "chore: bump Deno to v0.19.0",
+        "body": "",
+        "html_url": "https://github.com/denodrivers/postgres/pull/71",
+        "comments": []
+      },
+      {
+        "pr_number": 72,
+        "title": "chore: use deno fmt",
+        "body": "Closes #68 ",
+        "html_url": "https://github.com/denodrivers/postgres/pull/72",
+        "comments": []
+      },
+      {
+        "pr_number": 73,
+        "title": "chore: add contributing guidelines",
+        "body": "Closes #69 ",
+        "html_url": "https://github.com/denodrivers/postgres/pull/73",
+        "comments": []
+      }
+    ],
+    "v0.3.1": [
+      {
+        "pr_number": 65,
+        "title": "Bump CI to v0.17.0",
+        "body": "",
+        "html_url": "https://github.com/denodrivers/postgres/pull/65",
+        "comments": []
+      }
+    ],
+    "v0.3.0": [
+      {
+        "pr_number": 55,
+        "title": "lazy create connection",
+        "body": "part of https://github.com/bartlomieju/deno-postgres/issues/49\r\nlazy to create connections from 1 to max pool size",
+        "html_url": "https://github.com/denodrivers/postgres/pull/55",
+        "comments": [
+          "Thanks for contribution! I intend to rewrite connection pool completely so I'm not gonna merge this now, but will revisit later."
+        ]
+      },
+      {
+        "pr_number": 55,
+        "title": "lazy create connection",
+        "body": "part of https://github.com/bartlomieju/deno-postgres/issues/49\r\nlazy to create connections from 1 to max pool size",
+        "html_url": "https://github.com/denodrivers/postgres/pull/55",
+        "comments": [
+          "Thanks for contribution! I intend to rewrite connection pool completely so I'm not gonna merge this now, but will revisit later."
+        ]
+      },
+      {
+        "pr_number": 55,
+        "title": "lazy create connection",
+        "body": "part of https://github.com/bartlomieju/deno-postgres/issues/49\r\nlazy to create connections from 1 to max pool size",
+        "html_url": "https://github.com/denodrivers/postgres/pull/55",
+        "comments": [
+          "Thanks for contribution! I intend to rewrite connection pool completely so I'm not gonna merge this now, but will revisit later."
+        ]
+      },
+      {
+        "pr_number": 60,
+        "title": "Repair the potential danger of depleting connection pools",
+        "body": "Closes #59 ",
+        "html_url": "https://github.com/denodrivers/postgres/pull/60",
+        "comments": []
+      },
+      {
+        "pr_number": 60,
+        "title": "Repair the potential danger of depleting connection pools",
+        "body": "Closes #59 ",
+        "html_url": "https://github.com/denodrivers/postgres/pull/60",
+        "comments": []
+      },
+      {
+        "pr_number": 62,
+        "title": "Bump deno to v0.11.0",
+        "body": "",
+        "html_url": "https://github.com/denodrivers/postgres/pull/62",
+        "comments": []
+      },
+      {
+        "pr_number": 63,
+        "title": "bytea type implemented",
+        "body": "based on node implementation of postgres-bytea: \r\nhttps://github.com/bendrucker/postgres-bytea/blob/master/index.js",
+        "html_url": "https://github.com/denodrivers/postgres/pull/63",
+        "comments": []
+      },
+      {
+        "pr_number": 64,
+        "title": "chore: bump to Deno v0.15.0",
+        "body": "",
+        "html_url": "https://github.com/denodrivers/postgres/pull/64",
+        "comments": []
+      }
+    ],
+    "v0.2.0": [
+      {
+        "pr_number": 41,
+        "title": "Make QueryResult.rowDescription public",
+        "body": "Hello! Thanks for the lib \ud83d\ude4f \r\n\r\nWondering if there was a reason QueryResult.rowDescription was private? Since the result rows come back to the caller in the form of an array, this info is particularly useful for mapping a single row result back into an object with column names for keys, a la:\r\n\r\n```\r\nexport const mapResult = (result: QueryResult) =>\r\n  result.rows.map(row =>\r\n    row.reduce((record, column, index) => {\r\n      const columnName = result.rowDescription.columns[index].name;\r\n      return {\r\n        ...record,\r\n        [columnName]: column\r\n      };\r\n    })\r\n  );\r\n```",
+        "html_url": "https://github.com/denodrivers/postgres/pull/41",
+        "comments": []
+      },
+      {
+        "pr_number": 41,
+        "title": "Make QueryResult.rowDescription public",
+        "body": "Hello! Thanks for the lib \ud83d\ude4f \r\n\r\nWondering if there was a reason QueryResult.rowDescription was private? Since the result rows come back to the caller in the form of an array, this info is particularly useful for mapping a single row result back into an object with column names for keys, a la:\r\n\r\n```\r\nexport const mapResult = (result: QueryResult) =>\r\n  result.rows.map(row =>\r\n    row.reduce((record, column, index) => {\r\n      const columnName = result.rowDescription.columns[index].name;\r\n      return {\r\n        ...record,\r\n        [columnName]: column\r\n      };\r\n    })\r\n  );\r\n```",
+        "html_url": "https://github.com/denodrivers/postgres/pull/41",
+        "comments": []
+      },
+      {
+        "pr_number": 42,
+        "title": "Documentation",
+        "body": "Basic setup with [docsify](https://docsify.js.org)",
+        "html_url": "https://github.com/denodrivers/postgres/pull/42",
+        "comments": []
+      },
+      {
+        "pr_number": 42,
+        "title": "Documentation",
+        "body": "Basic setup with [docsify](https://docsify.js.org)",
+        "html_url": "https://github.com/denodrivers/postgres/pull/42",
+        "comments": []
+      },
+      {
+        "pr_number": 42,
+        "title": "Documentation",
+        "body": "Basic setup with [docsify](https://docsify.js.org)",
+        "html_url": "https://github.com/denodrivers/postgres/pull/42",
+        "comments": []
+      },
+      {
+        "pr_number": 42,
+        "title": "Documentation",
+        "body": "Basic setup with [docsify](https://docsify.js.org)",
+        "html_url": "https://github.com/denodrivers/postgres/pull/42",
+        "comments": []
+      },
+      {
+        "pr_number": 42,
+        "title": "Documentation",
+        "body": "Basic setup with [docsify](https://docsify.js.org)",
+        "html_url": "https://github.com/denodrivers/postgres/pull/42",
+        "comments": []
+      },
+      {
+        "pr_number": 44,
+        "title": "add support for jsonb to decode fixes: #43",
+        "body": "",
+        "html_url": "https://github.com/denodrivers/postgres/pull/44",
+        "comments": []
+      },
+      {
+        "pr_number": 44,
+        "title": "add support for jsonb to decode fixes: #43",
+        "body": "",
+        "html_url": "https://github.com/denodrivers/postgres/pull/44",
+        "comments": []
+      },
+      {
+        "pr_number": 46,
+        "title": "bump Deno to v0.4.0",
+        "body": "",
+        "html_url": "https://github.com/denodrivers/postgres/pull/46",
+        "comments": []
+      },
+      {
+        "pr_number": 46,
+        "title": "bump Deno to v0.4.0",
+        "body": "",
+        "html_url": "https://github.com/denodrivers/postgres/pull/46",
+        "comments": []
+      },
+      {
+        "pr_number": 47,
+        "title": "test db setup",
+        "body": "",
+        "html_url": "https://github.com/denodrivers/postgres/pull/47",
+        "comments": []
+      },
+      {
+        "pr_number": 47,
+        "title": "test db setup",
+        "body": "",
+        "html_url": "https://github.com/denodrivers/postgres/pull/47",
+        "comments": []
+      },
+      {
+        "pr_number": 48,
+        "title": "bump deno_std to v0.4.0",
+        "body": "",
+        "html_url": "https://github.com/denodrivers/postgres/pull/48",
+        "comments": []
+      },
+      {
+        "pr_number": 47,
+        "title": "test db setup",
+        "body": "",
+        "html_url": "https://github.com/denodrivers/postgres/pull/47",
+        "comments": []
+      },
+      {
+        "pr_number": 48,
+        "title": "bump deno_std to v0.4.0",
+        "body": "",
+        "html_url": "https://github.com/denodrivers/postgres/pull/48",
+        "comments": []
+      },
+      {
+        "pr_number": 45,
+        "title": "Refactor ConnectionParams",
+        "body": "Closes #26",
+        "html_url": "https://github.com/denodrivers/postgres/pull/45",
+        "comments": []
+      },
+      {
+        "pr_number": 45,
+        "title": "Refactor ConnectionParams",
+        "body": "Closes #26",
+        "html_url": "https://github.com/denodrivers/postgres/pull/45",
+        "comments": []
+      },
+      {
+        "pr_number": 45,
+        "title": "Refactor ConnectionParams",
+        "body": "Closes #26",
+        "html_url": "https://github.com/denodrivers/postgres/pull/45",
+        "comments": []
+      },
+      {
+        "pr_number": 45,
+        "title": "Refactor ConnectionParams",
+        "body": "Closes #26",
+        "html_url": "https://github.com/denodrivers/postgres/pull/45",
+        "comments": []
+      },
+      {
+        "pr_number": 45,
+        "title": "Refactor ConnectionParams",
+        "body": "Closes #26",
+        "html_url": "https://github.com/denodrivers/postgres/pull/45",
+        "comments": []
+      },
+      {
+        "pr_number": 45,
+        "title": "Refactor ConnectionParams",
+        "body": "Closes #26",
+        "html_url": "https://github.com/denodrivers/postgres/pull/45",
+        "comments": []
+      },
+      {
+        "pr_number": 45,
+        "title": "Refactor ConnectionParams",
+        "body": "Closes #26",
+        "html_url": "https://github.com/denodrivers/postgres/pull/45",
+        "comments": []
+      },
+      {
+        "pr_number": 45,
+        "title": "Refactor ConnectionParams",
+        "body": "Closes #26",
+        "html_url": "https://github.com/denodrivers/postgres/pull/45",
+        "comments": []
+      },
+      {
+        "pr_number": 45,
+        "title": "Refactor ConnectionParams",
+        "body": "Closes #26",
+        "html_url": "https://github.com/denodrivers/postgres/pull/45",
+        "comments": []
+      },
+      {
+        "pr_number": 45,
+        "title": "Refactor ConnectionParams",
+        "body": "Closes #26",
+        "html_url": "https://github.com/denodrivers/postgres/pull/45",
+        "comments": []
+      },
+      {
+        "pr_number": 45,
+        "title": "Refactor ConnectionParams",
+        "body": "Closes #26",
+        "html_url": "https://github.com/denodrivers/postgres/pull/45",
+        "comments": []
+      },
+      {
+        "pr_number": 53,
+        "title": "Fix makeshift pool",
+        "body": "Closes #52, and partially #49 ",
+        "html_url": "https://github.com/denodrivers/postgres/pull/53",
+        "comments": []
+      },
+      {
+        "pr_number": 53,
+        "title": "Fix makeshift pool",
+        "body": "Closes #52, and partially #49 ",
+        "html_url": "https://github.com/denodrivers/postgres/pull/53",
+        "comments": []
+      },
+      {
+        "pr_number": 53,
+        "title": "Fix makeshift pool",
+        "body": "Closes #52, and partially #49 ",
+        "html_url": "https://github.com/denodrivers/postgres/pull/53",
+        "comments": []
+      },
+      {
+        "pr_number": 53,
+        "title": "Fix makeshift pool",
+        "body": "Closes #52, and partially #49 ",
+        "html_url": "https://github.com/denodrivers/postgres/pull/53",
+        "comments": []
+      },
+      {
+        "pr_number": 51,
+        "title": "Add support for Network Address Types fixes: #50",
+        "body": "",
+        "html_url": "https://github.com/denodrivers/postgres/pull/51",
+        "comments": [
+          "Thanks! Can you add a test case testing those columns?",
+          "@bartlomieju  will do",
+          "@bartlomieju added tests",
+          "@bartlomieju are there any other changes needed?",
+          "@bartlomieju  should be ready to go"
+        ]
+      },
+      {
+        "pr_number": 51,
+        "title": "Add support for Network Address Types fixes: #50",
+        "body": "",
+        "html_url": "https://github.com/denodrivers/postgres/pull/51",
+        "comments": [
+          "Thanks! Can you add a test case testing those columns?",
+          "@bartlomieju  will do",
+          "@bartlomieju added tests",
+          "@bartlomieju are there any other changes needed?",
+          "@bartlomieju  should be ready to go"
+        ]
+      },
+      {
+        "pr_number": 51,
+        "title": "Add support for Network Address Types fixes: #50",
+        "body": "",
+        "html_url": "https://github.com/denodrivers/postgres/pull/51",
+        "comments": [
+          "Thanks! Can you add a test case testing those columns?",
+          "@bartlomieju  will do",
+          "@bartlomieju added tests",
+          "@bartlomieju are there any other changes needed?",
+          "@bartlomieju  should be ready to go"
+        ]
+      },
+      {
+        "pr_number": 57,
+        "title": "bump CI do Deno v0.9.0",
+        "body": "",
+        "html_url": "https://github.com/denodrivers/postgres/pull/57",
+        "comments": []
+      },
+      {
+        "pr_number": 57,
+        "title": "bump CI do Deno v0.9.0",
+        "body": "",
+        "html_url": "https://github.com/denodrivers/postgres/pull/57",
+        "comments": []
+      }
+    ],
+    "v0.1.2": [
+      {
+        "pr_number": 28,
+        "title": "Bump deno to v0.3.0",
+        "body": "",
+        "html_url": "https://github.com/denodrivers/postgres/pull/28",
+        "comments": []
+      },
+      {
+        "pr_number": 28,
+        "title": "Bump deno to v0.3.0",
+        "body": "",
+        "html_url": "https://github.com/denodrivers/postgres/pull/28",
+        "comments": []
+      },
+      {
+        "pr_number": 29,
+        "title": "Add format script",
+        "body": "Ref #21 ",
+        "html_url": "https://github.com/denodrivers/postgres/pull/29",
+        "comments": []
+      },
+      {
+        "pr_number": 29,
+        "title": "Add format script",
+        "body": "Ref #21 ",
+        "html_url": "https://github.com/denodrivers/postgres/pull/29",
+        "comments": []
+      },
+      {
+        "pr_number": 29,
+        "title": "Add format script",
+        "body": "Ref #21 ",
+        "html_url": "https://github.com/denodrivers/postgres/pull/29",
+        "comments": []
+      },
+      {
+        "pr_number": 29,
+        "title": "Add format script",
+        "body": "Ref #21 ",
+        "html_url": "https://github.com/denodrivers/postgres/pull/29",
+        "comments": []
+      },
+      {
+        "pr_number": 29,
+        "title": "Add format script",
+        "body": "Ref #21 ",
+        "html_url": "https://github.com/denodrivers/postgres/pull/29",
+        "comments": []
+      },
+      {
+        "pr_number": 27,
+        "title": "First pass at creating a connection pool",
+        "body": "",
+        "html_url": "https://github.com/denodrivers/postgres/pull/27",
+        "comments": [
+          "If poolSize=1 is a argument of Client I think this goes away (can make Client + startup + query + end only exposed methods and no need to change API .\r\n\r\nWhat did you change to get the tests passing?",
+          "Yeah, that's direction I'd want to follow. Re tests: I did not change anything. ",
+          "manyQueries fails for me locally on OSX.",
+          "@hayd I found the problem. It's fixed now on master. I guess that rebase will be hard, can you open a new PR, with changes from `pool.ts` and its tests?",
+          "will do\r\n\r\nEdit: I can just force push here",
+          "Up to you\r\n\r\n@hayd: https://github.com/bartlomieju/deno-postgres/tree/conn_pool",
+          "Pushed. ~But it still needs a small cleanup.~\r\n\r\n~I think also it's worth considering changing open-close from connect-end (though that's a sep issue).~ I see you follow node-postgres, okay!\r\n\r\n~Failing test doesn't fail on my local :) - not sure how it wants me to force the type cast.~",
+          "@hayd thanks! I still have some reservations tough... I'd prefer to leave current `Client` and querying logic as is. Pool still needs to have `connect` and `end` method to allow users to acquire client as needed. Also I strive to keep API as close to node-pg as possible so Node devs transitioning to Deno don't have to learn yet new driver.\r\n\r\nPlease checkout #31 for my idea of connection pool (of course it's not finished, but you should get the idea of my goal), let me know what you think.",
+          "Client seems fundamentally broken:\r\n\r\nconst a  = client.query(..)\r\nconst b = client.query(..)\r\n\r\nwithout the awaits will crash?\r\n\r\nI think you can offer the same API as node-postgres without this weakness.",
+          "Well yeah, it will crash but signature of `client.query` is `Promise<QueryResult>` so it's developer fault if she doesn't await for those.",
+          "Right, it will crash. You can legitimately await a and b later.\r\n\r\nIf it's possible to write an implementation that's hardened to crashing, and has the same api, why not?\r\n\r\n(This PR isn't there yet)",
+          "Can you explain, I'm not sure I follow, what's the proposed API?",
+          "export Client and Client as Pool.\r\n\r\nEverything uses pool.\r\n\r\nThe one thing remaining is transactions which need to execute on the same connection. To support that you either add a new type (my preference) or reuse Client to add the method to explicitly grab a connection from the pool (and release it after).\r\n\r\nThis would be using the same API as node-postgres but slightly different types...",
+          "I'm no go for using pool for everything. Although creating pool with `size === 1` would give the same effect as using `Client` I'd prefer to keep them separate. \r\n\r\nIn current setup, `Connection` is pretty well hidden from user and that's a conscious decision. Using `Client` gives you easy way to do transactions, and it will work the same with `Pool` - you call `pool.connect()` get back a `Client` instance and go with your stuff. Of course, you still have to remember to `release` it back to the pool but it's fine for me. +1 for providing `pool.query` method like `node-pg-pool` does.\r\n\r\nI'd really prefer if users don't interact with `Connection` directly and only 2 classes they interact with is `Client` and `Pool`. ",
+          "They wouldn't be interacting with a Connection directly even in the transaction described above",
+          "@bartlomieju  I think this now matches the node-postgres API.\r\n\r\nEdit: I'd like to add this test case, but I think the query API doesn't quite work with the prepared statements yet? https://node-postgres.com/features/transactions#a-pooled-client-with-async-await",
+          "Looks great, I'll give it another pass tomorrow and land, thanks @hayd great work",
+          "FYI I have a further cleanup that moves dial onto connection startup and refactors tests with a setup but will include in a subsequent PR."
+        ]
+      },
+      {
+        "pr_number": 27,
+        "title": "First pass at creating a connection pool",
+        "body": "",
+        "html_url": "https://github.com/denodrivers/postgres/pull/27",
+        "comments": [
+          "If poolSize=1 is a argument of Client I think this goes away (can make Client + startup + query + end only exposed methods and no need to change API .\r\n\r\nWhat did you change to get the tests passing?",
+          "Yeah, that's direction I'd want to follow. Re tests: I did not change anything. ",
+          "manyQueries fails for me locally on OSX.",
+          "@hayd I found the problem. It's fixed now on master. I guess that rebase will be hard, can you open a new PR, with changes from `pool.ts` and its tests?",
+          "will do\r\n\r\nEdit: I can just force push here",
+          "Up to you\r\n\r\n@hayd: https://github.com/bartlomieju/deno-postgres/tree/conn_pool",
+          "Pushed. ~But it still needs a small cleanup.~\r\n\r\n~I think also it's worth considering changing open-close from connect-end (though that's a sep issue).~ I see you follow node-postgres, okay!\r\n\r\n~Failing test doesn't fail on my local :) - not sure how it wants me to force the type cast.~",
+          "@hayd thanks! I still have some reservations tough... I'd prefer to leave current `Client` and querying logic as is. Pool still needs to have `connect` and `end` method to allow users to acquire client as needed. Also I strive to keep API as close to node-pg as possible so Node devs transitioning to Deno don't have to learn yet new driver.\r\n\r\nPlease checkout #31 for my idea of connection pool (of course it's not finished, but you should get the idea of my goal), let me know what you think.",
+          "Client seems fundamentally broken:\r\n\r\nconst a  = client.query(..)\r\nconst b = client.query(..)\r\n\r\nwithout the awaits will crash?\r\n\r\nI think you can offer the same API as node-postgres without this weakness.",
+          "Well yeah, it will crash but signature of `client.query` is `Promise<QueryResult>` so it's developer fault if she doesn't await for those.",
+          "Right, it will crash. You can legitimately await a and b later.\r\n\r\nIf it's possible to write an implementation that's hardened to crashing, and has the same api, why not?\r\n\r\n(This PR isn't there yet)",
+          "Can you explain, I'm not sure I follow, what's the proposed API?",
+          "export Client and Client as Pool.\r\n\r\nEverything uses pool.\r\n\r\nThe one thing remaining is transactions which need to execute on the same connection. To support that you either add a new type (my preference) or reuse Client to add the method to explicitly grab a connection from the pool (and release it after).\r\n\r\nThis would be using the same API as node-postgres but slightly different types...",
+          "I'm no go for using pool for everything. Although creating pool with `size === 1` would give the same effect as using `Client` I'd prefer to keep them separate. \r\n\r\nIn current setup, `Connection` is pretty well hidden from user and that's a conscious decision. Using `Client` gives you easy way to do transactions, and it will work the same with `Pool` - you call `pool.connect()` get back a `Client` instance and go with your stuff. Of course, you still have to remember to `release` it back to the pool but it's fine for me. +1 for providing `pool.query` method like `node-pg-pool` does.\r\n\r\nI'd really prefer if users don't interact with `Connection` directly and only 2 classes they interact with is `Client` and `Pool`. ",
+          "They wouldn't be interacting with a Connection directly even in the transaction described above",
+          "@bartlomieju  I think this now matches the node-postgres API.\r\n\r\nEdit: I'd like to add this test case, but I think the query API doesn't quite work with the prepared statements yet? https://node-postgres.com/features/transactions#a-pooled-client-with-async-await",
+          "Looks great, I'll give it another pass tomorrow and land, thanks @hayd great work",
+          "FYI I have a further cleanup that moves dial onto connection startup and refactors tests with a setup but will include in a subsequent PR."
+        ]
+      },
+      {
+        "pr_number": 27,
+        "title": "First pass at creating a connection pool",
+        "body": "",
+        "html_url": "https://github.com/denodrivers/postgres/pull/27",
+        "comments": [
+          "If poolSize=1 is a argument of Client I think this goes away (can make Client + startup + query + end only exposed methods and no need to change API .\r\n\r\nWhat did you change to get the tests passing?",
+          "Yeah, that's direction I'd want to follow. Re tests: I did not change anything. ",
+          "manyQueries fails for me locally on OSX.",
+          "@hayd I found the problem. It's fixed now on master. I guess that rebase will be hard, can you open a new PR, with changes from `pool.ts` and its tests?",
+          "will do\r\n\r\nEdit: I can just force push here",
+          "Up to you\r\n\r\n@hayd: https://github.com/bartlomieju/deno-postgres/tree/conn_pool",
+          "Pushed. ~But it still needs a small cleanup.~\r\n\r\n~I think also it's worth considering changing open-close from connect-end (though that's a sep issue).~ I see you follow node-postgres, okay!\r\n\r\n~Failing test doesn't fail on my local :) - not sure how it wants me to force the type cast.~",
+          "@hayd thanks! I still have some reservations tough... I'd prefer to leave current `Client` and querying logic as is. Pool still needs to have `connect` and `end` method to allow users to acquire client as needed. Also I strive to keep API as close to node-pg as possible so Node devs transitioning to Deno don't have to learn yet new driver.\r\n\r\nPlease checkout #31 for my idea of connection pool (of course it's not finished, but you should get the idea of my goal), let me know what you think.",
+          "Client seems fundamentally broken:\r\n\r\nconst a  = client.query(..)\r\nconst b = client.query(..)\r\n\r\nwithout the awaits will crash?\r\n\r\nI think you can offer the same API as node-postgres without this weakness.",
+          "Well yeah, it will crash but signature of `client.query` is `Promise<QueryResult>` so it's developer fault if she doesn't await for those.",
+          "Right, it will crash. You can legitimately await a and b later.\r\n\r\nIf it's possible to write an implementation that's hardened to crashing, and has the same api, why not?\r\n\r\n(This PR isn't there yet)",
+          "Can you explain, I'm not sure I follow, what's the proposed API?",
+          "export Client and Client as Pool.\r\n\r\nEverything uses pool.\r\n\r\nThe one thing remaining is transactions which need to execute on the same connection. To support that you either add a new type (my preference) or reuse Client to add the method to explicitly grab a connection from the pool (and release it after).\r\n\r\nThis would be using the same API as node-postgres but slightly different types...",
+          "I'm no go for using pool for everything. Although creating pool with `size === 1` would give the same effect as using `Client` I'd prefer to keep them separate. \r\n\r\nIn current setup, `Connection` is pretty well hidden from user and that's a conscious decision. Using `Client` gives you easy way to do transactions, and it will work the same with `Pool` - you call `pool.connect()` get back a `Client` instance and go with your stuff. Of course, you still have to remember to `release` it back to the pool but it's fine for me. +1 for providing `pool.query` method like `node-pg-pool` does.\r\n\r\nI'd really prefer if users don't interact with `Connection` directly and only 2 classes they interact with is `Client` and `Pool`. ",
+          "They wouldn't be interacting with a Connection directly even in the transaction described above",
+          "@bartlomieju  I think this now matches the node-postgres API.\r\n\r\nEdit: I'd like to add this test case, but I think the query API doesn't quite work with the prepared statements yet? https://node-postgres.com/features/transactions#a-pooled-client-with-async-await",
+          "Looks great, I'll give it another pass tomorrow and land, thanks @hayd great work",
+          "FYI I have a further cleanup that moves dial onto connection startup and refactors tests with a setup but will include in a subsequent PR."
+        ]
+      },
+      {
+        "pr_number": 27,
+        "title": "First pass at creating a connection pool",
+        "body": "",
+        "html_url": "https://github.com/denodrivers/postgres/pull/27",
+        "comments": [
+          "If poolSize=1 is a argument of Client I think this goes away (can make Client + startup + query + end only exposed methods and no need to change API .\r\n\r\nWhat did you change to get the tests passing?",
+          "Yeah, that's direction I'd want to follow. Re tests: I did not change anything. ",
+          "manyQueries fails for me locally on OSX.",
+          "@hayd I found the problem. It's fixed now on master. I guess that rebase will be hard, can you open a new PR, with changes from `pool.ts` and its tests?",
+          "will do\r\n\r\nEdit: I can just force push here",
+          "Up to you\r\n\r\n@hayd: https://github.com/bartlomieju/deno-postgres/tree/conn_pool",
+          "Pushed. ~But it still needs a small cleanup.~\r\n\r\n~I think also it's worth considering changing open-close from connect-end (though that's a sep issue).~ I see you follow node-postgres, okay!\r\n\r\n~Failing test doesn't fail on my local :) - not sure how it wants me to force the type cast.~",
+          "@hayd thanks! I still have some reservations tough... I'd prefer to leave current `Client` and querying logic as is. Pool still needs to have `connect` and `end` method to allow users to acquire client as needed. Also I strive to keep API as close to node-pg as possible so Node devs transitioning to Deno don't have to learn yet new driver.\r\n\r\nPlease checkout #31 for my idea of connection pool (of course it's not finished, but you should get the idea of my goal), let me know what you think.",
+          "Client seems fundamentally broken:\r\n\r\nconst a  = client.query(..)\r\nconst b = client.query(..)\r\n\r\nwithout the awaits will crash?\r\n\r\nI think you can offer the same API as node-postgres without this weakness.",
+          "Well yeah, it will crash but signature of `client.query` is `Promise<QueryResult>` so it's developer fault if she doesn't await for those.",
+          "Right, it will crash. You can legitimately await a and b later.\r\n\r\nIf it's possible to write an implementation that's hardened to crashing, and has the same api, why not?\r\n\r\n(This PR isn't there yet)",
+          "Can you explain, I'm not sure I follow, what's the proposed API?",
+          "export Client and Client as Pool.\r\n\r\nEverything uses pool.\r\n\r\nThe one thing remaining is transactions which need to execute on the same connection. To support that you either add a new type (my preference) or reuse Client to add the method to explicitly grab a connection from the pool (and release it after).\r\n\r\nThis would be using the same API as node-postgres but slightly different types...",
+          "I'm no go for using pool for everything. Although creating pool with `size === 1` would give the same effect as using `Client` I'd prefer to keep them separate. \r\n\r\nIn current setup, `Connection` is pretty well hidden from user and that's a conscious decision. Using `Client` gives you easy way to do transactions, and it will work the same with `Pool` - you call `pool.connect()` get back a `Client` instance and go with your stuff. Of course, you still have to remember to `release` it back to the pool but it's fine for me. +1 for providing `pool.query` method like `node-pg-pool` does.\r\n\r\nI'd really prefer if users don't interact with `Connection` directly and only 2 classes they interact with is `Client` and `Pool`. ",
+          "They wouldn't be interacting with a Connection directly even in the transaction described above",
+          "@bartlomieju  I think this now matches the node-postgres API.\r\n\r\nEdit: I'd like to add this test case, but I think the query API doesn't quite work with the prepared statements yet? https://node-postgres.com/features/transactions#a-pooled-client-with-async-await",
+          "Looks great, I'll give it another pass tomorrow and land, thanks @hayd great work",
+          "FYI I have a further cleanup that moves dial onto connection startup and refactors tests with a setup but will include in a subsequent PR."
+        ]
+      },
+      {
+        "pr_number": 27,
+        "title": "First pass at creating a connection pool",
+        "body": "",
+        "html_url": "https://github.com/denodrivers/postgres/pull/27",
+        "comments": [
+          "If poolSize=1 is a argument of Client I think this goes away (can make Client + startup + query + end only exposed methods and no need to change API .\r\n\r\nWhat did you change to get the tests passing?",
+          "Yeah, that's direction I'd want to follow. Re tests: I did not change anything. ",
+          "manyQueries fails for me locally on OSX.",
+          "@hayd I found the problem. It's fixed now on master. I guess that rebase will be hard, can you open a new PR, with changes from `pool.ts` and its tests?",
+          "will do\r\n\r\nEdit: I can just force push here",
+          "Up to you\r\n\r\n@hayd: https://github.com/bartlomieju/deno-postgres/tree/conn_pool",
+          "Pushed. ~But it still needs a small cleanup.~\r\n\r\n~I think also it's worth considering changing open-close from connect-end (though that's a sep issue).~ I see you follow node-postgres, okay!\r\n\r\n~Failing test doesn't fail on my local :) - not sure how it wants me to force the type cast.~",
+          "@hayd thanks! I still have some reservations tough... I'd prefer to leave current `Client` and querying logic as is. Pool still needs to have `connect` and `end` method to allow users to acquire client as needed. Also I strive to keep API as close to node-pg as possible so Node devs transitioning to Deno don't have to learn yet new driver.\r\n\r\nPlease checkout #31 for my idea of connection pool (of course it's not finished, but you should get the idea of my goal), let me know what you think.",
+          "Client seems fundamentally broken:\r\n\r\nconst a  = client.query(..)\r\nconst b = client.query(..)\r\n\r\nwithout the awaits will crash?\r\n\r\nI think you can offer the same API as node-postgres without this weakness.",
+          "Well yeah, it will crash but signature of `client.query` is `Promise<QueryResult>` so it's developer fault if she doesn't await for those.",
+          "Right, it will crash. You can legitimately await a and b later.\r\n\r\nIf it's possible to write an implementation that's hardened to crashing, and has the same api, why not?\r\n\r\n(This PR isn't there yet)",
+          "Can you explain, I'm not sure I follow, what's the proposed API?",
+          "export Client and Client as Pool.\r\n\r\nEverything uses pool.\r\n\r\nThe one thing remaining is transactions which need to execute on the same connection. To support that you either add a new type (my preference) or reuse Client to add the method to explicitly grab a connection from the pool (and release it after).\r\n\r\nThis would be using the same API as node-postgres but slightly different types...",
+          "I'm no go for using pool for everything. Although creating pool with `size === 1` would give the same effect as using `Client` I'd prefer to keep them separate. \r\n\r\nIn current setup, `Connection` is pretty well hidden from user and that's a conscious decision. Using `Client` gives you easy way to do transactions, and it will work the same with `Pool` - you call `pool.connect()` get back a `Client` instance and go with your stuff. Of course, you still have to remember to `release` it back to the pool but it's fine for me. +1 for providing `pool.query` method like `node-pg-pool` does.\r\n\r\nI'd really prefer if users don't interact with `Connection` directly and only 2 classes they interact with is `Client` and `Pool`. ",
+          "They wouldn't be interacting with a Connection directly even in the transaction described above",
+          "@bartlomieju  I think this now matches the node-postgres API.\r\n\r\nEdit: I'd like to add this test case, but I think the query API doesn't quite work with the prepared statements yet? https://node-postgres.com/features/transactions#a-pooled-client-with-async-await",
+          "Looks great, I'll give it another pass tomorrow and land, thanks @hayd great work",
+          "FYI I have a further cleanup that moves dial onto connection startup and refactors tests with a setup but will include in a subsequent PR."
+        ]
+      },
+      {
+        "pr_number": 27,
+        "title": "First pass at creating a connection pool",
+        "body": "",
+        "html_url": "https://github.com/denodrivers/postgres/pull/27",
+        "comments": [
+          "If poolSize=1 is a argument of Client I think this goes away (can make Client + startup + query + end only exposed methods and no need to change API .\r\n\r\nWhat did you change to get the tests passing?",
+          "Yeah, that's direction I'd want to follow. Re tests: I did not change anything. ",
+          "manyQueries fails for me locally on OSX.",
+          "@hayd I found the problem. It's fixed now on master. I guess that rebase will be hard, can you open a new PR, with changes from `pool.ts` and its tests?",
+          "will do\r\n\r\nEdit: I can just force push here",
+          "Up to you\r\n\r\n@hayd: https://github.com/bartlomieju/deno-postgres/tree/conn_pool",
+          "Pushed. ~But it still needs a small cleanup.~\r\n\r\n~I think also it's worth considering changing open-close from connect-end (though that's a sep issue).~ I see you follow node-postgres, okay!\r\n\r\n~Failing test doesn't fail on my local :) - not sure how it wants me to force the type cast.~",
+          "@hayd thanks! I still have some reservations tough... I'd prefer to leave current `Client` and querying logic as is. Pool still needs to have `connect` and `end` method to allow users to acquire client as needed. Also I strive to keep API as close to node-pg as possible so Node devs transitioning to Deno don't have to learn yet new driver.\r\n\r\nPlease checkout #31 for my idea of connection pool (of course it's not finished, but you should get the idea of my goal), let me know what you think.",
+          "Client seems fundamentally broken:\r\n\r\nconst a  = client.query(..)\r\nconst b = client.query(..)\r\n\r\nwithout the awaits will crash?\r\n\r\nI think you can offer the same API as node-postgres without this weakness.",
+          "Well yeah, it will crash but signature of `client.query` is `Promise<QueryResult>` so it's developer fault if she doesn't await for those.",
+          "Right, it will crash. You can legitimately await a and b later.\r\n\r\nIf it's possible to write an implementation that's hardened to crashing, and has the same api, why not?\r\n\r\n(This PR isn't there yet)",
+          "Can you explain, I'm not sure I follow, what's the proposed API?",
+          "export Client and Client as Pool.\r\n\r\nEverything uses pool.\r\n\r\nThe one thing remaining is transactions which need to execute on the same connection. To support that you either add a new type (my preference) or reuse Client to add the method to explicitly grab a connection from the pool (and release it after).\r\n\r\nThis would be using the same API as node-postgres but slightly different types...",
+          "I'm no go for using pool for everything. Although creating pool with `size === 1` would give the same effect as using `Client` I'd prefer to keep them separate. \r\n\r\nIn current setup, `Connection` is pretty well hidden from user and that's a conscious decision. Using `Client` gives you easy way to do transactions, and it will work the same with `Pool` - you call `pool.connect()` get back a `Client` instance and go with your stuff. Of course, you still have to remember to `release` it back to the pool but it's fine for me. +1 for providing `pool.query` method like `node-pg-pool` does.\r\n\r\nI'd really prefer if users don't interact with `Connection` directly and only 2 classes they interact with is `Client` and `Pool`. ",
+          "They wouldn't be interacting with a Connection directly even in the transaction described above",
+          "@bartlomieju  I think this now matches the node-postgres API.\r\n\r\nEdit: I'd like to add this test case, but I think the query API doesn't quite work with the prepared statements yet? https://node-postgres.com/features/transactions#a-pooled-client-with-async-await",
+          "Looks great, I'll give it another pass tomorrow and land, thanks @hayd great work",
+          "FYI I have a further cleanup that moves dial onto connection startup and refactors tests with a setup but will include in a subsequent PR."
+        ]
+      },
+      {
+        "pr_number": 27,
+        "title": "First pass at creating a connection pool",
+        "body": "",
+        "html_url": "https://github.com/denodrivers/postgres/pull/27",
+        "comments": [
+          "If poolSize=1 is a argument of Client I think this goes away (can make Client + startup + query + end only exposed methods and no need to change API .\r\n\r\nWhat did you change to get the tests passing?",
+          "Yeah, that's direction I'd want to follow. Re tests: I did not change anything. ",
+          "manyQueries fails for me locally on OSX.",
+          "@hayd I found the problem. It's fixed now on master. I guess that rebase will be hard, can you open a new PR, with changes from `pool.ts` and its tests?",
+          "will do\r\n\r\nEdit: I can just force push here",
+          "Up to you\r\n\r\n@hayd: https://github.com/bartlomieju/deno-postgres/tree/conn_pool",
+          "Pushed. ~But it still needs a small cleanup.~\r\n\r\n~I think also it's worth considering changing open-close from connect-end (though that's a sep issue).~ I see you follow node-postgres, okay!\r\n\r\n~Failing test doesn't fail on my local :) - not sure how it wants me to force the type cast.~",
+          "@hayd thanks! I still have some reservations tough... I'd prefer to leave current `Client` and querying logic as is. Pool still needs to have `connect` and `end` method to allow users to acquire client as needed. Also I strive to keep API as close to node-pg as possible so Node devs transitioning to Deno don't have to learn yet new driver.\r\n\r\nPlease checkout #31 for my idea of connection pool (of course it's not finished, but you should get the idea of my goal), let me know what you think.",
+          "Client seems fundamentally broken:\r\n\r\nconst a  = client.query(..)\r\nconst b = client.query(..)\r\n\r\nwithout the awaits will crash?\r\n\r\nI think you can offer the same API as node-postgres without this weakness.",
+          "Well yeah, it will crash but signature of `client.query` is `Promise<QueryResult>` so it's developer fault if she doesn't await for those.",
+          "Right, it will crash. You can legitimately await a and b later.\r\n\r\nIf it's possible to write an implementation that's hardened to crashing, and has the same api, why not?\r\n\r\n(This PR isn't there yet)",
+          "Can you explain, I'm not sure I follow, what's the proposed API?",
+          "export Client and Client as Pool.\r\n\r\nEverything uses pool.\r\n\r\nThe one thing remaining is transactions which need to execute on the same connection. To support that you either add a new type (my preference) or reuse Client to add the method to explicitly grab a connection from the pool (and release it after).\r\n\r\nThis would be using the same API as node-postgres but slightly different types...",
+          "I'm no go for using pool for everything. Although creating pool with `size === 1` would give the same effect as using `Client` I'd prefer to keep them separate. \r\n\r\nIn current setup, `Connection` is pretty well hidden from user and that's a conscious decision. Using `Client` gives you easy way to do transactions, and it will work the same with `Pool` - you call `pool.connect()` get back a `Client` instance and go with your stuff. Of course, you still have to remember to `release` it back to the pool but it's fine for me. +1 for providing `pool.query` method like `node-pg-pool` does.\r\n\r\nI'd really prefer if users don't interact with `Connection` directly and only 2 classes they interact with is `Client` and `Pool`. ",
+          "They wouldn't be interacting with a Connection directly even in the transaction described above",
+          "@bartlomieju  I think this now matches the node-postgres API.\r\n\r\nEdit: I'd like to add this test case, but I think the query API doesn't quite work with the prepared statements yet? https://node-postgres.com/features/transactions#a-pooled-client-with-async-await",
+          "Looks great, I'll give it another pass tomorrow and land, thanks @hayd great work",
+          "FYI I have a further cleanup that moves dial onto connection startup and refactors tests with a setup but will include in a subsequent PR."
+        ]
+      },
+      {
+        "pr_number": 27,
+        "title": "First pass at creating a connection pool",
+        "body": "",
+        "html_url": "https://github.com/denodrivers/postgres/pull/27",
+        "comments": [
+          "If poolSize=1 is a argument of Client I think this goes away (can make Client + startup + query + end only exposed methods and no need to change API .\r\n\r\nWhat did you change to get the tests passing?",
+          "Yeah, that's direction I'd want to follow. Re tests: I did not change anything. ",
+          "manyQueries fails for me locally on OSX.",
+          "@hayd I found the problem. It's fixed now on master. I guess that rebase will be hard, can you open a new PR, with changes from `pool.ts` and its tests?",
+          "will do\r\n\r\nEdit: I can just force push here",
+          "Up to you\r\n\r\n@hayd: https://github.com/bartlomieju/deno-postgres/tree/conn_pool",
+          "Pushed. ~But it still needs a small cleanup.~\r\n\r\n~I think also it's worth considering changing open-close from connect-end (though that's a sep issue).~ I see you follow node-postgres, okay!\r\n\r\n~Failing test doesn't fail on my local :) - not sure how it wants me to force the type cast.~",
+          "@hayd thanks! I still have some reservations tough... I'd prefer to leave current `Client` and querying logic as is. Pool still needs to have `connect` and `end` method to allow users to acquire client as needed. Also I strive to keep API as close to node-pg as possible so Node devs transitioning to Deno don't have to learn yet new driver.\r\n\r\nPlease checkout #31 for my idea of connection pool (of course it's not finished, but you should get the idea of my goal), let me know what you think.",
+          "Client seems fundamentally broken:\r\n\r\nconst a  = client.query(..)\r\nconst b = client.query(..)\r\n\r\nwithout the awaits will crash?\r\n\r\nI think you can offer the same API as node-postgres without this weakness.",
+          "Well yeah, it will crash but signature of `client.query` is `Promise<QueryResult>` so it's developer fault if she doesn't await for those.",
+          "Right, it will crash. You can legitimately await a and b later.\r\n\r\nIf it's possible to write an implementation that's hardened to crashing, and has the same api, why not?\r\n\r\n(This PR isn't there yet)",
+          "Can you explain, I'm not sure I follow, what's the proposed API?",
+          "export Client and Client as Pool.\r\n\r\nEverything uses pool.\r\n\r\nThe one thing remaining is transactions which need to execute on the same connection. To support that you either add a new type (my preference) or reuse Client to add the method to explicitly grab a connection from the pool (and release it after).\r\n\r\nThis would be using the same API as node-postgres but slightly different types...",
+          "I'm no go for using pool for everything. Although creating pool with `size === 1` would give the same effect as using `Client` I'd prefer to keep them separate. \r\n\r\nIn current setup, `Connection` is pretty well hidden from user and that's a conscious decision. Using `Client` gives you easy way to do transactions, and it will work the same with `Pool` - you call `pool.connect()` get back a `Client` instance and go with your stuff. Of course, you still have to remember to `release` it back to the pool but it's fine for me. +1 for providing `pool.query` method like `node-pg-pool` does.\r\n\r\nI'd really prefer if users don't interact with `Connection` directly and only 2 classes they interact with is `Client` and `Pool`. ",
+          "They wouldn't be interacting with a Connection directly even in the transaction described above",
+          "@bartlomieju  I think this now matches the node-postgres API.\r\n\r\nEdit: I'd like to add this test case, but I think the query API doesn't quite work with the prepared statements yet? https://node-postgres.com/features/transactions#a-pooled-client-with-async-await",
+          "Looks great, I'll give it another pass tomorrow and land, thanks @hayd great work",
+          "FYI I have a further cleanup that moves dial onto connection startup and refactors tests with a setup but will include in a subsequent PR."
+        ]
+      },
+      {
+        "pr_number": 27,
+        "title": "First pass at creating a connection pool",
+        "body": "",
+        "html_url": "https://github.com/denodrivers/postgres/pull/27",
+        "comments": [
+          "If poolSize=1 is a argument of Client I think this goes away (can make Client + startup + query + end only exposed methods and no need to change API .\r\n\r\nWhat did you change to get the tests passing?",
+          "Yeah, that's direction I'd want to follow. Re tests: I did not change anything. ",
+          "manyQueries fails for me locally on OSX.",
+          "@hayd I found the problem. It's fixed now on master. I guess that rebase will be hard, can you open a new PR, with changes from `pool.ts` and its tests?",
+          "will do\r\n\r\nEdit: I can just force push here",
+          "Up to you\r\n\r\n@hayd: https://github.com/bartlomieju/deno-postgres/tree/conn_pool",
+          "Pushed. ~But it still needs a small cleanup.~\r\n\r\n~I think also it's worth considering changing open-close from connect-end (though that's a sep issue).~ I see you follow node-postgres, okay!\r\n\r\n~Failing test doesn't fail on my local :) - not sure how it wants me to force the type cast.~",
+          "@hayd thanks! I still have some reservations tough... I'd prefer to leave current `Client` and querying logic as is. Pool still needs to have `connect` and `end` method to allow users to acquire client as needed. Also I strive to keep API as close to node-pg as possible so Node devs transitioning to Deno don't have to learn yet new driver.\r\n\r\nPlease checkout #31 for my idea of connection pool (of course it's not finished, but you should get the idea of my goal), let me know what you think.",
+          "Client seems fundamentally broken:\r\n\r\nconst a  = client.query(..)\r\nconst b = client.query(..)\r\n\r\nwithout the awaits will crash?\r\n\r\nI think you can offer the same API as node-postgres without this weakness.",
+          "Well yeah, it will crash but signature of `client.query` is `Promise<QueryResult>` so it's developer fault if she doesn't await for those.",
+          "Right, it will crash. You can legitimately await a and b later.\r\n\r\nIf it's possible to write an implementation that's hardened to crashing, and has the same api, why not?\r\n\r\n(This PR isn't there yet)",
+          "Can you explain, I'm not sure I follow, what's the proposed API?",
+          "export Client and Client as Pool.\r\n\r\nEverything uses pool.\r\n\r\nThe one thing remaining is transactions which need to execute on the same connection. To support that you either add a new type (my preference) or reuse Client to add the method to explicitly grab a connection from the pool (and release it after).\r\n\r\nThis would be using the same API as node-postgres but slightly different types...",
+          "I'm no go for using pool for everything. Although creating pool with `size === 1` would give the same effect as using `Client` I'd prefer to keep them separate. \r\n\r\nIn current setup, `Connection` is pretty well hidden from user and that's a conscious decision. Using `Client` gives you easy way to do transactions, and it will work the same with `Pool` - you call `pool.connect()` get back a `Client` instance and go with your stuff. Of course, you still have to remember to `release` it back to the pool but it's fine for me. +1 for providing `pool.query` method like `node-pg-pool` does.\r\n\r\nI'd really prefer if users don't interact with `Connection` directly and only 2 classes they interact with is `Client` and `Pool`. ",
+          "They wouldn't be interacting with a Connection directly even in the transaction described above",
+          "@bartlomieju  I think this now matches the node-postgres API.\r\n\r\nEdit: I'd like to add this test case, but I think the query API doesn't quite work with the prepared statements yet? https://node-postgres.com/features/transactions#a-pooled-client-with-async-await",
+          "Looks great, I'll give it another pass tomorrow and land, thanks @hayd great work",
+          "FYI I have a further cleanup that moves dial onto connection startup and refactors tests with a setup but will include in a subsequent PR."
+        ]
+      },
+      {
+        "pr_number": 34,
+        "title": "Refactor query and pool tests to use a shared setup",
+        "body": "This means they can each be run independently.\r\n\r\nfixes #10",
+        "html_url": "https://github.com/denodrivers/postgres/pull/34",
+        "comments": [
+          "@bartlomieju bump!",
+          "@hayd I'll get to it on Saturday",
+          "I'll land this anyway and fix later, thanks again @hayd "
+        ]
+      },
+      {
+        "pr_number": 34,
+        "title": "Refactor query and pool tests to use a shared setup",
+        "body": "This means they can each be run independently.\r\n\r\nfixes #10",
+        "html_url": "https://github.com/denodrivers/postgres/pull/34",
+        "comments": [
+          "@bartlomieju bump!",
+          "@hayd I'll get to it on Saturday",
+          "I'll land this anyway and fix later, thanks again @hayd "
+        ]
+      },
+      {
+        "pr_number": 38,
+        "title": "bump Deno to v0.3.3",
+        "body": "",
+        "html_url": "https://github.com/denodrivers/postgres/pull/38",
+        "comments": []
+      },
+      {
+        "pr_number": 38,
+        "title": "bump Deno to v0.3.3",
+        "body": "",
+        "html_url": "https://github.com/denodrivers/postgres/pull/38",
+        "comments": []
+      },
+      {
+        "pr_number": 38,
+        "title": "bump Deno to v0.3.3",
+        "body": "",
+        "html_url": "https://github.com/denodrivers/postgres/pull/38",
+        "comments": []
+      },
+      {
+        "pr_number": 38,
+        "title": "bump Deno to v0.3.3",
+        "body": "",
+        "html_url": "https://github.com/denodrivers/postgres/pull/38",
+        "comments": []
+      },
+      {
+        "pr_number": 36,
+        "title": "Change type of query args",
+        "body": "Closes #35 ",
+        "html_url": "https://github.com/denodrivers/postgres/pull/36",
+        "comments": []
+      },
+      {
+        "pr_number": 36,
+        "title": "Change type of query args",
+        "body": "Closes #35 ",
+        "html_url": "https://github.com/denodrivers/postgres/pull/36",
+        "comments": []
+      },
+      {
+        "pr_number": 36,
+        "title": "Change type of query args",
+        "body": "Closes #35 ",
+        "html_url": "https://github.com/denodrivers/postgres/pull/36",
+        "comments": []
+      },
+      {
+        "pr_number": 40,
+        "title": "bump Deno to v0.3.8",
+        "body": "",
+        "html_url": "https://github.com/denodrivers/postgres/pull/40",
+        "comments": []
+      },
+      {
+        "pr_number": 40,
+        "title": "bump Deno to v0.3.8",
+        "body": "",
+        "html_url": "https://github.com/denodrivers/postgres/pull/40",
+        "comments": []
+      },
+      {
+        "pr_number": 40,
+        "title": "bump Deno to v0.3.8",
+        "body": "",
+        "html_url": "https://github.com/denodrivers/postgres/pull/40",
+        "comments": []
+      },
+      {
+        "pr_number": 40,
+        "title": "bump Deno to v0.3.8",
+        "body": "",
+        "html_url": "https://github.com/denodrivers/postgres/pull/40",
+        "comments": []
+      }
+    ],
+    "v0.1.1": [
+      {
+        "pr_number": 24,
+        "title": "Update deno_std to v0.2.8",
+        "body": "Closes: #24 ",
+        "html_url": "https://github.com/denodrivers/postgres/pull/24",
+        "comments": []
+      },
+      {
+        "pr_number": 24,
+        "title": "Update deno_std to v0.2.8",
+        "body": "Closes: #24 ",
+        "html_url": "https://github.com/denodrivers/postgres/pull/24",
+        "comments": []
+      }
+    ]
+  }
+}
