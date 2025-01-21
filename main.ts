@@ -4,11 +4,19 @@ import { serve } from "https://deno.land/std@0.193.0/http/server.ts";
 const DATA_DIR = "./data";
 
 // ヘルパー関数: ディレクトリ内のファイル一覧を取得
-async function getFileList(dir: string): Promise<string[]> {
-  const files: string[] = [];
+async function getFileList(
+  dir: string
+): Promise<{ name: string; content: string }[]> {
+  const files: { name: string; content: string }[] = [];
   for await (const entry of Deno.readDir(dir)) {
     if (entry.isFile) {
-      files.push(entry.name);
+      const filePath = `${dir}/${entry.name}`;
+      try {
+        const content = await Deno.readTextFile(filePath);
+        files.push({ name: entry.name, content });
+      } catch (error) {
+        console.error(`Failed to read file: ${filePath}`, error);
+      }
     }
   }
   return files;
@@ -40,11 +48,16 @@ serve(async (req) => {
   }
 
   if (path === "/data") {
-    // `/data` ページ: ディレクトリ内のファイルリンクを表示
+    // `/data` ページ: ディレクトリ内のファイルとその内容を表示
     try {
       const files = await getFileList(DATA_DIR);
-      const links = files
-        .map((file) => `<li><a href="/data/${file}">${file}</a></li>`)
+      const fileEntries = files
+        .map(
+          (file) =>
+            `<li><strong>${file.name}</strong><pre>${escapeHTML(
+              file.content
+            )}</pre></li>`
+        )
         .join("");
 
       return new Response(
@@ -55,7 +68,7 @@ serve(async (req) => {
           <body>
             <h1>Data Files</h1>
             <ul>
-              ${links}
+              ${fileEntries}
             </ul>
           </body>
         </html>
@@ -94,3 +107,12 @@ serve(async (req) => {
 });
 
 console.log("Listening on http://localhost:8000");
+
+// HTMLエスケープを行うヘルパー関数
+function escapeHTML(str: string): string {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
