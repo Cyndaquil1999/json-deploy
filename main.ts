@@ -7,8 +7,8 @@ const DATA_DIR = "./data";
 async function getFileList(dir: string): Promise<string[]> {
   const files: string[] = [];
   for await (const entry of Deno.readDir(dir)) {
-    if (entry.isFile) {
-      files.push(entry.name);
+    if (entry.isFile && entry.name.endsWith(".json")) {
+      files.push(entry.name.replace(".json", "")); // 拡張子を除外
     }
   }
   return files;
@@ -71,10 +71,10 @@ serve(async (req) => {
   }
 
   if (path.startsWith("/data/")) {
-    // 各ファイルの内容を個別ページで表示
-    const filename = path.replace("/data/", "");
+    // ファイル名からデータを取得し表示
+    const filename = path.replace("/data/", ""); // パスからファイル名を取得
     console.log(filename);
-    const filePath = `${DATA_DIR}/${filename}`;
+    const filePath = `${DATA_DIR}/${filename}.json`; // ファイル名に拡張子を追加
 
     try {
       const content = await Deno.readTextFile(filePath);
