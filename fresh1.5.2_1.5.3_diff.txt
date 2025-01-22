@@ -1,0 +1,1766 @@
+diff --git a/init.ts b/init.ts
+index 47571eaf51e..b85f8f4e0e1 100644
+--- a/init.ts
++++ b/init.ts
+@@ -46,7 +46,7 @@ const flags = parse(Deno.args, {
+ console.log();
+ console.log(
+   colors.bgRgb8(
+-    colors.black(colors.bold(" 🍋 Fresh: The next-gen web framework. ")),
++    colors.rgb8(" 🍋 Fresh: The next-gen web framework. ", 0),
+     121,
+   ),
+ );
+diff --git a/plugins/twind.ts b/plugins/twind.ts
+index 62bd6a62b5a..3c8c9d2d843 100644
+--- a/plugins/twind.ts
++++ b/plugins/twind.ts
+@@ -17,32 +17,28 @@ export default function(state) { hydrate(options, state); }`;
+     entrypoints: { "main": main },
+     async renderAsync(ctx) {
+       sheet.reset(undefined);
+-      const res = await ctx.renderAsync();
++      await ctx.renderAsync();
+       const cssTexts = [...sheet.target];
+       const snapshot = sheet.reset();
+-      const scripts = [];
+-      let cssText: string;
+-      if (res.requiresHydration) {
+-        const precedences = snapshot[1] as number[];
+-        cssText = cssTexts.map((cssText, i) =>
+-          `${cssText}/*${precedences[i].toString(36)}*/`
+-        ).join("\n");
+-        const mappings: (string | [string, string])[] = [];
+-        for (
+-          const [key, value] of (snapshot[3] as Map<string, string>).entries()
+-        ) {
+-          if (key === value) {
+-            mappings.push(key);
+-          } else {
+-            mappings.push([key, value]);
+-          }
++      const precedences = snapshot[1] as number[];
++
++      const cssText = cssTexts.map((cssText, i) =>
++        `${cssText}/*${precedences[i].toString(36)}*/`
++      ).join("\n");
++
++      const mappings: (string | [string, string])[] = [];
++      for (
++        const [key, value] of (snapshot[3] as Map<string, string>).entries()
++      ) {
++        if (key === value) {
++          mappings.push(key);
++        } else {
++          mappings.push([key, value]);
+         }
+-        scripts.push({ entrypoint: "main", state: mappings });
+-      } else {
+-        cssText = cssTexts.join("\n");
+       }
++
+       return {
+-        scripts,
++        scripts: [{ entrypoint: "main", state: mappings }],
+         styles: [{ cssText, id: STYLE_ELEMENT_ID }],
+       };
+     },
+diff --git a/plugins/twindv1.ts b/plugins/twindv1.ts
+index 042d92c21e1..7f1efa5e724 100644
+--- a/plugins/twindv1.ts
++++ b/plugins/twindv1.ts
+@@ -1,10 +1,18 @@
+-import { stringify, virtual } from "./twindv1_deps.ts";
+-import { Plugin } from "../server.ts";
++import { stringify, virtual } from "$fresh/plugins/twindv1_deps.ts";
++import { Plugin } from "$fresh/server.ts";
+ 
+-import { Options, setup, STYLE_ELEMENT_ID } from "./twindv1/shared.ts";
++import {
++  Options,
++  setup,
++  STYLE_ELEMENT_ID,
++} from "$fresh/plugins/twindv1/shared.ts";
++
++import { BaseTheme } from "$fresh/plugins/twindv1_deps.ts";
+ export type { Options };
+ 
+-export default function twindv1(options: Options): Plugin {
++export default function twindv1<Theme extends BaseTheme = BaseTheme>(
++  options: Options<Theme>,
++): Plugin {
+   const sheet = virtual(true);
+   setup(options, sheet);
+   const main = `data:application/javascript,import hydrate from "${
+@@ -16,14 +24,10 @@ export default function(state) { hydrate(options, state); }`;
+     name: "twind",
+     entrypoints: { "main": main },
+     async renderAsync(ctx) {
+-      const res = await ctx.renderAsync();
++      await ctx.renderAsync();
+       const cssText = stringify(sheet.target);
+-      const scripts = [];
+-      if (res.requiresHydration) {
+-        scripts.push({ entrypoint: "main", state: [] });
+-      }
+       return {
+-        scripts,
++        scripts: [{ entrypoint: "main", state: [] }],
+         styles: [{ cssText, id: STYLE_ELEMENT_ID }],
+       };
+     },
+diff --git a/src/build/deps.ts b/src/build/deps.ts
+index 7a3996cad4d..13dcd21daf8 100644
+--- a/src/build/deps.ts
++++ b/src/build/deps.ts
+@@ -1,20 +1,10 @@
+ // -- $std --
+ export {
+   fromFileUrl,
++  join,
++  relative,
+   toFileUrl,
+ } from "https://deno.land/std@0.193.0/path/mod.ts";
+ export { escape as regexpEscape } from "https://deno.land/std@0.193.0/regexp/escape.ts";
+ 
+-// -- esbuild --
+-// @deno-types="https://deno.land/x/esbuild@v0.19.4/mod.d.ts"
+-import * as esbuildWasm from "https://deno.land/x/esbuild@v0.19.4/wasm.js";
+-import * as esbuildNative from "https://deno.land/x/esbuild@v0.19.4/mod.js";
+-// @ts-ignore trust me
+-// deno-lint-ignore no-deprecated-deno-api
+-const esbuild: typeof esbuildWasm = Deno.run === undefined
+-  ? esbuildWasm
+-  : esbuildNative;
+-const esbuildWasmURL = new URL("./esbuild_v0.19.4.wasm", import.meta.url).href;
+-export { esbuild, esbuildWasm as esbuildTypes, esbuildWasmURL };
+-
+ export { denoPlugins } from "https://deno.land/x/esbuild_deno_loader@0.8.2/mod.ts";
+diff --git a/src/build/esbuild.ts b/src/build/esbuild.ts
+index 33d7843cc73..06af3b73af8 100644
+--- a/src/build/esbuild.ts
++++ b/src/build/esbuild.ts
+@@ -1,12 +1,9 @@
+ import {
+-  denoPlugins,
+-  esbuild,
+-  esbuildTypes,
+-  esbuildWasmURL,
+-  fromFileUrl,
+-  regexpEscape,
+-  toFileUrl,
+-} from "./deps.ts";
++  type BuildOptions,
++  type OnLoadOptions,
++  type Plugin,
++} from "https://deno.land/x/esbuild@v0.19.4/mod.js";
++import { denoPlugins, fromFileUrl, regexpEscape, relative } from "./deps.ts";
+ import { Builder, BuildSnapshot } from "./mod.ts";
+ 
+ export interface EsbuildBuilderOptions {
+@@ -21,6 +18,7 @@ export interface EsbuildBuilderOptions {
+   /** The JSX configuration. */
+   jsxConfig: JSXConfig;
+   target: string | string[];
++  absoluteWorkingDir: string;
+ }
+ 
+ export interface JSXConfig {
+@@ -37,14 +35,34 @@ export class EsbuildBuilder implements Builder {
+ 
+   async build(): Promise<EsbuildSnapshot> {
+     const opts = this.#options;
+-    try {
+-      await initEsbuild();
+ 
+-      const absWorkingDir = Deno.cwd();
++    // Lazily initialize esbuild
++    // @deno-types="https://deno.land/x/esbuild@v0.19.4/mod.d.ts"
++    const esbuild =
++      // deno-lint-ignore no-deprecated-deno-api
++      Deno.run === undefined ||
++        Deno.env.get("FRESH_ESBUILD_LOADER") === "portable"
++        ? await import("https://deno.land/x/esbuild@v0.19.4/wasm.js")
++        : await import("https://deno.land/x/esbuild@v0.19.4/mod.js");
++    const esbuildWasmURL =
++      new URL("./esbuild_v0.19.4.wasm", import.meta.url).href;
++
++    // deno-lint-ignore no-deprecated-deno-api
++    if (Deno.run === undefined) {
++      await esbuild.initialize({
++        wasmURL: esbuildWasmURL,
++        worker: false,
++      });
++    } else {
++      await esbuild.initialize({});
++    }
++
++    try {
++      const absWorkingDir = opts.absoluteWorkingDir;
+ 
+       // In dev-mode we skip identifier minification to be able to show proper
+       // component names in Preact DevTools instead of single characters.
+-      const minifyOptions: Partial<esbuildTypes.BuildOptions> = opts.dev
++      const minifyOptions: Partial<BuildOptions> = opts.dev
+         ? {
+           minifyIdentifiers: false,
+           minifySyntax: true,
+@@ -82,10 +100,8 @@ export class EsbuildBuilder implements Builder {
+       const files = new Map<string, Uint8Array>();
+       const dependencies = new Map<string, string[]>();
+ 
+-      const absWorkingDirLen = toFileUrl(absWorkingDir).href.length + 1;
+-
+       for (const file of bundle.outputFiles) {
+-        const path = toFileUrl(file.path).href.slice(absWorkingDirLen);
++        const path = relative(absWorkingDir, file.path);
+         files.set(path, file.contents);
+       }
+ 
+@@ -105,7 +121,7 @@ export class EsbuildBuilder implements Builder {
+ 
+       return new EsbuildSnapshot(files, dependencies);
+     } finally {
+-      stopEsbuild();
++      esbuild.stop();
+     }
+   }
+ }
+@@ -115,26 +131,10 @@ const JSX_RUNTIME_MODE = {
+   "react-jsx": "automatic",
+ } as const;
+ 
+-async function initEsbuild() {
+-  // deno-lint-ignore no-deprecated-deno-api
+-  if (Deno.run === undefined) {
+-    await esbuild.initialize({
+-      wasmURL: esbuildWasmURL,
+-      worker: false,
+-    });
+-  } else {
+-    await esbuild.initialize({});
+-  }
+-}
+-
+-function stopEsbuild() {
+-  esbuild.stop();
+-}
+-
+-function buildIdPlugin(buildId: string): esbuildTypes.Plugin {
++function buildIdPlugin(buildId: string): Plugin {
+   const file = import.meta.resolve("../runtime/build_id.ts");
+   const url = new URL(file);
+-  let options: esbuildTypes.OnLoadOptions;
++  let options: OnLoadOptions;
+   if (url.protocol === "file:") {
+     const path = fromFileUrl(url);
+     const filter = new RegExp(`^${regexpEscape(path)}$`);
+diff --git a/src/build/esbuild_test.ts b/src/build/esbuild_test.ts
+new file mode 100644
+index 00000000000..e4c8d550b90
+--- /dev/null
++++ b/src/build/esbuild_test.ts
+@@ -0,0 +1,62 @@
++import { assertEquals } from "$std/testing/asserts.ts";
++import { fromFileUrl, join, toFileUrl } from "../server/deps.ts";
++import { EsbuildBuilder } from "./esbuild.ts";
++
++const denoJson = join(
++  fromFileUrl(import.meta.url),
++  "..",
++  "..",
++  "..",
++  "deno.json",
++);
++
++const mainEntry = toFileUrl(join(
++  fromFileUrl(import.meta.url),
++  "..",
++  "..",
++  "runtime",
++  "entrypoints",
++  "client.ts",
++)).href;
++
++Deno.test("esbuild snapshot with cwd=Deno.cwd()", async () => {
++  const builder = new EsbuildBuilder({
++    absoluteWorkingDir: Deno.cwd(),
++    buildID: "foo",
++    configPath: denoJson,
++    dev: false,
++    entrypoints: {
++      main: mainEntry,
++    },
++    jsxConfig: {
++      jsx: "react-jsx",
++    },
++    target: "es2020",
++  });
++
++  const snapshot = await builder.build();
++  assertEquals(snapshot.paths, ["main.js", "metafile.json"]);
++});
++
++Deno.test({
++  name: "esbuild snapshot with cwd=/",
++  ignore: Deno.build.os === "windows",
++  fn: async () => {
++    const builder = new EsbuildBuilder({
++      absoluteWorkingDir: "/",
++      buildID: "foo",
++      configPath: denoJson,
++      dev: false,
++      entrypoints: {
++        main: mainEntry,
++      },
++      jsxConfig: {
++        jsx: "react-jsx",
++      },
++      target: "es2020",
++    });
++
++    const snapshot = await builder.build();
++    assertEquals(snapshot.paths, ["main.js", "metafile.json"]);
++  },
++});
+diff --git a/src/dev/mod.ts b/src/dev/mod.ts
+index 401ec4bd5fa..0802036ed52 100644
+--- a/src/dev/mod.ts
++++ b/src/dev/mod.ts
+@@ -107,9 +107,44 @@ function toImportSpecifier(file: string) {
+   return specifier;
+ }
+ 
++async function islandImportLine(
++  file: string,
++  i: number,
++  directory: string,
++): Promise<string> {
++  const specifier = toImportSpecifier(file);
++  const moduleURL = new URL(`file://${directory}/${specifier}`);
++  const module = await import(moduleURL.href);
++  const entries = Object.entries(module);
++
++  const allExportsAreComponents = entries.every(
++    ([, exportedEntity]) => typeof exportedEntity === "function",
++  );
++
++  // if all exports are components, we can use the simple, existing form
++  if (allExportsAreComponents) {
++    return `${JSON.stringify(specifier)}: $$${i},`;
++  }
++
++  // if not all exports are components, list the component exports explicitly
++  const componentExports = entries
++    .filter(([, exportedEntity]) => typeof exportedEntity === "function")
++    .map(([exportName]) => exportName);
++
++  const exportsString = componentExports
++    .map((exp) => `${exp}: $$${i}.${exp}`)
++    .join(", ");
++
++  return `"${specifier}": { ${exportsString} },`;
++}
++
+ export async function generate(directory: string, manifest: Manifest) {
+   const { routes, islands } = manifest;
+ 
++  const islandImports = await Promise.all(
++    islands.map((file, i) => islandImportLine(file, i, directory)),
++  );
++
+   const output = `// DO NOT EDIT. This file is generated by Fresh.
+ // This file SHOULD be checked into source version control.
+ // This file is automatically updated during development when running \`dev.ts\`.
+@@ -127,6 +162,7 @@ ${
+     )
+       .join("\n")
+   }
++import { Manifest } from "$fresh/server.ts";
+ 
+ const manifest = {
+   routes: {
+@@ -138,15 +174,10 @@ const manifest = {
+   }
+   },
+   islands: {
+-    ${
+-    islands.map((file, i) =>
+-      `${JSON.stringify(`${toImportSpecifier(file)}`)}: $$${i},`
+-    )
+-      .join("\n    ")
+-  }
++    ${islandImports.join("\n    ")}
+   },
+   baseUrl: import.meta.url,
+-};
++} satisfies Manifest;
+ 
+ export default manifest;
+ `;
+diff --git a/src/runtime/client.ts b/src/runtime/entrypoints/client.ts
+similarity index 74%
+rename from src/runtime/client.ts
+rename to src/runtime/entrypoints/client.ts
+index 21d1a656143..d3d6f7769f4 100644
+--- a/src/runtime/client.ts
++++ b/src/runtime/entrypoints/client.ts
+@@ -1,4 +1,5 @@
+ let ws: WebSocket;
++let revision = 0;
+ 
+ let reconnectTimer: number;
+ const backoff = [
+@@ -36,7 +37,7 @@ function reconnect() {
+     backoffIdx++;
+ 
+     try {
+-      connect(true);
++      connect();
+       clearTimeout(reconnectTimer);
+     } catch (_err) {
+       reconnect();
+@@ -44,23 +45,19 @@ function reconnect() {
+   }, backoff[Math.min(backoffIdx, backoff.length - 1)]);
+ }
+ 
+-function connect(forceReload?: boolean) {
++function connect() {
+   const url = new URL("/_frsh/alive", location.origin.replace("http", "ws"));
+   ws = new WebSocket(
+     url,
+   );
+ 
+   ws.addEventListener("open", () => {
+-    if (forceReload) {
+-      location.reload();
+-    } else {
+-      backoffIdx = 0;
+-      console.log(
+-        `%c Fresh %c Connected to development server.`,
+-        "background-color: #86efac; color: black",
+-        "color: inherit",
+-      );
+-    }
++    backoffIdx = 0;
++    console.log(
++      `%c Fresh %c Connected to development server.`,
++      "background-color: #86efac; color: black",
++      "color: inherit",
++    );
+   });
+ 
+   ws.addEventListener("close", () => {
+@@ -75,7 +72,16 @@ connect();
+ 
+ function handleMessage(e: MessageEvent) {
+   const data = JSON.parse(e.data);
+-  console.log(data);
++  switch (data.type) {
++    case "initial-state": {
++      if (revision === 0) {
++        revision = data.revision;
++      } else if (revision < data.revision) {
++        // Needs reload
++        location.reload();
++      }
++    }
++  }
+ }
+ 
+ function handleError(e: Event) {
+diff --git a/src/runtime/entrypoints/main_dev.ts b/src/runtime/entrypoints/main_dev.ts
+index 4fe0bdb9424..4e4f0c5634b 100644
+--- a/src/runtime/entrypoints/main_dev.ts
++++ b/src/runtime/entrypoints/main_dev.ts
+@@ -1,3 +1,2 @@
+ import "preact/debug";
+-import "../client.ts";
+ export * from "./main.ts";
+diff --git a/src/server/boot.ts b/src/server/boot.ts
+index 13dd9f0d838..acb58c35bd6 100644
+--- a/src/server/boot.ts
++++ b/src/server/boot.ts
+@@ -9,7 +9,7 @@ export async function startServer(
+     opts.onListen = (params) => {
+       console.log();
+       console.log(
+-        colors.bgRgb8(colors.black(colors.bold(" 🍋 Fresh ready ")), 121),
++        colors.bgRgb8(colors.rgb8(" 🍋 Fresh ready ", 0), 121),
+       );
+ 
+       const address = colors.cyan(`http://localhost:${params.port}/`);
+diff --git a/src/server/constants.ts b/src/server/constants.ts
+index 648594de5b4..b0810924df7 100644
+--- a/src/server/constants.ts
++++ b/src/server/constants.ts
+@@ -1,6 +1,7 @@
+ import { INTERNAL_PREFIX } from "../runtime/utils.ts";
+ import { BUILD_ID } from "./build_id.ts";
+ 
++export const DEV_CLIENT_URL = `${INTERNAL_PREFIX}/fresh_dev_client.js`;
+ export const ALIVE_URL = `${INTERNAL_PREFIX}/alive`;
+ export const JS_PREFIX = `/js`;
+ export const DEBUG = !Deno.env.get("DENO_DEPLOYMENT_ID");
+diff --git a/src/server/context.ts b/src/server/context.ts
+index 27eb3ff4a7a..23d1e75ba8d 100644
+--- a/src/server/context.ts
++++ b/src/server/context.ts
+@@ -10,7 +10,7 @@ import {
+ import { ComponentType, h } from "preact";
+ import * as router from "./router.ts";
+ import { FreshConfig, Manifest } from "./mod.ts";
+-import { ALIVE_URL, JS_PREFIX } from "./constants.ts";
++import { ALIVE_URL, DEV_CLIENT_URL, JS_PREFIX } from "./constants.ts";
+ import { BUILD_ID, setBuildId } from "./build_id.ts";
+ import DefaultErrorHandler from "./default_error_page.tsx";
+ import {
+@@ -413,6 +413,7 @@ export class ServerContext {
+   #plugins: Plugin[];
+   #builder: Builder | Promise<BuildSnapshot> | BuildSnapshot;
+   #routerOptions: RouterOptions;
++  #revision = 0;
+ 
+   constructor(
+     routes: Route[],
+@@ -450,6 +451,7 @@ export class ServerContext {
+       dev: this.#dev,
+       jsxConfig,
+       target,
++      absoluteWorkingDir: Deno.cwd(),
+     });
+     this.#routerOptions = routerOptions;
+   }
+@@ -490,6 +492,14 @@ export class ServerContext {
+     );
+     const trailingSlashEnabled = this.#routerOptions?.trailingSlash;
+     const isDev = this.#dev;
++    const bundleAssetRoute = this.#bundleAssetRoute();
++
++    if (this.#dev) {
++      this.#revision = Date.now();
++    }
++
++    // deno-lint-ignore no-this-alias
++    const _self = this;
+ 
+     return async function handler(
+       req: Request,
+@@ -497,20 +507,33 @@ export class ServerContext {
+     ) {
+       const url = new URL(req.url);
+ 
+-      // Live reload: Send updates to browser
+-      if (isDev && url.pathname === ALIVE_URL) {
+-        if (req.headers.get("upgrade") !== "websocket") {
+-          return new Response(null, { status: 501 });
+-        }
++      if (isDev) {
++        // Live reload: Send updates to browser
++        if (url.pathname === ALIVE_URL) {
++          if (req.headers.get("upgrade") !== "websocket") {
++            return new Response(null, { status: 501 });
++          }
+ 
+-        // TODO: When a change is made the Deno server restarts,
+-        // so for now the WebSocket connection is only used for
+-        // the client to know when the server is back up. Once we
+-        // have HMR we'll actively start sending messages back
+-        // and forth.
+-        const { response } = Deno.upgradeWebSocket(req);
++          // TODO: When a change is made the Deno server restarts,
++          // so for now the WebSocket connection is only used for
++          // the client to know when the server is back up. Once we
++          // have HMR we'll actively start sending messages back
++          // and forth.
++          const { response, socket } = Deno.upgradeWebSocket(req);
++
++          socket.addEventListener("open", () => {
++            socket.send(
++              JSON.stringify({
++                type: "initial-state",
++                revision: _self.#revision,
++              }),
++            );
++          });
+ 
+-        return response;
++          return response;
++        } else if (url.pathname === DEV_CLIENT_URL) {
++          return bundleAssetRoute(req, connInfo, { path: "client.js" });
++        }
+       }
+ 
+       // Redirect requests that end with a trailing slash to their non-trailing
+@@ -689,9 +712,8 @@ export class ServerContext {
+     for (
+       const { localUrl, path, size, contentType, etag } of this.#staticFiles
+     ) {
+-      const route = sanitizePathToRegex(path);
+-      staticRoutes[route] = {
+-        baseRoute: toBaseRoute(route),
++      staticRoutes[path] = {
++        baseRoute: toBaseRoute(path),
+         methods: {
+           "HEAD": this.#staticFileHeadHandler(
+             size,
+@@ -771,6 +793,7 @@ export class ServerContext {
+       status: number,
+     ) => {
+       const imports: string[] = [];
++      if (this.#dev) imports.push(DEV_CLIENT_URL);
+       return (
+         req: Request,
+         params: Record<string, string>,
+@@ -1232,18 +1255,6 @@ export function normalizeURLPath(path: string): string | null {
+   }
+ }
+ 
+-function sanitizePathToRegex(path: string): string {
+-  return path
+-    .replaceAll("\*", "\\*")
+-    .replaceAll("\+", "\\+")
+-    .replaceAll("\?", "\\?")
+-    .replaceAll("\{", "\\{")
+-    .replaceAll("\}", "\\}")
+-    .replaceAll("\(", "\\(")
+-    .replaceAll("\)", "\\)")
+-    .replaceAll("\:", "\\:");
+-}
+-
+ function toPascalCase(text: string): string {
+   return text.replace(
+     /(^\w|-\w)/g,
+@@ -1296,6 +1307,7 @@ function collectEntrypoints(
+       ? import.meta.resolve(`${entrypointBase}/main_dev.ts`)
+       : import.meta.resolve(`${entrypointBase}/main.ts`),
+     deserializer: import.meta.resolve(`${entrypointBase}/deserializer.ts`),
++    client: import.meta.resolve(`${entrypointBase}/client.ts`),
+   };
+ 
+   try {
+diff --git a/src/server/rendering/preact_hooks.ts b/src/server/rendering/preact_hooks.ts
+index 0347d6190a3..4db5c64a5a1 100644
+--- a/src/server/rendering/preact_hooks.ts
++++ b/src/server/rendering/preact_hooks.ts
+@@ -269,6 +269,7 @@ options.__b = (vnode: VNode<Record<string, unknown>>) => {
+           });
+         }
+         vnode.type = Fragment;
++        vnode.props = { children: null };
+       } else if (LOADING_ATTR in vnode.props) {
+         current.islandProps.push({
+           [LOADING_ATTR]: vnode.props[LOADING_ATTR],
+@@ -367,6 +368,13 @@ options.__b = (vnode: VNode<Record<string, unknown>>) => {
+             `<Partial> components cannot be used inside islands.`,
+           );
+         }
++        const name = vnode.props.name as string;
++        if (current.encounteredPartials.has(name)) {
++          current.error = new Error(
++            `Duplicate partial name "${name}" found. The partial name prop is expected to be unique among partial components.`,
++          );
++        }
++        current.encounteredPartials.add(name);
+ 
+         const mode = encodePartialMode(
+           // deno-lint-ignore no-explicit-any
+@@ -374,7 +382,7 @@ options.__b = (vnode: VNode<Record<string, unknown>>) => {
+         );
+         vnode.props.children = wrapWithMarker(
+           vnode.props.children,
+-          `frsh-partial:${vnode.props.name}:${mode}:${vnode.key ?? ""}`,
++          `frsh-partial:${name}:${mode}:${vnode.key ?? ""}`,
+         );
+       } else if (
+         vnode.key && (current.islandDepth > 0 || current.partialDepth > 0)
+diff --git a/src/server/rendering/state.ts b/src/server/rendering/state.ts
+index d953b2308bb..73258ed4af9 100644
+--- a/src/server/rendering/state.ts
++++ b/src/server/rendering/state.ts
+@@ -39,6 +39,7 @@ export class RenderState {
+   #nonce = "";
+   error: Error | null = null;
+   isPartial: boolean;
++  encounteredPartials = new Set<string>();
+   partialCount = 0;
+   partialDepth = 0;
+   islandDepth = 0;
+@@ -71,5 +72,6 @@ export class RenderState {
+     this.renderingUserTemplate = false;
+     this.ownerStack = [];
+     this.owners.clear();
++    this.encounteredPartials.clear();
+   }
+ }
+diff --git a/tests/deps.ts b/tests/deps.ts
+index 360beb2990f..dbfaec7f573 100644
+--- a/tests/deps.ts
++++ b/tests/deps.ts
+@@ -37,4 +37,5 @@ export {
+   dirname,
+   fromFileUrl,
+   join,
++  relative,
+ } from "https://deno.land/std@0.193.0/path/mod.ts";
+diff --git a/tests/fixture/fresh.gen.ts b/tests/fixture/fresh.gen.ts
+index 879c0fee32e..a02cd04cf5e 100644
+--- a/tests/fixture/fresh.gen.ts
++++ b/tests/fixture/fresh.gen.ts
+@@ -88,6 +88,7 @@ import * as $$11 from "./islands/folder/subfolder/Counter.tsx";
+ import * as $$12 from "./islands/kebab-case-counter-test.tsx";
+ import * as $$13 from "./routes/route-groups-islands/(_islands)/Counter.tsx";
+ import * as $$14 from "./routes/route-groups-islands/(_islands)/invalid.tsx";
++import { Manifest } from "$fresh/server.ts";
+ 
+ const manifest = {
+   routes: {
+@@ -168,7 +169,11 @@ const manifest = {
+     "./islands/FormIsland.tsx": $$1,
+     "./islands/Greeter.tsx": $$2,
+     "./islands/HookIsland.tsx": $$3,
+-    "./islands/MultipleCounters.tsx": $$4,
++    "./islands/MultipleCounters.tsx": {
++      CounterOne: $$4.CounterOne,
++      CounterTwo: $$4.CounterTwo,
++      default: $$4.default,
++    },
+     "./islands/ReturningNull.tsx": $$5,
+     "./islands/RootFragment.tsx": $$6,
+     "./islands/RootFragmentWithConditionalFirst.tsx": $$7,
+@@ -181,6 +186,6 @@ const manifest = {
+     "./routes/route-groups-islands/(_islands)/invalid.tsx": $$14,
+   },
+   baseUrl: import.meta.url,
+-};
++} satisfies Manifest;
+ 
+ export default manifest;
+diff --git a/tests/fixture/islands/MultipleCounters.tsx b/tests/fixture/islands/MultipleCounters.tsx
+index 0d629398e68..e3f41068e00 100644
+--- a/tests/fixture/islands/MultipleCounters.tsx
++++ b/tests/fixture/islands/MultipleCounters.tsx
+@@ -6,6 +6,8 @@ interface CounterProps {
+   id: string;
+ }
+ 
++export const thisShouldNotCauseProblems = 42;
++
+ export default function CounterZero(props: CounterProps) {
+   return (
+     <div id={props.id}>
+diff --git a/tests/fixture/static/foo (bar).txt b/tests/fixture/static/foo (bar).txt
+new file mode 100644
+index 00000000000..85c88293920
+--- /dev/null
++++ b/tests/fixture/static/foo (bar).txt	
+@@ -0,0 +1 @@
++it works
+\ No newline at end of file
+diff --git a/tests/fixture/static/foo bar.txt b/tests/fixture/static/foo bar.txt
+new file mode 100644
+index 00000000000..85c88293920
+--- /dev/null
++++ b/tests/fixture/static/foo bar.txt	
+@@ -0,0 +1 @@
++it works
+\ No newline at end of file
+diff --git a/tests/fixture_build/fresh.gen.ts b/tests/fixture_build/fresh.gen.ts
+index fa16c42d32f..a35e3677f84 100644
+--- a/tests/fixture_build/fresh.gen.ts
++++ b/tests/fixture_build/fresh.gen.ts
+@@ -4,6 +4,7 @@
+ 
+ import * as $0 from "./routes/index.tsx";
+ import * as $$0 from "./islands/Counter.tsx";
++import { Manifest } from "$fresh/server.ts";
+ 
+ const manifest = {
+   routes: {
+@@ -13,6 +14,6 @@ const manifest = {
+     "./islands/Counter.tsx": $$0,
+   },
+   baseUrl: import.meta.url,
+-};
++} satisfies Manifest;
+ 
+ export default manifest;
+diff --git a/tests/fixture_build_out_dir/fresh.gen.ts b/tests/fixture_build_out_dir/fresh.gen.ts
+index fa16c42d32f..a35e3677f84 100644
+--- a/tests/fixture_build_out_dir/fresh.gen.ts
++++ b/tests/fixture_build_out_dir/fresh.gen.ts
+@@ -4,6 +4,7 @@
+ 
+ import * as $0 from "./routes/index.tsx";
+ import * as $$0 from "./islands/Counter.tsx";
++import { Manifest } from "$fresh/server.ts";
+ 
+ const manifest = {
+   routes: {
+@@ -13,6 +14,6 @@ const manifest = {
+     "./islands/Counter.tsx": $$0,
+   },
+   baseUrl: import.meta.url,
+-};
++} satisfies Manifest;
+ 
+ export default manifest;
+diff --git a/tests/fixture_build_out_dir_sub/src/fresh.gen.ts b/tests/fixture_build_out_dir_sub/src/fresh.gen.ts
+index fa16c42d32f..a35e3677f84 100644
+--- a/tests/fixture_build_out_dir_sub/src/fresh.gen.ts
++++ b/tests/fixture_build_out_dir_sub/src/fresh.gen.ts
+@@ -4,6 +4,7 @@
+ 
+ import * as $0 from "./routes/index.tsx";
+ import * as $$0 from "./islands/Counter.tsx";
++import { Manifest } from "$fresh/server.ts";
+ 
+ const manifest = {
+   routes: {
+@@ -13,6 +14,6 @@ const manifest = {
+     "./islands/Counter.tsx": $$0,
+   },
+   baseUrl: import.meta.url,
+-};
++} satisfies Manifest;
+ 
+ export default manifest;
+diff --git a/tests/fixture_build_out_dir_sub2/src/fresh.gen.ts b/tests/fixture_build_out_dir_sub2/src/fresh.gen.ts
+index fa16c42d32f..a35e3677f84 100644
+--- a/tests/fixture_build_out_dir_sub2/src/fresh.gen.ts
++++ b/tests/fixture_build_out_dir_sub2/src/fresh.gen.ts
+@@ -4,6 +4,7 @@
+ 
+ import * as $0 from "./routes/index.tsx";
+ import * as $$0 from "./islands/Counter.tsx";
++import { Manifest } from "$fresh/server.ts";
+ 
+ const manifest = {
+   routes: {
+@@ -13,6 +14,6 @@ const manifest = {
+     "./islands/Counter.tsx": $$0,
+   },
+   baseUrl: import.meta.url,
+-};
++} satisfies Manifest;
+ 
+ export default manifest;
+diff --git a/tests/fixture_build_sub_dir/src/fresh.gen.ts b/tests/fixture_build_sub_dir/src/fresh.gen.ts
+index fa16c42d32f..a35e3677f84 100644
+--- a/tests/fixture_build_sub_dir/src/fresh.gen.ts
++++ b/tests/fixture_build_sub_dir/src/fresh.gen.ts
+@@ -4,6 +4,7 @@
+ 
+ import * as $0 from "./routes/index.tsx";
+ import * as $$0 from "./islands/Counter.tsx";
++import { Manifest } from "$fresh/server.ts";
+ 
+ const manifest = {
+   routes: {
+@@ -13,6 +14,6 @@ const manifest = {
+     "./islands/Counter.tsx": $$0,
+   },
+   baseUrl: import.meta.url,
+-};
++} satisfies Manifest;
+ 
+ export default manifest;
+diff --git a/tests/fixture_build_target/fresh.gen.ts b/tests/fixture_build_target/fresh.gen.ts
+index fa16c42d32f..a35e3677f84 100644
+--- a/tests/fixture_build_target/fresh.gen.ts
++++ b/tests/fixture_build_target/fresh.gen.ts
+@@ -4,6 +4,7 @@
+ 
+ import * as $0 from "./routes/index.tsx";
+ import * as $$0 from "./islands/Counter.tsx";
++import { Manifest } from "$fresh/server.ts";
+ 
+ const manifest = {
+   routes: {
+@@ -13,6 +14,6 @@ const manifest = {
+     "./islands/Counter.tsx": $$0,
+   },
+   baseUrl: import.meta.url,
+-};
++} satisfies Manifest;
+ 
+ export default manifest;
+diff --git a/tests/fixture_config/fresh.gen.ts b/tests/fixture_config/fresh.gen.ts
+index b321c0e078e..800cc24a56d 100644
+--- a/tests/fixture_config/fresh.gen.ts
++++ b/tests/fixture_config/fresh.gen.ts
+@@ -4,12 +4,14 @@
+ 
+ import * as $0 from "./routes/index.tsx";
+ 
++import { Manifest } from "$fresh/server.ts";
++
+ const manifest = {
+   routes: {
+     "./routes/index.tsx": $0,
+   },
+   islands: {},
+   baseUrl: import.meta.url,
+-};
++} satisfies Manifest;
+ 
+ export default manifest;
+diff --git a/tests/fixture_hmr/deno.json b/tests/fixture_hmr/deno.json
+new file mode 100644
+index 00000000000..2b73c6793f3
+--- /dev/null
++++ b/tests/fixture_hmr/deno.json
+@@ -0,0 +1,15 @@
++{
++  "lock": false,
++  "imports": {
++    "$fresh/": "../../",
++    "preact": "https://esm.sh/preact@10.15.1",
++    "preact/": "https://esm.sh/preact@10.15.1/",
++    "preact-render-to-string": "https://esm.sh/*preact-render-to-string@6.2.1",
++    "@preact/signals": "https://esm.sh/*@preact/signals@1.1.5",
++    "@preact/signals-core": "https://esm.sh/@preact/signals-core@1.3.1"
++  },
++  "compilerOptions": {
++    "jsx": "react-jsx",
++    "jsxImportSource": "preact"
++  }
++}
+diff --git a/tests/fixture_hmr/dev.ts b/tests/fixture_hmr/dev.ts
+new file mode 100755
+index 00000000000..2d85d6c183c
+--- /dev/null
++++ b/tests/fixture_hmr/dev.ts
+@@ -0,0 +1,5 @@
++#!/usr/bin/env -S deno run -A --watch=static/,routes/
++
++import dev from "$fresh/dev.ts";
++
++await dev(import.meta.url, "./main.ts");
+diff --git a/tests/fixture_hmr/fresh.gen.ts b/tests/fixture_hmr/fresh.gen.ts
+new file mode 100644
+index 00000000000..23d6ef797f2
+--- /dev/null
++++ b/tests/fixture_hmr/fresh.gen.ts
+@@ -0,0 +1,22 @@
++// DO NOT EDIT. This file is generated by Fresh.
++// This file SHOULD be checked into source version control.
++// This file is automatically updated during development when running `dev.ts`.
++
++import * as $0 from "./routes/index.tsx";
++import * as $1 from "./routes/island.tsx";
++import * as $2 from "./routes/no_island.tsx";
++import * as $$0 from "./islands/Counter.tsx";
++
++const manifest = {
++  routes: {
++    "./routes/index.tsx": $0,
++    "./routes/island.tsx": $1,
++    "./routes/no_island.tsx": $2,
++  },
++  islands: {
++    "./islands/Counter.tsx": $$0,
++  },
++  baseUrl: import.meta.url,
++};
++
++export default manifest;
+diff --git a/tests/fixture_hmr/islands/Counter.tsx b/tests/fixture_hmr/islands/Counter.tsx
+new file mode 100644
+index 00000000000..9e3f9244542
+--- /dev/null
++++ b/tests/fixture_hmr/islands/Counter.tsx
+@@ -0,0 +1,12 @@
++import { useSignal } from "@preact/signals";
++
++export default function Counter() {
++  const sig = useSignal(0);
++
++  return (
++    <div class="counter">
++      <p>{sig}</p>
++      <button onClick={() => sig.value++}>update</button>
++    </div>
++  );
++}
+diff --git a/tests/fixture_hmr/main.ts b/tests/fixture_hmr/main.ts
+new file mode 100644
+index 00000000000..dedce9cbb04
+--- /dev/null
++++ b/tests/fixture_hmr/main.ts
+@@ -0,0 +1,10 @@
++/// <reference no-default-lib="true" />
++/// <reference lib="dom" />
++/// <reference lib="dom.iterable" />
++/// <reference lib="dom.asynciterable" />
++/// <reference lib="deno.ns" />
++
++import { start } from "$fresh/server.ts";
++import manifest from "./fresh.gen.ts";
++
++await start(manifest);
+diff --git a/tests/fixture_hmr/routes/index.tsx b/tests/fixture_hmr/routes/index.tsx
+new file mode 100644
+index 00000000000..9c4322894a0
+--- /dev/null
++++ b/tests/fixture_hmr/routes/index.tsx
+@@ -0,0 +1,27 @@
++import * as path from "https://deno.land/std@0.192.0/path/mod.ts";
++
++const __dirname = path.dirname(path.fromFileUrl(import.meta.url));
++
++const links: string[] = [];
++for (const file of Deno.readDirSync(__dirname)) {
++  if (file.name.startsWith("index")) continue;
++  const name = path.basename(file.name, path.extname(file.name));
++  links.push(name);
++}
++
++export default function Home() {
++  return (
++    <div>
++      <h1>Tests</h1>
++      <ul>
++        {links.sort().map((link) => {
++          return (
++            <li key={link}>
++              <a href={`/${link}`}>{link}</a>
++            </li>
++          );
++        })}
++      </ul>
++    </div>
++  );
++}
+diff --git a/tests/fixture_hmr/routes/island.tsx b/tests/fixture_hmr/routes/island.tsx
+new file mode 100644
+index 00000000000..f268243038b
+--- /dev/null
++++ b/tests/fixture_hmr/routes/island.tsx
+@@ -0,0 +1,10 @@
++import Counter from "../islands/Counter.tsx";
++
++export default function Home() {
++  return (
++    <div class="foo">
++      <h1>foo</h1>
++      <Counter />
++    </div>
++  );
++}
+diff --git a/tests/fixture_hmr/routes/no_island.tsx b/tests/fixture_hmr/routes/no_island.tsx
+new file mode 100644
+index 00000000000..e8027d58f30
+--- /dev/null
++++ b/tests/fixture_hmr/routes/no_island.tsx
+@@ -0,0 +1,3 @@
++export default function Home() {
++  return <h1 class="foo">foo</h1>;
++}
+diff --git a/tests/fixture_partials/fresh.gen.ts b/tests/fixture_partials/fresh.gen.ts
+index 285133b8f3a..c879982645c 100644
+--- a/tests/fixture_partials/fresh.gen.ts
++++ b/tests/fixture_partials/fresh.gen.ts
+@@ -34,68 +34,69 @@ import * as $28 from "./routes/client_nav_opt_out/page-c.tsx";
+ import * as $29 from "./routes/deep_partial/index.tsx";
+ import * as $30 from "./routes/deep_partial/injected.tsx";
+ import * as $31 from "./routes/deep_partial/update.tsx";
+-import * as $32 from "./routes/form/index.tsx";
+-import * as $33 from "./routes/form/injected.tsx";
+-import * as $34 from "./routes/form/update.tsx";
+-import * as $35 from "./routes/fragment_nav.tsx";
+-import * as $36 from "./routes/fragment_nav_scroll.tsx";
+-import * as $37 from "./routes/head_merge/duplicate.tsx";
+-import * as $38 from "./routes/head_merge/index.tsx";
+-import * as $39 from "./routes/head_merge/injected.tsx";
+-import * as $40 from "./routes/head_merge/update.tsx";
+-import * as $41 from "./routes/index.tsx";
+-import * as $42 from "./routes/island_instance/index.tsx";
+-import * as $43 from "./routes/island_instance/injected.tsx";
+-import * as $44 from "./routes/island_instance/partial.tsx";
+-import * as $45 from "./routes/island_instance/partial_remove.tsx";
+-import * as $46 from "./routes/island_instance/partial_replace.tsx";
+-import * as $47 from "./routes/island_instance_multiple/index.tsx";
+-import * as $48 from "./routes/island_instance_multiple/injected.tsx";
+-import * as $49 from "./routes/island_instance_multiple/partial.tsx";
+-import * as $50 from "./routes/island_instance_multiple/partial_both.tsx";
+-import * as $51 from "./routes/island_instance_nested/index.tsx";
+-import * as $52 from "./routes/island_instance_nested/injected.tsx";
+-import * as $53 from "./routes/island_instance_nested/partial.tsx";
+-import * as $54 from "./routes/island_instance_nested/replace.tsx";
+-import * as $55 from "./routes/island_props/index.tsx";
+-import * as $56 from "./routes/island_props/injected.tsx";
+-import * as $57 from "./routes/island_props/partial.tsx";
+-import * as $58 from "./routes/island_props_signals/index.tsx";
+-import * as $59 from "./routes/island_props_signals/injected.tsx";
+-import * as $60 from "./routes/island_props_signals/partial.tsx";
+-import * as $61 from "./routes/keys/index.tsx";
+-import * as $62 from "./routes/keys/injected.tsx";
+-import * as $63 from "./routes/keys/swap.tsx";
+-import * as $64 from "./routes/keys_components/index.tsx";
+-import * as $65 from "./routes/keys_components/injected.tsx";
+-import * as $66 from "./routes/keys_components/swap.tsx";
+-import * as $67 from "./routes/keys_confusion/index.tsx";
+-import * as $68 from "./routes/keys_dom/index.tsx";
+-import * as $69 from "./routes/keys_dom/injected.tsx";
+-import * as $70 from "./routes/keys_dom/swap.tsx";
+-import * as $71 from "./routes/keys_outside/index.tsx";
+-import * as $72 from "./routes/loading/index.tsx";
+-import * as $73 from "./routes/loading/injected.tsx";
+-import * as $74 from "./routes/loading/update.tsx";
+-import * as $75 from "./routes/missing_partial/index.tsx";
+-import * as $76 from "./routes/missing_partial/injected.tsx";
+-import * as $77 from "./routes/missing_partial/update.tsx";
+-import * as $78 from "./routes/mode/append.tsx";
+-import * as $79 from "./routes/mode/index.tsx";
+-import * as $80 from "./routes/mode/injected.tsx";
+-import * as $81 from "./routes/mode/prepend.tsx";
+-import * as $82 from "./routes/mode/replace.tsx";
+-import * as $83 from "./routes/no_islands/index.tsx";
+-import * as $84 from "./routes/no_islands/injected.tsx";
+-import * as $85 from "./routes/no_islands/update.tsx";
+-import * as $86 from "./routes/no_partial_response/index.tsx";
+-import * as $87 from "./routes/no_partial_response/injected.tsx";
+-import * as $88 from "./routes/no_partial_response/update.tsx";
+-import * as $89 from "./routes/partial_slot_inside_island.tsx";
+-import * as $90 from "./routes/relative_link/index.tsx";
+-import * as $91 from "./routes/scroll_restoration/index.tsx";
+-import * as $92 from "./routes/scroll_restoration/injected.tsx";
+-import * as $93 from "./routes/scroll_restoration/update.tsx";
++import * as $32 from "./routes/duplicate_name/index.tsx";
++import * as $33 from "./routes/form/index.tsx";
++import * as $34 from "./routes/form/injected.tsx";
++import * as $35 from "./routes/form/update.tsx";
++import * as $36 from "./routes/fragment_nav.tsx";
++import * as $37 from "./routes/fragment_nav_scroll.tsx";
++import * as $38 from "./routes/head_merge/duplicate.tsx";
++import * as $39 from "./routes/head_merge/index.tsx";
++import * as $40 from "./routes/head_merge/injected.tsx";
++import * as $41 from "./routes/head_merge/update.tsx";
++import * as $42 from "./routes/index.tsx";
++import * as $43 from "./routes/island_instance/index.tsx";
++import * as $44 from "./routes/island_instance/injected.tsx";
++import * as $45 from "./routes/island_instance/partial.tsx";
++import * as $46 from "./routes/island_instance/partial_remove.tsx";
++import * as $47 from "./routes/island_instance/partial_replace.tsx";
++import * as $48 from "./routes/island_instance_multiple/index.tsx";
++import * as $49 from "./routes/island_instance_multiple/injected.tsx";
++import * as $50 from "./routes/island_instance_multiple/partial.tsx";
++import * as $51 from "./routes/island_instance_multiple/partial_both.tsx";
++import * as $52 from "./routes/island_instance_nested/index.tsx";
++import * as $53 from "./routes/island_instance_nested/injected.tsx";
++import * as $54 from "./routes/island_instance_nested/partial.tsx";
++import * as $55 from "./routes/island_instance_nested/replace.tsx";
++import * as $56 from "./routes/island_props/index.tsx";
++import * as $57 from "./routes/island_props/injected.tsx";
++import * as $58 from "./routes/island_props/partial.tsx";
++import * as $59 from "./routes/island_props_signals/index.tsx";
++import * as $60 from "./routes/island_props_signals/injected.tsx";
++import * as $61 from "./routes/island_props_signals/partial.tsx";
++import * as $62 from "./routes/keys/index.tsx";
++import * as $63 from "./routes/keys/injected.tsx";
++import * as $64 from "./routes/keys/swap.tsx";
++import * as $65 from "./routes/keys_components/index.tsx";
++import * as $66 from "./routes/keys_components/injected.tsx";
++import * as $67 from "./routes/keys_components/swap.tsx";
++import * as $68 from "./routes/keys_confusion/index.tsx";
++import * as $69 from "./routes/keys_dom/index.tsx";
++import * as $70 from "./routes/keys_dom/injected.tsx";
++import * as $71 from "./routes/keys_dom/swap.tsx";
++import * as $72 from "./routes/keys_outside/index.tsx";
++import * as $73 from "./routes/loading/index.tsx";
++import * as $74 from "./routes/loading/injected.tsx";
++import * as $75 from "./routes/loading/update.tsx";
++import * as $76 from "./routes/missing_partial/index.tsx";
++import * as $77 from "./routes/missing_partial/injected.tsx";
++import * as $78 from "./routes/missing_partial/update.tsx";
++import * as $79 from "./routes/mode/append.tsx";
++import * as $80 from "./routes/mode/index.tsx";
++import * as $81 from "./routes/mode/injected.tsx";
++import * as $82 from "./routes/mode/prepend.tsx";
++import * as $83 from "./routes/mode/replace.tsx";
++import * as $84 from "./routes/no_islands/index.tsx";
++import * as $85 from "./routes/no_islands/injected.tsx";
++import * as $86 from "./routes/no_islands/update.tsx";
++import * as $87 from "./routes/no_partial_response/index.tsx";
++import * as $88 from "./routes/no_partial_response/injected.tsx";
++import * as $89 from "./routes/no_partial_response/update.tsx";
++import * as $90 from "./routes/partial_slot_inside_island.tsx";
++import * as $91 from "./routes/relative_link/index.tsx";
++import * as $92 from "./routes/scroll_restoration/index.tsx";
++import * as $93 from "./routes/scroll_restoration/injected.tsx";
++import * as $94 from "./routes/scroll_restoration/update.tsx";
+ import * as $$0 from "./islands/Counter.tsx";
+ import * as $$1 from "./islands/CounterA.tsx";
+ import * as $$2 from "./islands/CounterB.tsx";
+@@ -146,68 +147,69 @@ const manifest = {
+     "./routes/deep_partial/index.tsx": $29,
+     "./routes/deep_partial/injected.tsx": $30,
+     "./routes/deep_partial/update.tsx": $31,
+-    "./routes/form/index.tsx": $32,
+-    "./routes/form/injected.tsx": $33,
+-    "./routes/form/update.tsx": $34,
+-    "./routes/fragment_nav.tsx": $35,
+-    "./routes/fragment_nav_scroll.tsx": $36,
+-    "./routes/head_merge/duplicate.tsx": $37,
+-    "./routes/head_merge/index.tsx": $38,
+-    "./routes/head_merge/injected.tsx": $39,
+-    "./routes/head_merge/update.tsx": $40,
+-    "./routes/index.tsx": $41,
+-    "./routes/island_instance/index.tsx": $42,
+-    "./routes/island_instance/injected.tsx": $43,
+-    "./routes/island_instance/partial.tsx": $44,
+-    "./routes/island_instance/partial_remove.tsx": $45,
+-    "./routes/island_instance/partial_replace.tsx": $46,
+-    "./routes/island_instance_multiple/index.tsx": $47,
+-    "./routes/island_instance_multiple/injected.tsx": $48,
+-    "./routes/island_instance_multiple/partial.tsx": $49,
+-    "./routes/island_instance_multiple/partial_both.tsx": $50,
+-    "./routes/island_instance_nested/index.tsx": $51,
+-    "./routes/island_instance_nested/injected.tsx": $52,
+-    "./routes/island_instance_nested/partial.tsx": $53,
+-    "./routes/island_instance_nested/replace.tsx": $54,
+-    "./routes/island_props/index.tsx": $55,
+-    "./routes/island_props/injected.tsx": $56,
+-    "./routes/island_props/partial.tsx": $57,
+-    "./routes/island_props_signals/index.tsx": $58,
+-    "./routes/island_props_signals/injected.tsx": $59,
+-    "./routes/island_props_signals/partial.tsx": $60,
+-    "./routes/keys/index.tsx": $61,
+-    "./routes/keys/injected.tsx": $62,
+-    "./routes/keys/swap.tsx": $63,
+-    "./routes/keys_components/index.tsx": $64,
+-    "./routes/keys_components/injected.tsx": $65,
+-    "./routes/keys_components/swap.tsx": $66,
+-    "./routes/keys_confusion/index.tsx": $67,
+-    "./routes/keys_dom/index.tsx": $68,
+-    "./routes/keys_dom/injected.tsx": $69,
+-    "./routes/keys_dom/swap.tsx": $70,
+-    "./routes/keys_outside/index.tsx": $71,
+-    "./routes/loading/index.tsx": $72,
+-    "./routes/loading/injected.tsx": $73,
+-    "./routes/loading/update.tsx": $74,
+-    "./routes/missing_partial/index.tsx": $75,
+-    "./routes/missing_partial/injected.tsx": $76,
+-    "./routes/missing_partial/update.tsx": $77,
+-    "./routes/mode/append.tsx": $78,
+-    "./routes/mode/index.tsx": $79,
+-    "./routes/mode/injected.tsx": $80,
+-    "./routes/mode/prepend.tsx": $81,
+-    "./routes/mode/replace.tsx": $82,
+-    "./routes/no_islands/index.tsx": $83,
+-    "./routes/no_islands/injected.tsx": $84,
+-    "./routes/no_islands/update.tsx": $85,
+-    "./routes/no_partial_response/index.tsx": $86,
+-    "./routes/no_partial_response/injected.tsx": $87,
+-    "./routes/no_partial_response/update.tsx": $88,
+-    "./routes/partial_slot_inside_island.tsx": $89,
+-    "./routes/relative_link/index.tsx": $90,
+-    "./routes/scroll_restoration/index.tsx": $91,
+-    "./routes/scroll_restoration/injected.tsx": $92,
+-    "./routes/scroll_restoration/update.tsx": $93,
++    "./routes/duplicate_name/index.tsx": $32,
++    "./routes/form/index.tsx": $33,
++    "./routes/form/injected.tsx": $34,
++    "./routes/form/update.tsx": $35,
++    "./routes/fragment_nav.tsx": $36,
++    "./routes/fragment_nav_scroll.tsx": $37,
++    "./routes/head_merge/duplicate.tsx": $38,
++    "./routes/head_merge/index.tsx": $39,
++    "./routes/head_merge/injected.tsx": $40,
++    "./routes/head_merge/update.tsx": $41,
++    "./routes/index.tsx": $42,
++    "./routes/island_instance/index.tsx": $43,
++    "./routes/island_instance/injected.tsx": $44,
++    "./routes/island_instance/partial.tsx": $45,
++    "./routes/island_instance/partial_remove.tsx": $46,
++    "./routes/island_instance/partial_replace.tsx": $47,
++    "./routes/island_instance_multiple/index.tsx": $48,
++    "./routes/island_instance_multiple/injected.tsx": $49,
++    "./routes/island_instance_multiple/partial.tsx": $50,
++    "./routes/island_instance_multiple/partial_both.tsx": $51,
++    "./routes/island_instance_nested/index.tsx": $52,
++    "./routes/island_instance_nested/injected.tsx": $53,
++    "./routes/island_instance_nested/partial.tsx": $54,
++    "./routes/island_instance_nested/replace.tsx": $55,
++    "./routes/island_props/index.tsx": $56,
++    "./routes/island_props/injected.tsx": $57,
++    "./routes/island_props/partial.tsx": $58,
++    "./routes/island_props_signals/index.tsx": $59,
++    "./routes/island_props_signals/injected.tsx": $60,
++    "./routes/island_props_signals/partial.tsx": $61,
++    "./routes/keys/index.tsx": $62,
++    "./routes/keys/injected.tsx": $63,
++    "./routes/keys/swap.tsx": $64,
++    "./routes/keys_components/index.tsx": $65,
++    "./routes/keys_components/injected.tsx": $66,
++    "./routes/keys_components/swap.tsx": $67,
++    "./routes/keys_confusion/index.tsx": $68,
++    "./routes/keys_dom/index.tsx": $69,
++    "./routes/keys_dom/injected.tsx": $70,
++    "./routes/keys_dom/swap.tsx": $71,
++    "./routes/keys_outside/index.tsx": $72,
++    "./routes/loading/index.tsx": $73,
++    "./routes/loading/injected.tsx": $74,
++    "./routes/loading/update.tsx": $75,
++    "./routes/missing_partial/index.tsx": $76,
++    "./routes/missing_partial/injected.tsx": $77,
++    "./routes/missing_partial/update.tsx": $78,
++    "./routes/mode/append.tsx": $79,
++    "./routes/mode/index.tsx": $80,
++    "./routes/mode/injected.tsx": $81,
++    "./routes/mode/prepend.tsx": $82,
++    "./routes/mode/replace.tsx": $83,
++    "./routes/no_islands/index.tsx": $84,
++    "./routes/no_islands/injected.tsx": $85,
++    "./routes/no_islands/update.tsx": $86,
++    "./routes/no_partial_response/index.tsx": $87,
++    "./routes/no_partial_response/injected.tsx": $88,
++    "./routes/no_partial_response/update.tsx": $89,
++    "./routes/partial_slot_inside_island.tsx": $90,
++    "./routes/relative_link/index.tsx": $91,
++    "./routes/scroll_restoration/index.tsx": $92,
++    "./routes/scroll_restoration/injected.tsx": $93,
++    "./routes/scroll_restoration/update.tsx": $94,
+   },
+   islands: {
+     "./islands/Counter.tsx": $$0,
+diff --git a/tests/fixture_partials/routes/duplicate_name/index.tsx b/tests/fixture_partials/routes/duplicate_name/index.tsx
+new file mode 100644
+index 00000000000..cb9ad298efe
+--- /dev/null
++++ b/tests/fixture_partials/routes/duplicate_name/index.tsx
+@@ -0,0 +1,29 @@
++import { Partial } from "$fresh/runtime.ts";
++import { PageProps } from "$fresh/server.ts";
++
++export default function SlotDemo(props: PageProps) {
++  const update = props.url.searchParams.has("swap");
++
++  return (
++    <div>
++      <Partial name="slot-1">
++        <h2>foo</h2>
++        <p>some text</p>
++      </Partial>
++      {update && (
++        <Partial name="slot-1">
++          <p>foo</p>
++        </Partial>
++      )}
++      <p>
++        <a
++          class="swap-link"
++          href="/duplicate_name"
++          f-partial="/duplicate_name?swap=foo"
++        >
++          swap
++        </a>
++      </p>
++    </div>
++  );
++}
+diff --git a/tests/fixture_plugin_lifecycle/fresh.gen.ts b/tests/fixture_plugin_lifecycle/fresh.gen.ts
+index b321c0e078e..800cc24a56d 100644
+--- a/tests/fixture_plugin_lifecycle/fresh.gen.ts
++++ b/tests/fixture_plugin_lifecycle/fresh.gen.ts
+@@ -4,12 +4,14 @@
+ 
+ import * as $0 from "./routes/index.tsx";
+ 
++import { Manifest } from "$fresh/server.ts";
++
+ const manifest = {
+   routes: {
+     "./routes/index.tsx": $0,
+   },
+   islands: {},
+   baseUrl: import.meta.url,
+-};
++} satisfies Manifest;
+ 
+ export default manifest;
+diff --git a/tests/fixture_render/fresh.gen.ts b/tests/fixture_render/fresh.gen.ts
+index 2d5e061cc83..09efdc24ffe 100644
+--- a/tests/fixture_render/fresh.gen.ts
++++ b/tests/fixture_render/fresh.gen.ts
+@@ -2,17 +2,19 @@
+ // This file SHOULD be checked into source version control.
+ // This file is automatically updated during development when running `dev.ts`.
+ 
+-import * as $0 from "./routes/header_arr.tsx";
+-import * as $1 from "./routes/header_instance.tsx";
+-import * as $2 from "./routes/header_obj.tsx";
+-import * as $3 from "./routes/index.tsx";
++import * as $0 from "./routes/head_style.tsx";
++import * as $1 from "./routes/header_arr.tsx";
++import * as $2 from "./routes/header_instance.tsx";
++import * as $3 from "./routes/header_obj.tsx";
++import * as $4 from "./routes/index.tsx";
+ 
+ const manifest = {
+   routes: {
+-    "./routes/header_arr.tsx": $0,
+-    "./routes/header_instance.tsx": $1,
+-    "./routes/header_obj.tsx": $2,
+-    "./routes/index.tsx": $3,
++    "./routes/head_style.tsx": $0,
++    "./routes/header_arr.tsx": $1,
++    "./routes/header_instance.tsx": $2,
++    "./routes/header_obj.tsx": $3,
++    "./routes/index.tsx": $4,
+   },
+   islands: {},
+   baseUrl: import.meta.url,
+diff --git a/tests/fixture_render/routes/head_style.tsx b/tests/fixture_render/routes/head_style.tsx
+new file mode 100644
+index 00000000000..fce604d6148
+--- /dev/null
++++ b/tests/fixture_render/routes/head_style.tsx
+@@ -0,0 +1,19 @@
++import { RouteConfig } from "$fresh/src/server/types.ts";
++
++export const config: RouteConfig = {
++  skipAppWrapper: true,
++  skipInheritedLayouts: true,
++};
++
++export default function App() {
++  return (
++    <html>
++      <head>
++        <style>{`body { color: red }`}</style>
++      </head>
++      <body>
++        hello
++      </body>
++    </html>
++  );
++}
+diff --git a/tests/fixture_twind_hydrate/fresh.gen.ts b/tests/fixture_twind_hydrate/fresh.gen.ts
+index 0b15419a4dc..9d16f91229c 100644
+--- a/tests/fixture_twind_hydrate/fresh.gen.ts
++++ b/tests/fixture_twind_hydrate/fresh.gen.ts
+@@ -4,25 +4,32 @@
+ 
+ import * as $0 from "./routes/check-duplication.tsx";
+ import * as $1 from "./routes/insert-cssrules.tsx";
+-import * as $2 from "./routes/static.tsx";
+-import * as $3 from "./routes/unused.tsx";
+-import * as $4 from "./routes/unused_tw.tsx";
++import * as $2 from "./routes/island_twind/_layout.tsx";
++import * as $3 from "./routes/island_twind/blue.tsx";
++import * as $4 from "./routes/island_twind/index.tsx";
++import * as $5 from "./routes/static.tsx";
++import * as $6 from "./routes/unused.tsx";
++import * as $7 from "./routes/unused_tw.tsx";
+ import * as $$0 from "./islands/CheckDuplication.tsx";
+ import * as $$1 from "./islands/InsertCssrules.tsx";
++import { Manifest } from "$fresh/server.ts";
+ 
+ const manifest = {
+   routes: {
+     "./routes/check-duplication.tsx": $0,
+     "./routes/insert-cssrules.tsx": $1,
+-    "./routes/static.tsx": $2,
+-    "./routes/unused.tsx": $3,
+-    "./routes/unused_tw.tsx": $4,
++    "./routes/island_twind/_layout.tsx": $2,
++    "./routes/island_twind/blue.tsx": $3,
++    "./routes/island_twind/index.tsx": $4,
++    "./routes/static.tsx": $5,
++    "./routes/unused.tsx": $6,
++    "./routes/unused_tw.tsx": $7,
+   },
+   islands: {
+     "./islands/CheckDuplication.tsx": $$0,
+     "./islands/InsertCssrules.tsx": $$1,
+   },
+   baseUrl: import.meta.url,
+-};
++} satisfies Manifest;
+ 
+ export default manifest;
+diff --git a/tests/fixture_twind_hydrate/routes/island_twind/_layout.tsx b/tests/fixture_twind_hydrate/routes/island_twind/_layout.tsx
+new file mode 100644
+index 00000000000..5f20a2ea8ec
+--- /dev/null
++++ b/tests/fixture_twind_hydrate/routes/island_twind/_layout.tsx
+@@ -0,0 +1,29 @@
++import { Partial } from "$fresh/runtime.ts";
++import { LayoutProps } from "$fresh/server.ts";
++
++export default function Layout(
++  { Component }: LayoutProps<unknown, unknown>,
++) {
++  return (
++    <div f-client-nav>
++      <nav>
++        <ul class="text-blue-500 underline m-8 flex gap-12">
++          <li>
++            <a href="/island_twind">red bg</a>
++          </li>
++          <li>
++            <a href="/island_twind/blue">blue bg</a>
++          </li>
++          <li>
++            <a href="/island_twind/no-route-here">404 page</a>
++          </li>
++        </ul>
++      </nav>
++      <div class="mx-auto max-w-screen-md">
++        <Partial name="main-content">
++          <Component />
++        </Partial>
++      </div>
++    </div>
++  );
++}
+diff --git a/tests/fixture_twind_hydrate/routes/island_twind/blue.tsx b/tests/fixture_twind_hydrate/routes/island_twind/blue.tsx
+new file mode 100644
+index 00000000000..1dd8fc6a8e5
+--- /dev/null
++++ b/tests/fixture_twind_hydrate/routes/island_twind/blue.tsx
+@@ -0,0 +1,7 @@
++export default function Blue() {
++  return (
++    <div class="bg-blue-500">
++      Should have blue bg
++    </div>
++  );
++}
+diff --git a/tests/fixture_twind_hydrate/routes/island_twind/index.tsx b/tests/fixture_twind_hydrate/routes/island_twind/index.tsx
+new file mode 100644
+index 00000000000..b599ca5646b
+--- /dev/null
++++ b/tests/fixture_twind_hydrate/routes/island_twind/index.tsx
+@@ -0,0 +1,7 @@
++export default function Home() {
++  return (
++    <div class="bg-red-500">
++      Should have red bg
++    </div>
++  );
++}
+diff --git a/tests/hmr_test.ts b/tests/hmr_test.ts
+new file mode 100644
+index 00000000000..e0f4d1d7d41
+--- /dev/null
++++ b/tests/hmr_test.ts
+@@ -0,0 +1,107 @@
++import { copy } from "https://deno.land/std@0.204.0/fs/copy.ts";
++import {
++  basename,
++  delay,
++  dirname,
++  join,
++  Page,
++  puppeteer,
++  relative,
++} from "./deps.ts";
++import { startFreshServer } from "./test_utils.ts";
++import { retry } from "$std/async/retry.ts";
++
++async function withTmpFixture(
++  name: string,
++  fn: (page: Page, address: string, dir: string) => Promise<void>,
++) {
++  const tmp = join(await Deno.makeTempDir(), "project");
++  const src = join(Deno.cwd(), dirname(name));
++  await copy(src, tmp);
++
++  // Update Fresh path
++  const denoJsonPath = join(tmp, "deno.json");
++  const json = JSON.parse(await Deno.readTextFile(denoJsonPath));
++  json.imports["$fresh/"] = relative(denoJsonPath, Deno.cwd()) + "/";
++  await Deno.writeTextFile(denoJsonPath, JSON.stringify(json, null, 2));
++
++  // Watcher tests tend to be flaky
++  await retry(async () => {
++    const { lines, serverProcess, address } = await startFreshServer({
++      args: ["run", "-A", "--watch", join(tmp, basename(name))],
++      env: {
++        "FRESH_ESBUILD_LOADER": "portable",
++      },
++    });
++
++    try {
++      await delay(100);
++      const browser = await puppeteer.launch({ args: ["--no-sandbox"] });
++
++      try {
++        const page = await browser.newPage();
++        await fn(page, address, tmp);
++      } finally {
++        await browser.close();
++      }
++    } finally {
++      serverProcess.kill("SIGTERM");
++
++      // Wait until the process exits
++      await serverProcess.status;
++
++      // Drain the lines stream
++      for await (const _ of lines) { /* noop */ }
++    }
++  }, { maxAttempts: 3 });
++}
++
++Deno.test({
++  name: "page reloads with no island present",
++  // Watcher tests are pretty flaky in CI and non-UNIX systems.
++  // Until we know why, we'll gate these tests behind an
++  // environment variable.
++  ignore: !Deno.env.has("FRESH_WATCH_TESTS"),
++  fn: async () => {
++    await withTmpFixture(
++      "./tests/fixture_hmr/dev.ts",
++      async (page, address, dir) => {
++        await page.goto(`${address}/no_island`);
++        await page.waitForSelector("h1");
++
++        // Trigger file change
++        const file = join(dir, "routes", "no_island.tsx");
++        const text = await Deno.readTextFile(file);
++        await Deno.writeTextFile(file, text.replaceAll("foo", "bar"));
++
++        await page.waitForSelector(".bar");
++      },
++    );
++  },
++});
++
++Deno.test({
++  name: "page reloads with island",
++  // Watcher tests are pretty flaky in CI and non-UNIX systems.
++  // Until we know why, we'll gate these tests behind an
++  // environment variable.
++  ignore: !Deno.env.has("FRESH_WATCH_TESTS"),
++  fn: async () => {
++    await withTmpFixture(
++      "./tests/fixture_hmr/dev.ts",
++      async (page, address, dir) => {
++        await page.goto(`${address}/island`);
++        await page.waitForSelector("h1");
++
++        // Trigger file change
++        const file = join(dir, "routes", "island.tsx");
++        const text = await Deno.readTextFile(file);
++        await Deno.writeTextFile(file, text.replaceAll("foo", "bar"));
++
++        await page.waitForSelector(".bar");
++        // TODO: Once we support proper HMR check that state stays
++        // the same
++      },
++    );
++  },
++});
+diff --git a/tests/main_test.ts b/tests/main_test.ts
+index 9f355e905b5..b1fe7372c03 100644
+--- a/tests/main_test.ts
++++ b/tests/main_test.ts
+@@ -359,6 +359,16 @@ Deno.test("static file - by file path", async () => {
+   assertEquals(resp3.headers.get("content-type"), "text/plain");
+ });
+ 
++Deno.test("static file - spaces or other characters in name", async () => {
++  const res = await handler(new Request("https://fresh.deno.dev/foo bar.txt"));
++  assertEquals(await res.text(), "it works");
++
++  const res2 = await handler(
++    new Request("https://fresh.deno.dev/foo (bar).txt"),
++  );
++  assertEquals(await res2.text(), "it works");
++});
++
+ Deno.test("HEAD request", async () => {
+   // Static file
+   const resp = await handler(
+diff --git a/tests/render_test.ts b/tests/render_test.ts
+index 1781b8b5ffc..d41d3e778e8 100644
+--- a/tests/render_test.ts
++++ b/tests/render_test.ts
+@@ -1,5 +1,6 @@
+ import {
+   assertSelector,
++  assertTextMany,
+   parseHtml,
+   withFakeServe,
+ } from "$fresh/tests/test_utils.ts";
+@@ -46,3 +47,11 @@ Deno.test("render headers passed to ctx.render()", async () => {
+     await res.body?.cancel();
+   });
+ });
++
++Deno.test("render head text nodes", async () => {
++  await withFakeServe("./tests/fixture_render/main.ts", async (server) => {
++    const doc = await server.getHtml("/head_style");
++    assertTextMany(doc, "style", ["body { color: red }"]);
++    assertEquals(doc.body.textContent, "hello");
++  });
++});
+diff --git a/tests/twind_test.ts b/tests/twind_test.ts
+index 9235859d950..f425044de12 100644
+--- a/tests/twind_test.ts
++++ b/tests/twind_test.ts
+@@ -3,6 +3,7 @@ import { assert, assertEquals, assertMatch, delay, puppeteer } from "./deps.ts";
+ import { cmpStringArray } from "./fixture_twind_hydrate/utils/utils.ts";
+ import {
+   startFreshServer,
++  waitForStyle,
+   withFakeServe,
+   withFresh,
+   withPageName,
+@@ -385,3 +386,22 @@ Deno.test("don't duplicate css class with twindV1", async () => {
+     },
+   );
+ });
++
++Deno.test("render styles from partial update", async () => {
++  await withPageName(
++    "./tests/fixture_twind_hydrate/main.ts",
++    async (page, address) => {
++      await page.goto(`${address}/island_twind`);
++      await page.click(`a[href="/island_twind/blue"]`);
++
++      await page.waitForSelector(".bg-blue-500");
++
++      await waitForStyle(
++        page,
++        ".bg-blue-500",
++        "backgroundColor",
++        "rgb(59, 130, 246)",
++      );
++    },
++  );
++});
+diff --git a/versions.json b/versions.json
+index da70f1624e3..4c5ecf4ea07 100644
+--- a/versions.json
++++ b/versions.json
+@@ -1,4 +1,5 @@
+ [
++  "1.5.3",
+   "1.5.2",
+   "1.5.1",
+   "1.5.0",
+diff --git a/www/fresh.gen.ts b/www/fresh.gen.ts
+index 3afc115da3f..1ae61be5593 100644
+--- a/www/fresh.gen.ts
++++ b/www/fresh.gen.ts
+@@ -18,6 +18,7 @@ import * as $$2 from "./islands/Counter.tsx";
+ import * as $$3 from "./islands/LemonDrop.tsx";
+ import * as $$4 from "./islands/SearchButton.tsx";
+ import * as $$5 from "./islands/VersionSelect.tsx";
++import { Manifest } from "$fresh/server.ts";
+ 
+ const manifest = {
+   routes: {
+@@ -41,6 +42,6 @@ const manifest = {
+     "./islands/VersionSelect.tsx": $$5,
+   },
+   baseUrl: import.meta.url,
+-};
++} satisfies Manifest;
+ 
+ export default manifest;

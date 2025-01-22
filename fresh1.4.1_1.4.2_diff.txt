@@ -1,0 +1,552 @@
+diff --git a/docs/latest/concepts/app-wrapper.md b/docs/latest/concepts/app-wrapper.md
+index 47a96c34e5a..4927e600f3e 100644
+--- a/docs/latest/concepts/app-wrapper.md
++++ b/docs/latest/concepts/app-wrapper.md
+@@ -37,7 +37,7 @@ export default function App({ Component, state }: AppProps) {
+ 
+ Similar to routes and layouts, the app wrapper can be made asynchronous. This
+ changes the function signature so that the first argument is the `Request`
+-instsance and the second one is the `AppContext`.
++instance and the second one is the `AppContext`.
+ 
+ ```tsx routes/_app.tsx
+ import { AppContext } from "$fresh/server.ts";
+diff --git a/docs/latest/concepts/routing.md b/docs/latest/concepts/routing.md
+index da49e0bd070..7072e8190e8 100644
+--- a/docs/latest/concepts/routing.md
++++ b/docs/latest/concepts/routing.md
+@@ -53,10 +53,10 @@ export const config: RouteConfig = {
+ 
+ ## Route Groups
+ 
+-When working with [route layouts](/docs/canary/concepts/route-layout) or
+-[route middlewares](/docs/canary/concepts/middleware), you'll sometimes come
+-across a situation where you want your routes to inherit from a layout other
+-than what's suggested by the URL segment.
++When working with [layouts](/docs/concepts/layouts) or
++[middlewares](/docs/concepts/middleware), you'll sometimes come across a
++situation where you want your routes to inherit from a layout other than what's
++suggested by the URL segment.
+ 
+ Let's illustrate that with an example:
+ 
+diff --git a/docs/latest/examples/rendering-markdown.md b/docs/latest/examples/rendering-markdown.md
+index 2be2ea64aea..1647f81f86c 100644
+--- a/docs/latest/examples/rendering-markdown.md
++++ b/docs/latest/examples/rendering-markdown.md
+@@ -30,7 +30,7 @@ export const handler: Handlers<Page> = {
+     let rawMarkdown = "";
+     if (ctx.params.slug === "remote") {
+       const resp = await fetch(
+-        `https://raw.githubusercontent.com/denoland/fresh/main/docs/introduction/index.md`
++        `https://raw.githubusercontent.com/denoland/fresh/main/docs/latest/introduction/index.md`
+       );
+       if (resp.status !== 200) {
+         return ctx.render(undefined);
+diff --git a/init.ts b/init.ts
+index 1beb228d69a..8f9d9418a18 100644
+--- a/init.ts
++++ b/init.ts
+@@ -562,6 +562,10 @@ const config = {
+     rules: {
+       tags: ["fresh", "recommended"],
+     },
++    exclude: ["_fresh"],
++  },
++  fmt: {
++    exclude: ["_fresh"],
+   },
+   imports: {} as Record<string, string>,
+   compilerOptions: {
+diff --git a/plugins/twind/shared.ts b/plugins/twind/shared.ts
+index b01e2f5ffd9..4caa81d6a2a 100644
+--- a/plugins/twind/shared.ts
++++ b/plugins/twind/shared.ts
+@@ -43,6 +43,7 @@ export function setup(options: Options, sheet: Sheet) {
+       }
+       if (props.className) {
+         classes.push(tw(props.className));
++        props.className = undefined;
+       }
+       if (classes.length) {
+         props.class = classes.join(" ");
+diff --git a/plugins/twindv1/shared.ts b/plugins/twindv1/shared.ts
+index 39816353794..0e3e9934267 100644
+--- a/plugins/twindv1/shared.ts
++++ b/plugins/twindv1/shared.ts
+@@ -38,6 +38,7 @@ export function setup({ selfURL: _selfURL, ...config }: Options, sheet: Sheet) {
+       }
+       if (props.className) {
+         classes.push(tw(props.className));
++        props.className = undefined;
+       }
+       if (classes.length) {
+         props.class = classes.join(" ");
+diff --git a/src/server/mod.ts b/src/server/mod.ts
+index 5f2d69858d9..3f715e6c337 100644
+--- a/src/server/mod.ts
++++ b/src/server/mod.ts
+@@ -84,6 +84,13 @@ export interface DenoConfig {
+   imports?: Record<string, string>;
+   importMap?: string;
+   tasks?: Record<string, string>;
++  lint?: {
++    rules: { tags?: string[] };
++    exclude?: string[];
++  };
++  fmt?: {
++    exclude?: string[];
++  };
+   compilerOptions?: {
+     jsx?: string;
+     jsxImportSource?: string;
+diff --git a/src/server/rendering/template.tsx b/src/server/rendering/template.tsx
+index 05a8a88ac75..ea948f177b0 100644
+--- a/src/server/rendering/template.tsx
++++ b/src/server/rendering/template.tsx
+@@ -67,6 +67,7 @@ export function renderOuterDocument(
+     docHead,
+     renderedHtmlTag,
+     docTitle,
++    docBody,
+     docHeadNodes,
+     headVNodes,
+   } = state;
+@@ -89,9 +90,15 @@ export function renderOuterDocument(
+       opts.preloads.map((src) =>
+         h("link", { rel: "modulepreload", href: src })
+       ),
++      opts.moduleScripts.map(([src, nonce]) =>
++        h("script", { src: src, nonce, type: "module" })
++      ),
+       headVNodes,
+-      h("body", { dangerouslySetInnerHTML: { __html: opts.bodyHtml } }),
+     ),
++    h("body", {
++      ...docBody,
++      dangerouslySetInnerHTML: { __html: opts.bodyHtml },
++    }),
+   );
+ 
+   try {
+diff --git a/tests/cli_test.ts b/tests/cli_test.ts
+index a3471dd37c9..c70f3e48513 100644
+--- a/tests/cli_test.ts
++++ b/tests/cli_test.ts
+@@ -86,9 +86,17 @@ Deno.test({
+       const configPath = path.join(tmpDirName, "deno.json");
+       const json = JSON.parse(await Deno.readTextFile(configPath));
+ 
++      // Check tasks
+       assert(json.tasks.start, "Missing 'start' task");
+       assert(json.tasks.build, "Missing 'build' task");
+       assert(json.tasks.preview, "Missing 'preview' task");
++
++      // Check lint settings
++      assertEquals(json.lint.exclude, ["_fresh"]);
++      assertEquals(json.lint.rules.tags, ["fresh", "recommended"]);
++
++      // Check fmt settings
++      assertEquals(json.fmt.exclude, ["_fresh"]);
+     });
+ 
+     await t.step("start up the server and access the root page", async () => {
+@@ -390,6 +398,10 @@ Deno.test("fresh-update", async function fn(t) {
+     assert(json.tasks?.start, "Missing 'start' task");
+     assert(json.tasks?.build, "Missing 'build' task");
+     assert(json.tasks?.preview, "Missing 'preview' task");
++
++    assertEquals(json.lint?.rules?.tags, ["fresh", "recommended"]);
++    assertEquals(json.lint?.exclude, ["_fresh"]);
++    assertEquals(json.fmt?.exclude, ["_fresh"]);
+   });
+ 
+   const comment = "// This is a test comment";
+diff --git a/tests/explicit_app_template_test.ts b/tests/explicit_app_template_test.ts
+index 0d9463493db..731f1924984 100644
+--- a/tests/explicit_app_template_test.ts
++++ b/tests/explicit_app_template_test.ts
+@@ -5,6 +5,7 @@ import {
+   fetchHtml,
+   withFresh,
+ } from "$fresh/tests/test_utils.ts";
++import { assertNotMatch } from "$std/testing/asserts.ts";
+ 
+ Deno.test("doesn't apply internal app template", async () => {
+   await withFresh(
+@@ -66,3 +67,28 @@ Deno.test("don't duplicate <title>", async () => {
+     },
+   );
+ });
++
++Deno.test("sets <html> + <head> + <body> classes", async () => {
++  await withFresh(
++    "./tests/fixture_explicit_app/main.ts",
++    async (address) => {
++      const doc = await fetchHtml(`${address}`);
++      assertSelector(doc, "html.html");
++      assertSelector(doc, "head.head");
++      assertSelector(doc, "body.body");
++    },
++  );
++});
++
++// Issue: https://github.com/denoland/fresh/issues/1666
++Deno.test("renders valid html document", async () => {
++  await withFresh(
++    "./tests/fixture_explicit_app/main.ts",
++    async (address) => {
++      const res = await fetch(address);
++      const text = await res.text();
++
++      assertNotMatch(text, /<\/body><\/head>/);
++    },
++  );
++});
+diff --git a/tests/fixture_explicit_app/routes/_app.tsx b/tests/fixture_explicit_app/routes/_app.tsx
+index 14980273f79..295434f2e18 100644
+--- a/tests/fixture_explicit_app/routes/_app.tsx
++++ b/tests/fixture_explicit_app/routes/_app.tsx
+@@ -9,13 +9,13 @@ export default function App(
+   { Component, state }: AppProps<unknown, { lang: string }>,
+ ) {
+   return (
+-    <html lang={state.lang}>
+-      <head>
++    <html lang={state.lang} class="html">
++      <head class="head">
+         <meta charSet="utf-8" />
+         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+         <title>fresh title</title>
+       </head>
+-      <body>
++      <body class="body">
+         <div class="inner-body">
+           <Component />
+         </div>
+diff --git a/tests/fixture_twind_app/deno.json b/tests/fixture_twind_app/deno.json
+new file mode 100644
+index 00000000000..c4df017779e
+--- /dev/null
++++ b/tests/fixture_twind_app/deno.json
+@@ -0,0 +1,20 @@
++{
++  "lock": false,
++  "tasks": {
++    "start": "deno run -A --watch=static/,routes/ dev.ts"
++  },
++  "imports": {
++    "$fresh/": "../../",
++    "twind": "https://esm.sh/twind@0.16.19",
++    "twind/": "https://esm.sh/twind@0.16.19/",
++    "preact": "https://esm.sh/preact@10.15.1",
++    "preact/": "https://esm.sh/preact@10.15.1/",
++    "preact-render-to-string": "https://esm.sh/*preact-render-to-string@6.1.0",
++    "@preact/signals": "https://esm.sh/*@preact/signals@1.1.3",
++    "@preact/signals-core": "https://esm.sh/@preact/signals-core@1.2.3"
++  },
++  "compilerOptions": {
++    "jsx": "react-jsx",
++    "jsxImportSource": "preact"
++  }
++}
+diff --git a/tests/fixture_twind_app/dev.ts b/tests/fixture_twind_app/dev.ts
+new file mode 100755
+index 00000000000..2d85d6c183c
+--- /dev/null
++++ b/tests/fixture_twind_app/dev.ts
+@@ -0,0 +1,5 @@
++#!/usr/bin/env -S deno run -A --watch=static/,routes/
++
++import dev from "$fresh/dev.ts";
++
++await dev(import.meta.url, "./main.ts");
+diff --git a/tests/fixture_twind_app/fresh.gen.ts b/tests/fixture_twind_app/fresh.gen.ts
+new file mode 100644
+index 00000000000..690567f8265
+--- /dev/null
++++ b/tests/fixture_twind_app/fresh.gen.ts
+@@ -0,0 +1,19 @@
++// DO NOT EDIT. This file is generated by Fresh.
++// This file SHOULD be checked into source version control.
++// This file is automatically updated during development when running `dev.ts`.
++
++import * as $0 from "./routes/_app.tsx";
++import * as $1 from "./routes/app_class.tsx";
++import * as $2 from "./routes/index.tsx";
++
++const manifest = {
++  routes: {
++    "./routes/_app.tsx": $0,
++    "./routes/app_class.tsx": $1,
++    "./routes/index.tsx": $2,
++  },
++  islands: {},
++  baseUrl: import.meta.url,
++};
++
++export default manifest;
+diff --git a/tests/fixture_twind_app/main.ts b/tests/fixture_twind_app/main.ts
+new file mode 100644
+index 00000000000..81b6ecb5bd4
+--- /dev/null
++++ b/tests/fixture_twind_app/main.ts
+@@ -0,0 +1,18 @@
++/// <reference no-default-lib="true" />
++/// <reference lib="dom" />
++/// <reference lib="dom.asynciterable" />
++/// <reference lib="deno.ns" />
++
++import { start } from "$fresh/server.ts";
++import twind from "$fresh/plugins/twind.ts";
++import twindV1 from "$fresh/plugins/twindv1.ts";
++import manifest from "./fresh.gen.ts";
++
++const twindPlugin = Deno.env.has("TWIND_V1")
++  ? twindV1({
++    selfURL: import.meta.url,
++    // deno-lint-ignore no-explicit-any
++  } as any)
++  : twind({ selfURL: import.meta.url });
++
++await start(manifest, { plugins: [twindPlugin] });
+diff --git a/tests/fixture_twind_app/routes/_app.tsx b/tests/fixture_twind_app/routes/_app.tsx
+new file mode 100644
+index 00000000000..5183eaa798d
+--- /dev/null
++++ b/tests/fixture_twind_app/routes/_app.tsx
+@@ -0,0 +1,16 @@
++import { AppProps } from "$fresh/server.ts";
++
++export default function App({ Component }: AppProps) {
++  return (
++    <html className="bg-slate-800">
++      <head className="bg-slate-800">
++        <meta charSet="utf-8" />
++        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
++        <title>fresh-foo</title>
++      </head>
++      <body className="bg-slate-800">
++        <Component />
++      </body>
++    </html>
++  );
++}
+diff --git a/tests/fixture_twind_app/routes/app_class.tsx b/tests/fixture_twind_app/routes/app_class.tsx
+new file mode 100644
+index 00000000000..5048322b358
+--- /dev/null
++++ b/tests/fixture_twind_app/routes/app_class.tsx
+@@ -0,0 +1,3 @@
++export default function Page() {
++  return <h1>it works</h1>;
++}
+diff --git a/tests/fixture_twind_app/routes/index.tsx b/tests/fixture_twind_app/routes/index.tsx
+new file mode 100644
+index 00000000000..b507958e12d
+--- /dev/null
++++ b/tests/fixture_twind_app/routes/index.tsx
+@@ -0,0 +1,27 @@
++import * as path from "https://deno.land/std@0.192.0/path/mod.ts";
++
++const __dirname = path.dirname(path.fromFileUrl(import.meta.url));
++
++const links: string[] = [];
++for (const file of Deno.readDirSync(__dirname)) {
++  if (file.name.startsWith("index")) continue;
++  const name = path.basename(file.name, path.extname(file.name));
++  links.push(name);
++}
++
++export default function Home() {
++  return (
++    <div class="mx-auto max-w-md">
++      <h1 class="text-3xl font-bold my-8">Tests</h1>
++      <ul class="pl-4">
++        {links.map((link) => {
++          return (
++            <li key={link} class="list-disc">
++              <a href={`/${link}`} class="underline">{link}</a>
++            </li>
++          );
++        })}
++      </ul>
++    </div>
++  );
++}
+diff --git a/tests/main_test.ts b/tests/main_test.ts
+index 8981d6a3ed3..9992eb5a376 100644
+--- a/tests/main_test.ts
++++ b/tests/main_test.ts
+@@ -971,3 +971,10 @@ Deno.test({
+   sanitizeOps: false,
+   sanitizeResources: false,
+ });
++
++Deno.test("adds refresh script to html", async () => {
++  await withFresh("./tests/fixture/main.ts", async (address) => {
++    const doc = await fetchHtml(address);
++    assertSelector(doc, `script[src="/_frsh/refresh.js"]`);
++  });
++});
+diff --git a/tests/test_utils.ts b/tests/test_utils.ts
+index 40dd446a765..d2da752078c 100644
+--- a/tests/test_utils.ts
++++ b/tests/test_utils.ts
+@@ -128,11 +128,22 @@ function _printDomNode(
+ }
+ 
+ export async function withFresh(
+-  name: string,
++  name: string | { name: string; options: Omit<Deno.CommandOptions, "args"> },
+   fn: (address: string) => Promise<void>,
+ ) {
++  let file: string;
++  let options = {};
++
++  if (typeof name === "object") {
++    file = name.name;
++    options = name.options ?? {};
++  } else {
++    file = name;
++  }
++
+   const { lines, serverProcess, address } = await startFreshServer({
+-    args: ["run", "-A", name],
++    ...options,
++    args: ["run", "-A", file],
+   });
+ 
+   try {
+diff --git a/tests/twind_test.ts b/tests/twind_test.ts
+index 741ff8c4924..5db357af6af 100644
+--- a/tests/twind_test.ts
++++ b/tests/twind_test.ts
+@@ -1,7 +1,7 @@
+-import { assert, assertEquals, delay, puppeteer } from "./deps.ts";
++import { assert, assertEquals, assertMatch, delay, puppeteer } from "./deps.ts";
+ 
+ import { cmpStringArray } from "./fixture_twind_hydrate/utils/utils.ts";
+-import { startFreshServer, withPageName } from "./test_utils.ts";
++import { startFreshServer, withFresh, withPageName } from "./test_utils.ts";
+ 
+ /**
+  * Start the server with the main file.
+@@ -350,3 +350,50 @@ Deno.test({
+   sanitizeOps: false,
+   sanitizeResources: false,
+ });
++
++// Test for: https://github.com/denoland/fresh/issues/1655
++Deno.test({
++  name: "don't duplicate css class",
++  async fn() {
++    await withFresh(
++      "./tests/fixture_twind_app/main.ts",
++      async (address) => {
++        const res = await fetch(`${address}/app_class`);
++        assertEquals(res.status, 200);
++
++        // Don't use an HTML parser here which would de-duplicate the
++        // class names automatically
++        const html = await res.text();
++        assertMatch(html, /html class="bg-slate-800">/);
++        assertMatch(html, /head class="bg-slate-800">/);
++        assertMatch(html, /body class="bg-slate-800">/);
++      },
++    );
++  },
++  sanitizeOps: false,
++  sanitizeResources: false,
++});
++// Test for: https://github.com/denoland/fresh/issues/1655
++Deno.test("don't duplicate css class with twindV1", async () => {
++  await withFresh(
++    {
++      name: "./tests/fixture_twind_app/main.ts",
++      options: {
++        env: {
++          TWIND_V1: "true",
++        },
++      },
++    },
++    async (address) => {
++      const res = await fetch(`${address}/app_class`);
++      assertEquals(res.status, 200);
++
++      // Don't use an HTML parser here which would de-duplicate the
++      // class names automatically
++      const html = await res.text();
++      assertMatch(html, /html class="bg-slate-800">/);
++      assertMatch(html, /head class="bg-slate-800">/);
++      assertMatch(html, /body class="bg-slate-800">/);
++    },
++  );
++});
+diff --git a/update.ts b/update.ts
+index bd6dc306214..e1c049ec6f9 100644
+--- a/update.ts
++++ b/update.ts
+@@ -87,6 +87,23 @@ if (!denoJson.lint.rules.tags.includes("fresh")) {
+ if (!denoJson.lint.rules.tags.includes("recommended")) {
+   denoJson.lint.rules.tags.push("recommended");
+ }
++if (!denoJson.lint.exclude) {
++  denoJson.lint.exclude = [];
++}
++if (!denoJson.lint.exclude.includes("_fresh")) {
++  denoJson.lint.exclude.push("_fresh");
++}
++
++// Exclude _fresh dir from linting
++if (!denoJson.fmt) {
++  denoJson.fmt = {};
++}
++if (!denoJson.fmt.exclude) {
++  denoJson.fmt.exclude = [];
++}
++if (!denoJson.fmt.exclude.includes("_fresh")) {
++  denoJson.fmt.exclude.push("_fresh");
++}
+ 
+ if (!denoJson.tasks) {
+   denoJson.tasks = {};
+@@ -266,9 +283,6 @@ export default function App({ Component }: AppProps) {
+   );
+ }
+ 
+-console.log(routes);
+-// await Deno.writeTextFile(MAIN_TS_PATH, MAIN_TS);
+-
+ const manifest = await collect(srcDirectory);
+ await generate(srcDirectory, manifest);
+ 
+diff --git a/versions.json b/versions.json
+index 870da2cdfc7..1c4e50c9273 100644
+--- a/versions.json
++++ b/versions.json
+@@ -1,4 +1,5 @@
+ [
++  "1.4.2",
+   "1.4.1",
+   "1.4.0",
+   "1.3.1",
+diff --git a/www/routes/index.tsx b/www/routes/index.tsx
+index 47cc4cc4b5a..45c7b3e3e17 100644
+--- a/www/routes/index.tsx
++++ b/www/routes/index.tsx
+@@ -77,11 +77,10 @@ function HelloBar() {
+   return (
+     <a
+       class="bg-green-400 text-black border(b green-500) p-3 text-center group"
+-      href="https://deno.com/blog/fresh-1.3"
++      href="https://deno.com/blog/fresh-1.4"
+     >
+-      <b>Fresh v1.3</b> has been released with <b>async route components</b>,
+-      {" "}
+-      <b>plugin enhancements</b>, and more!{"  "}
++      <b>Fresh v1.4</b> has been released with <b>faster page loads</b>,{" "}
++      <b>layouts</b>, and more!{"  "}
+       <span class="group-hover:underline">→</span>
+     </a>
+   );

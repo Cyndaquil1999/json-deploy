@@ -1,0 +1,133 @@
+diff --git a/README.md b/README.md
+index 950464a3..8633507f 100644
+--- a/README.md
++++ b/README.md
+@@ -3,7 +3,7 @@
+ ![Build Status](https://img.shields.io/github/workflow/status/denodrivers/postgres/ci?label=Build&logo=github&style=flat-square)
+ [![Discord server](https://img.shields.io/discord/768918486575480863?color=blue&label=Ask%20for%20help%20here&logo=discord&style=flat-square)](https://discord.gg/HEdTCvZUSf)
+ [![Manual](https://img.shields.io/github/v/release/denodrivers/postgres?color=orange&label=Manual&logo=deno&style=flat-square)](https://deno-postgres.com)
+-[![Documentation](https://img.shields.io/github/v/release/denodrivers/postgres?color=yellow&label=Documentation&logo=deno&style=flat-square)](https://doc.deno.land/https/deno.land/x/postgres@v0.14.0/mod.ts)
++[![Documentation](https://img.shields.io/github/v/release/denodrivers/postgres?color=yellow&label=Documentation&logo=deno&style=flat-square)](https://doc.deno.land/https/deno.land/x/postgres@v0.14.2/mod.ts)
+ [![License](https://img.shields.io/github/license/denodrivers/postgres?color=yellowgreen&label=License&style=flat-square)](LICENSE)
+ 
+ A lightweight PostgreSQL driver for Deno focused on user experience
+diff --git a/connection/connection.ts b/connection/connection.ts
+index 11951058..444e9e75 100644
+--- a/connection/connection.ts
++++ b/connection/connection.ts
+@@ -632,7 +632,12 @@ export class Connection {
+           break;
+         }
+         case INCOMING_QUERY_MESSAGES.DATA_ROW: {
+-          result.insertRow(parseRowDataMessage(current_message));
++          const row_data = parseRowDataMessage(current_message);
++          try {
++            result.insertRow(row_data);
++          } catch (e) {
++            error = e;
++          }
+           break;
+         }
+         case INCOMING_QUERY_MESSAGES.EMPTY_QUERY:
+@@ -809,7 +814,12 @@ export class Connection {
+           break;
+         }
+         case INCOMING_QUERY_MESSAGES.DATA_ROW: {
+-          result.insertRow(parseRowDataMessage(current_message));
++          const row_data = parseRowDataMessage(current_message);
++          try {
++            result.insertRow(row_data);
++          } catch (e) {
++            error = e;
++          }
+           break;
+         }
+         case INCOMING_QUERY_MESSAGES.NO_DATA:
+diff --git a/docs/README.md b/docs/README.md
+index c0e98e73..38dcad96 100644
+--- a/docs/README.md
++++ b/docs/README.md
+@@ -3,7 +3,7 @@
+ ![Build Status](https://img.shields.io/github/workflow/status/denodrivers/postgres/ci?label=Build&logo=github&style=flat-square)
+ [![Discord server](https://img.shields.io/discord/768918486575480863?color=blue&label=Ask%20for%20help%20here&logo=discord&style=flat-square)](https://discord.gg/HEdTCvZUSf)
+ ![Manual](https://img.shields.io/github/v/release/denodrivers/postgres?color=orange&label=Manual&logo=deno&style=flat-square)
+-[![Documentation](https://img.shields.io/github/v/release/denodrivers/postgres?color=yellow&label=Documentation&logo=deno&style=flat-square)](https://doc.deno.land/https/deno.land/x/postgres@v0.14.0/mod.ts)
++[![Documentation](https://img.shields.io/github/v/release/denodrivers/postgres?color=yellow&label=Documentation&logo=deno&style=flat-square)](https://doc.deno.land/https/deno.land/x/postgres@v0.14.2/mod.ts)
+ ![License](https://img.shields.io/github/license/denodrivers/postgres?color=yellowgreen&label=License&style=flat-square)
+ 
+ `deno-postgres` is a lightweight PostgreSQL driver for Deno focused on user
+diff --git a/query/query.ts b/query/query.ts
+index 1d139254..d0ca0f05 100644
+--- a/query/query.ts
++++ b/query/query.ts
+@@ -145,6 +145,8 @@ export class QueryResult {
+   /**
+    * Add a row to the result based on metadata provided by `rowDescription`
+    * This implementation depends on row description not being modified after initialization
++   *
++   * This function can throw on validation, so any errors must be handled in the message loop accordingly
+    */
+   insertRow(_row: Uint8Array[]): void {
+     throw new Error("No implementation for insertRow is defined");
+diff --git a/tests/query_client_test.ts b/tests/query_client_test.ts
+index a799c3bb..94fc16bc 100644
+--- a/tests/query_client_test.ts
++++ b/tests/query_client_test.ts
+@@ -122,6 +122,21 @@ testClient(
+   },
+ );
+ 
++testClient(
++  "Simple query handles error during data processing",
++  async function (generateClient) {
++    const client = await generateClient();
++
++    await assertThrowsAsync(
++      () => client.queryObject`SELECT 'A' AS X, 'B' AS X`,
++    );
++
++    const value = "193";
++    const { rows: result_2 } = await client.queryObject`SELECT ${value} AS B`;
++    assertEquals(result_2[0], { b: value });
++  },
++);
++
+ testClient(
+   "Simple query can return multiple queries",
+   async function (generateClient) {
+@@ -171,6 +186,21 @@ testClient(
+   },
+ );
+ 
++testClient(
++  "Prepared query handles error during data processing",
++  async function (generateClient) {
++    const client = await generateClient();
++
++    await assertThrowsAsync(
++      () => client.queryObject`SELECT ${1} AS A, ${2} AS A`,
++    );
++
++    const value = "z";
++    const { rows: result_2 } = await client.queryObject`SELECT ${value} AS B`;
++    assertEquals(result_2[0], { b: value });
++  },
++);
++
+ testClient(
+   "Handles array with semicolon separator",
+   async (generateClient) => {
+@@ -587,13 +617,6 @@ testClient(
+       Error,
+       `Field names "a" are duplicated in the result of the query`,
+     );
+-  },
+-);
+-
+-testClient(
+-  "Object query throws if implicit fields aren't unique 2",
+-  async function (generateClient) {
+-    const client = await generateClient();
+ 
+     await assertThrowsAsync(
+       () =>

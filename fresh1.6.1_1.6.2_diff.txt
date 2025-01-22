@@ -1,0 +1,1447 @@
+diff --git a/.github/workflows/post_publish.yml b/.github/workflows/post_publish.yml
+index db1d81e700d..dc247b2771c 100644
+--- a/.github/workflows/post_publish.yml
++++ b/.github/workflows/post_publish.yml
+@@ -22,7 +22,7 @@ jobs:
+           create_credentials_file: true
+ 
+       - name: Setup gcloud
+-        uses: google-github-actions/setup-gcloud@v1
++        uses: google-github-actions/setup-gcloud@v2
+         with:
+           project_id: denoland
+ 
+diff --git a/.vscode/import_map.json b/.vscode/import_map.json
+index 867a8e5076f..60e08d9425a 100644
+--- a/.vscode/import_map.json
++++ b/.vscode/import_map.json
+@@ -12,7 +12,7 @@
+     "@preact/signals-core": "https://esm.sh/@preact/signals-core@1.5.0",
+     "@preact/signals-core@1.2.3": "https://esm.sh/@preact/signals-core@1.2.3",
+     "@preact/signals-core@1.3.0": "https://esm.sh/@preact/signals-core@1.3.0",
+-    "$std/": "https://deno.land/std@0.208.0/",
++    "$std/": "https://deno.land/std@0.211.0/",
+     "$ga4": "https://raw.githubusercontent.com/denoland/ga4/main/mod.ts",
+     "$marked-mangle": "https://esm.sh/marked-mangle@1.0.1",
+     "$fresh-testing-library": "https://deno.land/x/fresh_testing_library@0.11.1/mod.ts",
+diff --git a/docs/latest/concepts/ahead-of-time-builds.md b/docs/latest/concepts/ahead-of-time-builds.md
+index 233498b6d0c..ee0aeb645fe 100644
+--- a/docs/latest/concepts/ahead-of-time-builds.md
++++ b/docs/latest/concepts/ahead-of-time-builds.md
+@@ -98,8 +98,8 @@ jobs:
+           entrypoint: "./main.ts" # 📝 Update the entrypoint if necessary
+ ```
+ 
+-> ℹ️ **Important:** The project name here must match the project name you've
+-> picked in Deno Deploy.
++> [info]: The project name here must match the project name you've picked in
++> Deno Deploy under<br/> `Settings -> Project Name`.
+ 
+ On the Deno Deploy side change the GitHub integration mode to GitHub Actions.
+ You need to unlink first, if you have an existing project that's linked with the
+@@ -111,6 +111,9 @@ Once this is set up you're ready for your next deployment. Whenever a new PR is
+ merged into the `main` branch on GitHub the deploy action will be executed and
+ deploy the optimized assets to Deno Deploy.
+ 
++> [info]: If the project is already linked in "Automatic" mode, unlink the
++> repository first and re-link it again.
++
+ ## Migrating existing projects with Plugins
+ 
+ If you're using Fresh plugins, extract them into a `fresh.config.ts` file, so
+diff --git a/docs/latest/concepts/forms.md b/docs/latest/concepts/forms.md
+index 02c56fb60c2..1f83b4763fc 100644
+--- a/docs/latest/concepts/forms.md
++++ b/docs/latest/concepts/forms.md
+@@ -63,7 +63,7 @@ File uploads can be handled in a very similar manner to the example above. Note
+ that this time, we have to explicitly declare the form's encoding.
+ 
+ ```tsx routes/subscribe.tsx
+-import { Handlers } from "$fresh/server.ts";
++import { Handlers, type RouteContext } from "$fresh/server.ts";
+ 
+ export const handler: Handlers = {
+   async GET(req, ctx) {
+@@ -85,12 +85,13 @@ export const handler: Handlers = {
+     console.log(contents);
+ 
+     return ctx.render({
+-      message: `${myFile.name} uploaded!`,
++      message: `${file.name} uploaded!`,
+     });
+   },
+ };
+ 
+-export default function Upload() {
++export default function Upload(req: Request, ctx: RouteContext) {
++  const { message } = ctx.data;
+   return (
+     <>
+       <form method="post" encType="multipart/form-data">
+diff --git a/docs/latest/concepts/routes.md b/docs/latest/concepts/routes.md
+index 7c31b87f824..c5f50cea438 100644
+--- a/docs/latest/concepts/routes.md
++++ b/docs/latest/concepts/routes.md
+@@ -26,10 +26,10 @@ the handler's `render` function.
+ Let's look at a basic route that returns a plain text string:
+ 
+ ```tsx routes/plain.tsx
+-import { HandlerContext, Handlers } from "$fresh/server.ts";
++import { FreshContext, Handlers } from "$fresh/server.ts";
+ 
+ export const handler: Handlers = {
+-  GET(_req: Request, _ctx: HandlerContext) {
++  GET(_req: Request, _ctx: FreshContext) {
+     return new Response("Hello World");
+   },
+ };
+diff --git a/docs/latest/examples/active-links.md b/docs/latest/examples/active-links.md
+index 626549e5710..49d1258bd14 100644
+--- a/docs/latest/examples/active-links.md
++++ b/docs/latest/examples/active-links.md
+@@ -3,7 +3,7 @@ description: |
+   Style active links with ease in Fresh
+ ---
+ 
+-Fresh automatically enhances the accessibility of <a> elements by adding the
++Fresh automatically enhances the accessibility of `<a>` elements by adding the
+ aria-current attribute when rendering links that match the current URL. This
+ attribute is recognized by assistive technologies and clearly indicates the
+ current page within a set of pages.
+diff --git a/docs/latest/examples/migrating-to-tailwind.md b/docs/latest/examples/migrating-to-tailwind.md
+index b0779e3387d..e0db41b70a6 100644
+--- a/docs/latest/examples/migrating-to-tailwind.md
++++ b/docs/latest/examples/migrating-to-tailwind.md
+@@ -7,6 +7,14 @@ Starting with version 1.6 Fresh comes with a proper Tailwind CSS plugin out of
+ the box. When you create a new Fresh project, checking the Tailwind CSS option
+ will now install the Tailwind CSS plugin instead of twind like it did before.
+ 
++## Requirements before migrating
++
++The tailwind plugin requires Fresh's
++[ahead of time builds](/docs/concepts/ahead-of-time-builds) to be set up,
++otherwise it won't work. Make sure to switch your projects to ahead of time
++builds in your project before continuing this guide. If your project is already
++configured to use ahead of time builds, then you're good to go.
++
+ ## Migrating to Tailwind CSS
+ 
+ 1. Create a `<project>/tailwind.config.ts` file in your project folder:
+@@ -93,9 +101,6 @@ export default {
+ + node_modules/
+ ```
+ 
+-7. Set up [Ahead of Time builds](/docs/concepts/ahead-of-time-builds) if you
+-   haven't already.
+-
+ That's it! Now you can use Tailwind CSS in your project.
+ 
+ > [info]: If you're a vscode user, be sure to install the
+diff --git a/docs/latest/getting-started/create-a-project.md b/docs/latest/getting-started/create-a-project.md
+index 8c880bd2bff..dfe3fb8bae9 100644
+--- a/docs/latest/getting-started/create-a-project.md
++++ b/docs/latest/getting-started/create-a-project.md
+@@ -55,6 +55,6 @@ respectively:
+ Finally a **`static/`** folder is created that contains static files that are
+ automatically served "as is". [Learn more about static files][static-files].
+ 
+-[import-map]: https://deno.land/manual/linking_to_external_code/import_maps
++[import-map]: https://docs.deno.com/runtime/manual/basics/import_maps
+ [task-runner]: https://deno.land/manual/tools/task_runner
+ [static-files]: ../concepts/static-files
+diff --git a/docs/latest/getting-started/custom-handlers.md b/docs/latest/getting-started/custom-handlers.md
+index d20cd1eea29..86952bba1bc 100644
+--- a/docs/latest/getting-started/custom-handlers.md
++++ b/docs/latest/getting-started/custom-handlers.md
+@@ -66,5 +66,4 @@ export const handler: Handlers = {
+ ```
+ 
+ Handlers can do much more, including fetching data from a database or external
+-API and passing it to their route. See [Data fetching](/docs/concepts/) for more
+-details.
++API and passing it to their route.
+diff --git a/docs/latest/getting-started/running-locally.md b/docs/latest/getting-started/running-locally.md
+index 7c76c6a1650..c0e86429fe7 100644
+--- a/docs/latest/getting-started/running-locally.md
++++ b/docs/latest/getting-started/running-locally.md
+@@ -39,7 +39,7 @@ If you want to change the port or host, modify the config bag of the `start()`
+ call in `main.ts` to include an explicit port number:
+ 
+ ```js main.ts
+-await start(manifest, { port: 3000 });
++await start(manifest, { server: { port: 3000 } });
+ ```
+ 
+ You can also change the port by setting the `PORT` environment variable:
+diff --git a/docs/toc.ts b/docs/toc.ts
+index b143f012666..a254c412cca 100644
+--- a/docs/toc.ts
++++ b/docs/toc.ts
+@@ -1,4 +1,4 @@
+-import FRESH_VERSIONS from "../versions.json" assert { type: "json" };
++import FRESH_VERSIONS from "../versions.json" with { type: "json" };
+ 
+ type RawTableOfContents = Record<
+   string,
+diff --git a/init.ts b/init.ts
+index 7ece9aeb9bc..2d82fbaef06 100644
+--- a/init.ts
++++ b/init.ts
+@@ -2,6 +2,7 @@ import { basename, colors, join, parse, resolve } from "./src/dev/deps.ts";
+ import { error } from "./src/dev/error.ts";
+ import { collect, ensureMinDenoVersion, generate } from "./src/dev/mod.ts";
+ import {
++  AOT_GH_ACTION,
+   dotenvImports,
+   freshImports,
+   tailwindImports,
+@@ -313,6 +314,12 @@ if (useTailwind) {
+     join(resolvedDirectory, "tailwind.config.ts"),
+     TAILWIND_CONFIG_TS,
+   );
++  const ghWorkflowDir = join(resolvedDirectory, ".github", "workflows");
++  await Deno.mkdir(ghWorkflowDir, { recursive: true });
++  await Deno.writeTextFile(
++    join(ghWorkflowDir, "deploy.yml"),
++    AOT_GH_ACTION,
++  );
+ }
+ 
+ const NO_TAILWIND_STYLES = `
+@@ -658,62 +665,70 @@ if (useVSCode) {
+   );
+ }
+ 
+-const TAILWIND_CUSTOMDATA = `{
++const tailwindCustomData = {
+   "version": 1.1,
+   "atDirectives": [
+     {
+       "name": "@tailwind",
+-      "description": "Use the \`@tailwind\` directive to insert Tailwind's \`base\`, \`components\`, \`utilities\` and \`screens\` styles into your CSS.",
++      "description":
++        "Use the `@tailwind` directive to insert Tailwind's `base`, `components`, `utilities` and `screens` styles into your CSS.",
+       "references": [
+         {
+           "name": "Tailwind Documentation",
+-          "url": "https://tailwindcss.com/docs/functions-and-directives#tailwind"
+-        }
+-      ]
++          "url":
++            "https://tailwindcss.com/docs/functions-and-directives#tailwind",
++        },
++      ],
+     },
+     {
+       "name": "@apply",
+-      "description": "Use the \`@apply\` directive to inline any existing utility classes into your own custom CSS. This is useful when you find a common utility pattern in your HTML that you’d like to extract to a new component.",
++      "description":
++        "Use the `@apply` directive to inline any existing utility classes into your own custom CSS. This is useful when you find a common utility pattern in your HTML that you’d like to extract to a new component.",
+       "references": [
+         {
+           "name": "Tailwind Documentation",
+-          "url": "https://tailwindcss.com/docs/functions-and-directives#apply"
+-        }
+-      ]
++          "url": "https://tailwindcss.com/docs/functions-and-directives#apply",
++        },
++      ],
+     },
+     {
+       "name": "@responsive",
+-      "description": "You can generate responsive variants of your own classes by wrapping their definitions in the \`@responsive\` directive:\\n\`\`\`css\n@responsive {\\n  .alert {\n    background-color: #E53E3E;\\n  }\\n}\\n\`\`\`\\n",
++      "description":
++        "You can generate responsive variants of your own classes by wrapping their definitions in the `@responsive` directive:\n```css\n@responsive {\n  .alert {\n    background-color: #E53E3E;\n  }\n}\n```\n",
+       "references": [
+         {
+           "name": "Tailwind Documentation",
+-          "url": "https://tailwindcss.com/docs/functions-and-directives#responsive"
+-        }
+-      ]
++          "url":
++            "https://tailwindcss.com/docs/functions-and-directives#responsive",
++        },
++      ],
+     },
+     {
+       "name": "@screen",
+-      "description": "The \`@screen\` directive allows you to create media queries that reference your breakpoints by **name** instead of duplicating their values in your own CSS:\\n\`\`\`css\n@screen sm {\\n  /* ... */\\n}\\n\`\`\`\\n…gets transformed into this:\\n\`\`\`css\n@media (min-width: 640px) {\\n  /* ... */\\n}\\n\`\`\`\\n",
++      "description":
++        "The `@screen` directive allows you to create media queries that reference your breakpoints by **name** instead of duplicating their values in your own CSS:\n```css\n@screen sm {\n  /* ... */\n}\n```\n…gets transformed into this:\n```css\n@media (min-width: 640px) {\n  /* ... */\n}\n```\n",
+       "references": [
+         {
+           "name": "Tailwind Documentation",
+-          "url": "https://tailwindcss.com/docs/functions-and-directives#screen"
+-        }
+-      ]
++          "url": "https://tailwindcss.com/docs/functions-and-directives#screen",
++        },
++      ],
+     },
+     {
+       "name": "@variants",
+-      "description": "Generate \`hover\`, \`focus\`, \`active\` and other **variants** of your own utilities by wrapping their definitions in the \`@variants\` directive:\\n\`\`\`css\n@variants hover, focus {\\n   .btn-brand {\\n    background-color: #3182CE;\\n  }\\n}\\n\`\`\`\\n",
++      "description":
++        "Generate `hover`, `focus`, `active` and other **variants** of your own utilities by wrapping their definitions in the `@variants` directive:\n```css\n@variants hover, focus {\n   .btn-brand {\n    background-color: #3182CE;\n  }\n}\n```\n",
+       "references": [
+         {
+           "name": "Tailwind Documentation",
+-          "url": "https://tailwindcss.com/docs/functions-and-directives#variants"
+-        }
+-      ]
+-    }
+-  ]
+-}
+-`;
++          "url":
++            "https://tailwindcss.com/docs/functions-and-directives#variants",
++        },
++      ],
++    },
++  ],
++};
++const TAILWIND_CUSTOMDATA = JSON.stringify(tailwindCustomData, null, 2) + "\n";
+ 
+ if (useVSCode && useTailwind) {
+   await Deno.writeTextFile(
+diff --git a/src/build/deps.ts b/src/build/deps.ts
+index 67d2a126e99..07d31d90979 100644
+--- a/src/build/deps.ts
++++ b/src/build/deps.ts
+@@ -4,7 +4,7 @@ export {
+   join,
+   relative,
+   toFileUrl,
+-} from "https://deno.land/std@0.208.0/path/mod.ts";
+-export { escape as regexpEscape } from "https://deno.land/std@0.208.0/regexp/escape.ts";
+-export { denoPlugins } from "https://deno.land/x/esbuild_deno_loader@0.8.2/mod.ts";
+-export { assertEquals } from "https://deno.land/std@0.208.0/assert/mod.ts";
++} from "https://deno.land/std@0.211.0/path/mod.ts";
++export { escape as regexpEscape } from "https://deno.land/std@0.211.0/regexp/escape.ts";
++export { denoPlugins } from "https://deno.land/x/esbuild_deno_loader@0.8.3/mod.ts";
++export { assertEquals } from "https://deno.land/std@0.211.0/assert/mod.ts";
+diff --git a/src/build/esbuild.ts b/src/build/esbuild.ts
+index 051a8a9b43a..75cf74cef35 100644
+--- a/src/build/esbuild.ts
++++ b/src/build/esbuild.ts
+@@ -2,7 +2,7 @@ import {
+   type BuildOptions,
+   type OnLoadOptions,
+   type Plugin,
+-} from "https://deno.land/x/esbuild@v0.19.4/mod.js";
++} from "https://deno.land/x/esbuild@v0.19.11/mod.js";
+ import { denoPlugins, fromFileUrl, regexpEscape, relative } from "./deps.ts";
+ import { Builder, BuildSnapshot } from "./mod.ts";
+ 
+@@ -39,10 +39,10 @@ export class EsbuildBuilder implements Builder {
+       // deno-lint-ignore no-deprecated-deno-api
+       Deno.run === undefined ||
+         Deno.env.get("FRESH_ESBUILD_LOADER") === "portable"
+-        ? await import("https://deno.land/x/esbuild@v0.19.4/wasm.js")
+-        : await import("https://deno.land/x/esbuild@v0.19.4/mod.js");
++        ? await import("https://deno.land/x/esbuild@v0.19.11/wasm.js")
++        : await import("https://deno.land/x/esbuild@v0.19.11/mod.js");
+     const esbuildWasmURL =
+-      new URL("./esbuild_v0.19.4.wasm", import.meta.url).href;
++      new URL("./esbuild_v0.19.11.wasm", import.meta.url).href;
+ 
+     // deno-lint-ignore no-deprecated-deno-api
+     if (Deno.run === undefined) {
+@@ -104,9 +104,11 @@ export class EsbuildBuilder implements Builder {
+       const files = new Map<string, Uint8Array>();
+       const dependencies = new Map<string, string[]>();
+ 
+-      for (const file of bundle.outputFiles) {
+-        const path = relative(absWorkingDir, file.path);
+-        files.set(path, file.contents);
++      if (bundle.outputFiles) {
++        for (const file of bundle.outputFiles) {
++          const path = relative(absWorkingDir, file.path);
++          files.set(path, file.contents);
++        }
+       }
+ 
+       files.set(
+@@ -114,13 +116,15 @@ export class EsbuildBuilder implements Builder {
+         new TextEncoder().encode(JSON.stringify(bundle.metafile)),
+       );
+ 
+-      const metaOutputs = new Map(Object.entries(bundle.metafile.outputs));
++      if (bundle.metafile) {
++        const metaOutputs = new Map(Object.entries(bundle.metafile.outputs));
+ 
+-      for (const [path, entry] of metaOutputs.entries()) {
+-        const imports = entry.imports
+-          .filter(({ kind }) => kind === "import-statement")
+-          .map(({ path }) => path);
+-        dependencies.set(path, imports);
++        for (const [path, entry] of metaOutputs.entries()) {
++          const imports = entry.imports
++            .filter(({ kind }) => kind === "import-statement")
++            .map(({ path }) => path);
++          dependencies.set(path, imports);
++        }
+       }
+ 
+       return new EsbuildSnapshot(files, dependencies);
+diff --git a/src/build/esbuild_v0.19.4.wasm b/src/build/esbuild_v0.19.11.wasm
+similarity index 64%
+rename from src/build/esbuild_v0.19.4.wasm
+rename to src/build/esbuild_v0.19.11.wasm
+index 6e4654796ca..6b208de4df8 100644
+Binary files a/src/build/esbuild_v0.19.4.wasm and b/src/build/esbuild_v0.19.11.wasm differ
+diff --git a/src/dev/deps.ts b/src/dev/deps.ts
+index 5efea0534e8..8370454adcb 100644
+--- a/src/dev/deps.ts
++++ b/src/dev/deps.ts
+@@ -9,24 +9,24 @@ export {
+   resolve,
+   SEP,
+   toFileUrl,
+-} from "https://deno.land/std@0.208.0/path/mod.ts";
+-export { normalize } from "https://deno.land/std@0.208.0/path/posix/mod.ts";
+-export { DAY, WEEK } from "https://deno.land/std@0.208.0/datetime/constants.ts";
+-export * as colors from "https://deno.land/std@0.208.0/fmt/colors.ts";
++} from "https://deno.land/std@0.211.0/path/mod.ts";
++export { normalize } from "https://deno.land/std@0.211.0/path/posix/mod.ts";
++export { DAY, WEEK } from "https://deno.land/std@0.211.0/datetime/constants.ts";
++export * as colors from "https://deno.land/std@0.211.0/fmt/colors.ts";
+ export {
+   walk,
+   type WalkEntry,
+   WalkError,
+-} from "https://deno.land/std@0.208.0/fs/walk.ts";
+-export { parse } from "https://deno.land/std@0.208.0/flags/mod.ts";
++} from "https://deno.land/std@0.211.0/fs/walk.ts";
++export { parse } from "https://deno.land/std@0.211.0/flags/mod.ts";
+ export {
+   gte,
+   lt,
+   parse as semverParse,
+-} from "https://deno.land/std@0.208.0/semver/mod.ts";
+-export { emptyDir, existsSync } from "https://deno.land/std@0.208.0/fs/mod.ts";
+-export * as JSONC from "https://deno.land/std@0.208.0/jsonc/mod.ts";
+-export { assertEquals } from "https://deno.land/std@0.208.0/assert/mod.ts";
++} from "https://deno.land/std@0.211.0/semver/mod.ts";
++export { emptyDir, existsSync } from "https://deno.land/std@0.211.0/fs/mod.ts";
++export * as JSONC from "https://deno.land/std@0.211.0/jsonc/mod.ts";
++export { assertEquals } from "https://deno.land/std@0.211.0/assert/mod.ts";
+ 
+ // ts-morph
+ export { Node, Project } from "https://deno.land/x/ts_morph@20.0.0/mod.ts";
+diff --git a/src/dev/imports.ts b/src/dev/imports.ts
+index 81b9b52da8d..3a3ccf5ed77 100644
+--- a/src/dev/imports.ts
++++ b/src/dev/imports.ts
+@@ -2,7 +2,7 @@ export const RECOMMENDED_PREACT_VERSION = "10.19.2";
+ export const RECOMMENDED_PREACT_SIGNALS_VERSION = "1.2.1";
+ export const RECOMMENDED_PREACT_SIGNALS_CORE_VERSION = "1.5.0";
+ export const RECOMMENDED_TWIND_VERSION = "0.16.19";
+-export const RECOMMENDED_STD_VERSION = "0.208.0";
++export const RECOMMENDED_STD_VERSION = "0.211.0";
+ export const RECOMMENDED_TAILIWIND_VERSION = "3.3.5";
+ 
+ export function freshImports(imports: Record<string, string>) {
+@@ -31,3 +31,38 @@ export function tailwindImports(imports: Record<string, string>) {
+ export function dotenvImports(imports: Record<string, string>) {
+   imports["$std/"] = `https://deno.land/std@${RECOMMENDED_STD_VERSION}/`;
+ }
++
++export const AOT_GH_ACTION = `name: Deploy
++on:
++  push:
++    branches: [main]
++  pull_request:
++    branches: main
++
++jobs:
++  deploy:
++    name: Deploy
++    runs-on: ubuntu-latest
++
++    permissions:
++      id-token: write # Needed for auth with Deno Deploy
++      contents: read # Needed to clone the repository
++
++    steps:
++      - name: Clone repository
++        uses: actions/checkout@v3
++
++      - name: Install Deno
++        uses: denoland/setup-deno@v1
++        with:
++          deno-version: v1.x
++
++      - name: Build step
++        run: "deno task build" # 📝 Update the build command(s) if necessary
++
++      - name: Upload to Deno Deploy
++        uses: denoland/deployctl@v1
++        with:
++          project: "example-project" # 📝 Update the deploy project name if necessary
++          entrypoint: "./main.ts" # 📝 Update the entrypoint if necessary
++`;
+diff --git a/src/dev/update_check.ts b/src/dev/update_check.ts
+index d4f228907a3..b59c0b0f727 100644
+--- a/src/dev/update_check.ts
++++ b/src/dev/update_check.ts
+@@ -48,7 +48,7 @@ async function fetchLatestVersion() {
+ 
+ async function readCurrentVersion() {
+   const versions = (await import("../../versions.json", {
+-    "assert": { type: "json" },
++    with: { type: "json" },
+   })).default as string[];
+   return versions[0];
+ }
+diff --git a/src/runtime/entrypoints/main.ts b/src/runtime/entrypoints/main.ts
+index cd43b66a376..de401bfb905 100644
+--- a/src/runtime/entrypoints/main.ts
++++ b/src/runtime/entrypoints/main.ts
+@@ -710,7 +710,9 @@ export async function applyPartials(res: Response): Promise<void> {
+   }
+ 
+   // Update <head>
+-  document.title = doc.title;
++  if (doc.title) {
++    document.title = doc.title;
++  }
+ 
+   // Needs to be converted to an array otherwise somehow <link>-tags
+   // are missing.
+@@ -885,6 +887,28 @@ if (!history.state) {
+   history.replaceState(state, document.title);
+ }
+ 
++function maybeUpdateHistory(nextUrl: URL) {
++  // Only add history entry when URL is new. Still apply
++  // the partials because sometimes users click a link to
++  // "refresh" the current page.
++  if (nextUrl.href !== window.location.href) {
++    const state: FreshHistoryState = {
++      index,
++      scrollX: window.scrollX,
++      scrollY: window.scrollY,
++    };
++
++    // Store current scroll position
++    history.replaceState({ ...state }, "", location.href);
++
++    // Now store the new position
++    index++;
++    state.scrollX = 0;
++    state.scrollY = 0;
++    history.pushState(state, "", nextUrl.href);
++  }
++}
++
+ document.addEventListener("click", async (e) => {
+   let el = e.target;
+   if (el && el instanceof HTMLElement) {
+@@ -930,25 +954,7 @@ document.addEventListener("click", async (e) => {
+ 
+       const nextUrl = new URL(el.href);
+       try {
+-        // Only add history entry when URL is new. Still apply
+-        // the partials because sometimes users click a link to
+-        // "refresh" the current page.
+-        if (el.href !== window.location.href) {
+-          const state: FreshHistoryState = {
+-            index,
+-            scrollX: window.scrollX,
+-            scrollY: window.scrollY,
+-          };
+-
+-          // Store current scroll position
+-          history.replaceState({ ...state }, "", location.href);
+-
+-          // Now store the new position
+-          index++;
+-          state.scrollX = 0;
+-          state.scrollY = 0;
+-          history.pushState(state, "", nextUrl.href);
+-        }
++        maybeUpdateHistory(nextUrl);
+ 
+         const partialUrl = new URL(
+           partial ? partial : nextUrl.href,
+@@ -1084,6 +1090,7 @@ document.addEventListener("submit", async (e) => {
+         init = { body: new FormData(el), method: lowerMethod };
+       }
+ 
++      maybeUpdateHistory(url);
+       await fetchPartials(url, init);
+     }
+   }
+diff --git a/src/server/build_id.ts b/src/server/build_id.ts
+index f5a039417cb..a3fd68bf405 100644
+--- a/src/server/build_id.ts
++++ b/src/server/build_id.ts
+@@ -1,4 +1,4 @@
+-import { toHashString } from "./deps.ts";
++import { encodeHex } from "./deps.ts";
+ 
+ export const DENO_DEPLOYMENT_ID = Deno.env.get("DENO_DEPLOYMENT_ID");
+ const deploymentId = DENO_DEPLOYMENT_ID ||
+@@ -10,7 +10,7 @@ const buildIdHash = await crypto.subtle.digest(
+   new TextEncoder().encode(deploymentId),
+ );
+ 
+-export let BUILD_ID = toHashString(buildIdHash, "hex");
++export let BUILD_ID = encodeHex(buildIdHash);
+ 
+ export function setBuildId(buildId: string) {
+   BUILD_ID = buildId;
+diff --git a/src/server/config.ts b/src/server/config.ts
+index 803a538bd79..c45513d66a0 100644
+--- a/src/server/config.ts
++++ b/src/server/config.ts
+@@ -125,6 +125,7 @@ export async function getInternalFreshState(
+     config: internalConfig,
+     manifest,
+     loadSnapshot: !isLegacyDev && !config.dev,
++    didLoadSnapshot: false,
+     denoJsonPath,
+     denoJson,
+     build: false,
+diff --git a/src/server/context.ts b/src/server/context.ts
+index dcce8c3bcf8..aafdc355d04 100644
+--- a/src/server/context.ts
++++ b/src/server/context.ts
+@@ -7,7 +7,7 @@ import {
+   DEV_ERROR_OVERLAY_URL,
+   JS_PREFIX,
+ } from "./constants.ts";
+-import { BUILD_ID } from "./build_id.ts";
++import { BUILD_ID, DENO_DEPLOYMENT_ID } from "./build_id.ts";
+ 
+ import {
+   ErrorPage,
+@@ -44,6 +44,7 @@ import { loadAotSnapshot } from "../build/aot_snapshot.ts";
+ import { ErrorOverlay } from "./error_overlay.tsx";
+ import { withBase } from "./router.ts";
+ import { PARTIAL_SEARCH_PARAM } from "../constants.ts";
++import TailwindErrorPage from "$fresh/src/server/tailwind_aot_error_page.tsx";
+ 
+ const DEFAULT_CONN_INFO: ServeHandlerInfo = {
+   localAddr: { transport: "tcp", hostname: "localhost", port: 8080 },
+@@ -84,7 +85,10 @@ export async function getServerContext(state: InternalFreshState) {
+   let snapshot: Builder | BuildSnapshot | Promise<BuildSnapshot> | null = null;
+   if (state.loadSnapshot) {
+     const loadedSnapshot = await loadAotSnapshot(config);
+-    if (loadedSnapshot !== null) snapshot = loadedSnapshot;
++    if (loadedSnapshot !== null) {
++      snapshot = loadedSnapshot;
++      state.didLoadSnapshot = true;
++    }
+   }
+ 
+   const finalSnapshot = snapshot ?? new EsbuildBuilder({
+@@ -323,7 +327,7 @@ export class ServerContext {
+   } {
+     const internalRoutes: router.Routes = {};
+     const staticRoutes: router.Routes = {};
+-    const routes: router.Routes = {};
++    let routes: router.Routes = {};
+ 
+     const assetRoute = withBase(
+       `${INTERNAL_PREFIX}${JS_PREFIX}/${BUILD_ID}/:path*`,
+@@ -455,7 +459,7 @@ export class ServerContext {
+       }
+     }
+ 
+-    const otherHandler: router.Handler = (req, ctx) => {
++    let otherHandler: router.Handler = (req, ctx) => {
+       ctx.render = (data) => {
+         ctx.data = data;
+         return renderNotFound(req, ctx);
+@@ -540,6 +544,51 @@ export class ServerContext {
+       };
+     }
+ 
++    // This page is shown when the user uses the tailwindcss plugin and
++    // hasn't configured AOT builds.
++    if (
++      !this.#state.config.dev &&
++      this.#state.loadSnapshot && !this.#state.didLoadSnapshot &&
++      this.#state.config.plugins.some((plugin) => plugin.name === "tailwind")
++    ) {
++      if (DENO_DEPLOYMENT_ID !== undefined) {
++        // Don't fail hard here and instead rewrite all routes to a special
++        // error route. Otherwise the first user experience of deploying a
++        // Fresh project would be pretty disruptive
++        console.error(
++          "%cError: Ahead of time builds not configured but required by the tailwindcss plugin.\nTo resolve this error, set up ahead of time builds: https://fresh.deno.dev/docs/concepts/ahead-of-time-builds",
++          "color: red",
++        );
++        console.log();
++
++        // Clear all routes so that everything redirects to the tailwind
++        // error page.
++        routes = {};
++
++        const freshErrorPage = genRender({
++          appWrapper: false,
++          inheritLayouts: false,
++          component: TailwindErrorPage,
++          csp: false,
++          name: "tailwind_error_route",
++          pattern: "*",
++          url: "",
++          baseRoute: toBaseRoute("*"),
++          handler: (_req: Request, ctx: FreshContext) => ctx.render(),
++        }, STATUS_CODE.InternalServerError);
++        otherHandler = (req, ctx) => {
++          const render = freshErrorPage(req, ctx);
++          return render();
++        };
++      } else {
++        // Not on Deno Deploy. The user likely forgot to run `deno task build`
++        console.warn(
++          '%cNo pre-compiled tailwind styles found.\n\nDid you forget to run "deno task build" prior to starting the production server?',
++          "color: yellow",
++        );
++      }
++    }
++
+     return { internalRoutes, staticRoutes, routes, otherHandler, errorHandler };
+   }
+ 
+diff --git a/src/server/deps.ts b/src/server/deps.ts
+index a4ccb4a5760..12e5a3c7ba8 100644
+--- a/src/server/deps.ts
++++ b/src/server/deps.ts
+@@ -8,28 +8,28 @@ export {
+   join,
+   SEP,
+   toFileUrl,
+-} from "https://deno.land/std@0.208.0/path/mod.ts";
+-export { walk } from "https://deno.land/std@0.208.0/fs/walk.ts";
+-export * as colors from "https://deno.land/std@0.208.0/fmt/colors.ts";
++} from "https://deno.land/std@0.211.0/path/mod.ts";
++export { walk } from "https://deno.land/std@0.211.0/fs/walk.ts";
++export * as colors from "https://deno.land/std@0.211.0/fmt/colors.ts";
+ export {
+   type Handler as ServeHandler,
+   serve,
+-} from "https://deno.land/std@0.208.0/http/server.ts";
+-export { STATUS_CODE } from "https://deno.land/std@0.208.0/http/status.ts";
++} from "https://deno.land/std@0.211.0/http/server.ts";
++export { STATUS_CODE } from "https://deno.land/std@0.211.0/http/status.ts";
+ export {
+   contentType,
+-} from "https://deno.land/std@0.208.0/media_types/content_type.ts";
+-export { toHashString } from "https://deno.land/std@0.208.0/crypto/to_hash_string.ts";
+-export { escape } from "https://deno.land/std@0.208.0/regexp/escape.ts";
+-export * as JSONC from "https://deno.land/std@0.208.0/jsonc/mod.ts";
++} from "https://deno.land/std@0.211.0/media_types/content_type.ts";
++export { encodeHex } from "https://deno.land/std@0.211.0/encoding/hex.ts";
++export { escape } from "https://deno.land/std@0.211.0/regexp/escape.ts";
++export * as JSONC from "https://deno.land/std@0.211.0/jsonc/mod.ts";
+ export { renderToString } from "https://esm.sh/*preact-render-to-string@6.3.1";
+ export {
+   assertEquals,
+   assertThrows,
+-} from "https://deno.land/std@0.208.0/assert/mod.ts";
++} from "https://deno.land/std@0.211.0/assert/mod.ts";
+ export {
+   isIdentifierChar,
+   isIdentifierStart,
+ } from "https://esm.sh/@babel/helper-validator-identifier@7.22.20";
+-export { normalize } from "https://deno.land/std@0.208.0/path/posix/mod.ts";
+-export { assertSnapshot } from "https://deno.land/std@0.208.0/testing/snapshot.ts";
++export { normalize } from "https://deno.land/std@0.211.0/path/posix/mod.ts";
++export { assertSnapshot } from "https://deno.land/std@0.211.0/testing/snapshot.ts";
+diff --git a/src/server/tailwind_aot_error_page.tsx b/src/server/tailwind_aot_error_page.tsx
+new file mode 100644
+index 00000000000..6806692237e
+--- /dev/null
++++ b/src/server/tailwind_aot_error_page.tsx
+@@ -0,0 +1,80 @@
++import { AOT_GH_ACTION } from "../dev/imports.ts";
++
++const LINK = "https://fresh.deno.dev/docs/concepts/ahead-of-time-builds";
++
++export default function TailwindErrorPage() {
++  return (
++    <div class="frsh-error-page">
++      <div style="max-width: 48rem; padding: 2rem 1rem; margin: 0 auto; font-family: sans-serif">
++        <h1>Finish setting up Fresh</h1>
++        <p style="line-height: 1.6;margin-bottom: 1rem;">
++          The <b>tailwindcss</b>{" "}
++          plugin requires ahead of time builds to be set up for production
++          usage. To finish the setup, follow these steps:
++        </p>
++        <ol style="line-height: 1.6; margin-bottom: 1.5rem">
++          <li>
++            Go to your project in Deno Deploy and click the{" "}
++            <code>Settings</code> tab.
++          </li>
++          <li>
++            Set Git-Integration to <code>GitHub Action</code>.<br />
++            <i style="display: block; font-style: italic; color: gray;">
++              Unlink the repository first if it is already linked via{"  "}
++              <code>Automatic</code> and re-link it again.
++            </i>
++          </li>
++          <li>
++            Add the file <code>.github/workflows/deploy.yml</code>{" "}
++            to your repository with the following contents:<br />
++            <span style="background: #f0f0f0;display: block; position: relative;">
++              <button
++                id="copy-gh-action"
++                style="position: absolute; top: .5rem; right: .5rem;z-index: 100"
++              >
++                copy code
++              </button>
++              <pre style="height: 200px; overflow: auto;padding: 1rem;"><code>{AOT_GH_ACTION}</code></pre>
++            </span>
++          </li>
++          <li>
++            Copy the project name under <code>Setting {">"} Project Name</code>
++            {" "}
++            and replace "example project" with your actual project name in{" "}
++            <code>.github/workflows/deploy.yml</code>.
++          </li>
++          <li>
++            Commit the file you created and merge it into the <code>main</code>
++            {" "}
++            branch. This will trigger a new deployment and finish the setup.
++          </li>
++        </ol>
++        <p>
++          See the detailed guide here: <a href={LINK}>{LINK}</a>.
++        </p>
++      </div>
++      <script
++        dangerouslySetInnerHTML={{
++          __html: `
++            const copyBtn = document.querySelector("#copy-gh-action");
++            if (copyBtn) {
++              let timeout;
++              const text = copyBtn.textContent;
++              copyBtn.addEventListener("click", async () => {
++                copyBtn.textContent = "copied!";
++
++                clearTimeout(timeout);
++                timeout = setTimeout(() => {
++                  copyBtn.textContent = text
++                }, 2000);
++
++                const code = \`${AOT_GH_ACTION}\`;
++                await navigator.clipboard.writeText(code);
++              })
++            }
++            `,
++        }}
++      />
++    </div>
++  );
++}
+diff --git a/src/server/types.ts b/src/server/types.ts
+index c760fddffe3..492eaf87299 100644
+--- a/src/server/types.ts
++++ b/src/server/types.ts
+@@ -101,6 +101,7 @@ export interface InternalFreshState {
+   config: ResolvedFreshConfig;
+   manifest: Manifest;
+   loadSnapshot: boolean;
++  didLoadSnapshot: boolean;
+   denoJsonPath: string;
+   denoJson: DenoConfig;
+   build: boolean;
+diff --git a/tests/cli_update_check_test.ts b/tests/cli_update_check_test.ts
+index b8bd5205e68..89771e56bed 100644
+--- a/tests/cli_update_check_test.ts
++++ b/tests/cli_update_check_test.ts
+@@ -6,7 +6,7 @@ import {
+   assertNotEquals,
+   assertNotMatch,
+ } from "./deps.ts";
+-import versions from "../versions.json" assert { type: "json" };
++import versions from "../versions.json" with { type: "json" };
+ import { CheckFile } from "../src/dev/update_check.ts";
+ import { WEEK } from "../src/dev/deps.ts";
+ import { getStdOutput } from "../tests/test_utils.ts";
+diff --git a/tests/deps.ts b/tests/deps.ts
+index 83c5f62049c..a7dce31de62 100644
+--- a/tests/deps.ts
++++ b/tests/deps.ts
+@@ -14,13 +14,13 @@ export {
+   assertNotMatch,
+   assertRejects,
+   assertStringIncludes,
+-} from "https://deno.land/std@0.208.0/assert/mod.ts";
+-export { assertSnapshot } from "https://deno.land/std@0.208.0/testing/snapshot.ts";
++} from "https://deno.land/std@0.211.0/assert/mod.ts";
++export { assertSnapshot } from "https://deno.land/std@0.211.0/testing/snapshot.ts";
+ export {
+   TextLineStream,
+-} from "https://deno.land/std@0.208.0/streams/text_line_stream.ts";
+-export { delay } from "https://deno.land/std@0.208.0/async/delay.ts";
+-export { retry } from "https://deno.land/std@0.208.0/async/retry.ts";
++} from "https://deno.land/std@0.211.0/streams/text_line_stream.ts";
++export { delay } from "https://deno.land/std@0.211.0/async/delay.ts";
++export { retry } from "https://deno.land/std@0.211.0/async/retry.ts";
+ export {
+   default as puppeteer,
+   Page,
+@@ -33,7 +33,7 @@ export {
+ } from "https://esm.sh/linkedom@0.15.1";
+ export { defineConfig, type Preset } from "https://esm.sh/@twind/core@1.1.3";
+ export { default as presetTailwind } from "https://esm.sh/@twind/preset-tailwind@1.1.4";
+-export { copy } from "https://deno.land/std@0.208.0/fs/mod.ts";
++export { copy } from "https://deno.land/std@0.211.0/fs/mod.ts";
+ export {
+   basename,
+   dirname,
+@@ -43,8 +43,8 @@ export {
+   relative,
+   SEP,
+   toFileUrl,
+-} from "https://deno.land/std@0.208.0/path/mod.ts";
+-export * as JSONC from "https://deno.land/std@0.208.0/jsonc/mod.ts";
+-export * as colors from "https://deno.land/std@0.208.0/fmt/colors.ts";
+-export { STATUS_CODE } from "https://deno.land/std@0.208.0/http/status.ts";
+-export { stripAnsiCode } from "https://deno.land/std@0.208.0/fmt/colors.ts";
++} from "https://deno.land/std@0.211.0/path/mod.ts";
++export * as JSONC from "https://deno.land/std@0.211.0/jsonc/mod.ts";
++export * as colors from "https://deno.land/std@0.211.0/fmt/colors.ts";
++export { STATUS_CODE } from "https://deno.land/std@0.211.0/http/status.ts";
++export { stripAnsiCode } from "https://deno.land/std@0.211.0/fmt/colors.ts";
+diff --git a/tests/fixture/fresh.gen.ts b/tests/fixture/fresh.gen.ts
+index feaf1c2e19e..bc2a68049d4 100644
+--- a/tests/fixture/fresh.gen.ts
++++ b/tests/fixture/fresh.gen.ts
+@@ -35,6 +35,7 @@ import * as $i18n_lang_lang from "./routes/i18n/[[lang]]/lang.tsx";
+ import * as $index from "./routes/index.tsx";
+ import * as $intercept from "./routes/intercept.tsx";
+ import * as $intercept_args from "./routes/intercept_args.tsx";
++import * as $island_json from "./routes/island_json.tsx";
+ import * as $islands_index from "./routes/islands/index.tsx";
+ import * as $islands_multiple_island_exports from "./routes/islands/multiple_island_exports.tsx";
+ import * as $islands_returning_null from "./routes/islands/returning_null.tsx";
+@@ -88,6 +89,7 @@ import * as $Foo_Bar from "./islands/Foo.Bar.tsx";
+ import * as $FormIsland from "./islands/FormIsland.tsx";
+ import * as $Greeter from "./islands/Greeter.tsx";
+ import * as $HookIsland from "./islands/HookIsland.tsx";
++import * as $JsonIsland from "./islands/JsonIsland.tsx";
+ import * as $MultipleCounters from "./islands/MultipleCounters.tsx";
+ import * as $ReturningNull from "./islands/ReturningNull.tsx";
+ import * as $RootFragment from "./islands/RootFragment.tsx";
+@@ -139,6 +141,7 @@ const manifest = {
+     "./routes/index.tsx": $index,
+     "./routes/intercept.tsx": $intercept,
+     "./routes/intercept_args.tsx": $intercept_args,
++    "./routes/island_json.tsx": $island_json,
+     "./routes/islands/index.tsx": $islands_index,
+     "./routes/islands/multiple_island_exports.tsx":
+       $islands_multiple_island_exports,
+@@ -209,6 +212,7 @@ const manifest = {
+     "./islands/FormIsland.tsx": $FormIsland,
+     "./islands/Greeter.tsx": $Greeter,
+     "./islands/HookIsland.tsx": $HookIsland,
++    "./islands/JsonIsland.tsx": $JsonIsland,
+     "./islands/MultipleCounters.tsx": $MultipleCounters,
+     "./islands/ReturningNull.tsx": $ReturningNull,
+     "./islands/RootFragment.tsx": $RootFragment,
+diff --git a/tests/fixture/islands/JsonIsland.tsx b/tests/fixture/islands/JsonIsland.tsx
+new file mode 100644
+index 00000000000..5feee1c63b9
+--- /dev/null
++++ b/tests/fixture/islands/JsonIsland.tsx
+@@ -0,0 +1,5 @@
++import json from "./data.json" with { type: "json" };
++
++export default function JsonIsland() {
++  return <pre>{JSON.stringify(json,null, 2)}</pre>;
++}
+diff --git a/tests/fixture/islands/data.json b/tests/fixture/islands/data.json
+new file mode 100644
+index 00000000000..e99d055bdc9
+--- /dev/null
++++ b/tests/fixture/islands/data.json
+@@ -0,0 +1,3 @@
++{
++  "foo": "it works"
++}
+diff --git a/tests/fixture/routes/island_json.tsx b/tests/fixture/routes/island_json.tsx
+new file mode 100644
+index 00000000000..4aee517ab9e
+--- /dev/null
++++ b/tests/fixture/routes/island_json.tsx
+@@ -0,0 +1,5 @@
++import JsonIsland from "../islands/JsonIsland.tsx";
++
++export default function Page() {
++  return <JsonIsland />;
++}
+diff --git a/tests/fixture_partials/fresh.gen.ts b/tests/fixture_partials/fresh.gen.ts
+index 86ef52ab8f2..d97abc562e9 100644
+--- a/tests/fixture_partials/fresh.gen.ts
++++ b/tests/fixture_partials/fresh.gen.ts
+@@ -51,6 +51,7 @@ import * as $head_merge_duplicate from "./routes/head_merge/duplicate.tsx";
+ import * as $head_merge_index from "./routes/head_merge/index.tsx";
+ import * as $head_merge_injected from "./routes/head_merge/injected.tsx";
+ import * as $head_merge_update from "./routes/head_merge/update.tsx";
++import * as $head_merge_without_title from "./routes/head_merge/without_title.tsx";
+ import * as $index from "./routes/index.tsx";
+ import * as $isPartial_middleware from "./routes/isPartial/_middleware.ts";
+ import * as $isPartial_async from "./routes/isPartial/async.tsx";
+@@ -185,6 +186,7 @@ const manifest = {
+     "./routes/head_merge/index.tsx": $head_merge_index,
+     "./routes/head_merge/injected.tsx": $head_merge_injected,
+     "./routes/head_merge/update.tsx": $head_merge_update,
++    "./routes/head_merge/without_title.tsx": $head_merge_without_title,
+     "./routes/index.tsx": $index,
+     "./routes/isPartial/_middleware.ts": $isPartial_middleware,
+     "./routes/isPartial/async.tsx": $isPartial_async,
+diff --git a/tests/fixture_partials/routes/head_merge/index.tsx b/tests/fixture_partials/routes/head_merge/index.tsx
+index 9261a37dc70..cc59d3b8906 100644
+--- a/tests/fixture_partials/routes/head_merge/index.tsx
++++ b/tests/fixture_partials/routes/head_merge/index.tsx
+@@ -33,6 +33,15 @@ export default function SlotDemo() {
+           duplicate
+         </a>
+       </p>
++      <p>
++        <a
++          class="without-title"
++          href="/head_merge/injected"
++          f-partial="/head_merge/without_title"
++        >
++          without title
++        </a>
++      </p>
+     </div>
+   );
+ }
+diff --git a/tests/fixture_partials/routes/head_merge/without_title.tsx b/tests/fixture_partials/routes/head_merge/without_title.tsx
+new file mode 100644
+index 00000000000..15d0d559931
+--- /dev/null
++++ b/tests/fixture_partials/routes/head_merge/without_title.tsx
+@@ -0,0 +1,24 @@
++import { defineRoute } from "$fresh/src/server/defines.ts";
++import { RouteConfig } from "$fresh/server.ts";
++import { Head, Partial } from "$fresh/runtime.ts";
++import { Fader } from "../../islands/Fader.tsx";
++
++export const config: RouteConfig = {
++  skipAppWrapper: true,
++  skipInheritedLayouts: true,
++};
++
++export default defineRoute((req, ctx) => {
++  return (
++    <>
++      <Head>
++        <link rel="stylesheet" href="/style.css" />
++      </Head>
++      <Partial name="slot-1">
++        <Fader>
++          <p class="page-without-title">page without title</p>
++        </Fader>
++      </Partial>
++    </>
++  );
++});
+diff --git a/tests/fixture_route_analysis/deno.json b/tests/fixture_route_analysis/deno.json
+index 4ec11b09caa..528977fefa3 100644
+--- a/tests/fixture_route_analysis/deno.json
++++ b/tests/fixture_route_analysis/deno.json
+@@ -10,7 +10,7 @@
+     "preact/": "https://esm.sh/preact@10.15.1/",
+     "@preact/signals": "https://esm.sh/*@preact/signals@1.1.3",
+     "@preact/signals-core": "https://esm.sh/*@preact/signals-core@1.2.3",
+-    "$std/": "https://deno.land/std@0.208.0/"
++    "$std/": "https://deno.land/std@0.211.0/"
+   },
+   "compilerOptions": {
+     "jsx": "react-jsx",
+diff --git a/tests/init_test.ts b/tests/init_test.ts
+index 4b6f9be0233..f24447165f5 100644
+--- a/tests/init_test.ts
++++ b/tests/init_test.ts
+@@ -185,6 +185,7 @@ Deno.test({
+       "/.vscode/settings.json",
+       "/.vscode/extensions.json",
+       "/.gitignore",
++      "/.github/workflows/deploy.yml",
+     ];
+ 
+     await t.step("check generated files", async () => {
+diff --git a/tests/islands_test.ts b/tests/islands_test.ts
+index 332a21db6f3..37f753a3a44 100644
+--- a/tests/islands_test.ts
++++ b/tests/islands_test.ts
+@@ -98,6 +98,17 @@ Deno.test("island tests with </script>", async (t) => {
+   });
+ });
+ 
++Deno.test("island with json import", async () => {
++  await withPage(async (page, address) => {
++    await page.goto(`${address}/island_json`, {
++      waitUntil: "networkidle2",
++    });
++
++    const json = await page.$eval("pre", (el) => el.textContent);
++    assertEquals(JSON.parse(json), { foo: "it works" });
++  });
++});
++
+ Deno.test("island with fragment as root", async () => {
+   await withPage(async (page, address) => {
+     await page.goto(`${address}/islands/root_fragment`);
+diff --git a/tests/partials_test.ts b/tests/partials_test.ts
+index 46181d49384..8d6f03f0d4f 100644
+--- a/tests/partials_test.ts
++++ b/tests/partials_test.ts
+@@ -1033,6 +1033,9 @@ Deno.test("submit form GET", async () => {
+       const url = await page.$eval(".url", (el) => el.textContent);
+       assertEquals(url, `${address}/form_get?name=foobar&fresh-partial=true`);
+ 
++      const pageUrl = page.url();
++      assertEquals(pageUrl, `${address}/form_get?name=foobar`);
++
+       // Server can update form value
+       const value = await page.$eval("input", (el) => el.value);
+       assertEquals(value, "foobar_foo");
+@@ -1535,3 +1538,34 @@ Deno.test("render 404 partial", async () => {
+     },
+   );
+ });
++
++Deno.test("render partial with title", async () => {
++  await withPageName(
++    "./tests/fixture_partials/main.ts",
++    async (page, address) => {
++      await page.goto(`${address}/head_merge`);
++      await page.waitForSelector(".status-initial");
++
++      await page.click(".duplicate-link");
++      await page.waitForSelector(".status-duplicated");
++
++      const doc = parseHtml(await page.content());
++      assertEquals(doc.title, "Head merge duplicated");
++    },
++  );
++});
++
++Deno.test("render partial without title", async () => {
++  await withPageName(
++    "./tests/fixture_partials/main.ts",
++    async (page, address) => {
++      await page.goto(`${address}/head_merge`);
++      await page.click(".without-title");
++
++      await page.waitForSelector(".page-without-title");
++
++      const doc = parseHtml(await page.content());
++      assertEquals(doc.title, "Head merge");
++    },
++  );
++});
+diff --git a/tests/tailwind_test.ts b/tests/tailwind_test.ts
+index 7beca25878e..ad7b785102a 100644
+--- a/tests/tailwind_test.ts
++++ b/tests/tailwind_test.ts
+@@ -1,5 +1,12 @@
+-import { runBuild, withFakeServe } from "./test_utils.ts";
+-import { assert, assertStringIncludes } from "./deps.ts";
++import { fetchHtml, runBuild, withFakeServe, withFresh } from "./test_utils.ts";
++import {
++  assert,
++  assertStringIncludes,
++  dirname,
++  join,
++  TextLineStream,
++} from "./deps.ts";
++import { assertEquals } from "$std/assert/assert_equals.ts";
+ 
+ Deno.test("TailwindCSS - dev mode", async () => {
+   await withFakeServe("./tests/fixture_tailwind/dev.ts", async (server) => {
+@@ -62,3 +69,56 @@ Deno.test("TailwindCSS - middleware only css", async () => {
+     { loadConfig: true },
+   );
+ });
++
++Deno.test("TailwindCSS - missing snapshot warning", async () => {
++  const dir = dirname(import.meta.url);
++  const out = await new Deno.Command(Deno.execPath(), {
++    args: ["run", "-A", join(dir, "./fixture_tailwind/main.ts")],
++    stdout: "piped",
++    stderr: "piped",
++  }).spawn();
++
++  const lines: ReadableStream<string> = out.stderr
++    .pipeThrough(new TextDecoderStream())
++    .pipeThrough(new TextLineStream());
++
++  let found = false;
++  // @ts-ignore yes it does
++  for await (const line of lines.values({ preventCancel: true })) {
++    if (!found && line.includes("No pre-compiled tailwind styles found")) {
++      found = true;
++      break;
++    }
++  }
++
++  try {
++    assert(found, "Tailwind compile warning was not logged");
++  } finally {
++    await out.stdout.cancel();
++    out.kill("SIGTERM");
++    await out.status;
++
++    // Drain the lines stream
++    for await (const _ of lines) { /* noop */ }
++  }
++});
++
++Deno.test("TailwindCSS - missing snapshot on Deno Deploy", async () => {
++  await withFresh(
++    {
++      name: "./tests/fixture_tailwind/main.ts",
++      options: {
++        env: {
++          DENO_DEPLOYMENT_ID: "foo",
++        },
++      },
++    },
++    async (address) => {
++      const doc = await fetchHtml(address);
++      assertEquals(
++        doc.querySelector("h1")?.textContent,
++        "Finish setting up Fresh",
++      );
++    },
++  );
++});
+diff --git a/tests/test_utils.ts b/tests/test_utils.ts
+index 429d345b2ce..a3ffdb539c4 100644
+--- a/tests/test_utils.ts
++++ b/tests/test_utils.ts
+@@ -218,11 +218,22 @@ export async function withFresh(
+ }
+ 
+ export async function withPageName(
+-  name: string,
++  name: string | { name: string; options: Omit<Deno.CommandOptions, "args"> },
+   fn: (page: Page, address: string) => Promise<void>,
+ ) {
++  let file: string;
++  let options = {};
++
++  if (typeof name === "object") {
++    file = name.name;
++    options = name.options ?? {};
++  } else {
++    file = name;
++  }
++
+   const { lines, serverProcess, address } = await startFreshServer({
+-    args: ["run", "-A", name],
++    ...options,
++    args: ["run", "-A", file],
+   });
+ 
+   try {
+diff --git a/versions.json b/versions.json
+index d2134afaa2c..500653e006e 100644
+--- a/versions.json
++++ b/versions.json
+@@ -1,4 +1,5 @@
+ [
++  "1.6.2",
+   "1.6.1",
+   "1.6.0",
+   "1.5.4",
+diff --git a/www/components/NavigationBar.tsx b/www/components/NavigationBar.tsx
+index 42a8111aea6..fbd0b3ce6de 100644
+--- a/www/components/NavigationBar.tsx
++++ b/www/components/NavigationBar.tsx
+@@ -23,7 +23,7 @@ export default function NavigationBar(
+   ];
+   const isHome = props.active == "/";
+   return (
+-    <nav class={"flex " + props.class ?? ""}>
++    <nav class={"flex " + props.class ?? ""} f-client-nav={false}>
+       <ul class="flex justify-center items-center gap-2 sm:gap-4 mx-4 my-2 sm:my-6 flex-wrap lg:mx-8 2xl:mr-0">
+         {items.map((item) => (
+           <li>
+diff --git a/www/components/gallery/Carousel.tsx b/www/components/gallery/Carousel.tsx
+index 4d271db37c6..f55ef458437 100644
+--- a/www/components/gallery/Carousel.tsx
++++ b/www/components/gallery/Carousel.tsx
+@@ -75,14 +75,13 @@ const Carousel = (props: CarouselProps) => {
+     let incomingSlide = currentSlide.value + 1;
+     if (outgoingSlide === -1) outgoingSlide = SLIDE_DATA.length - 1;
+     if (incomingSlide === SLIDE_DATA.length) incomingSlide = 0;
+-    // console.log(outgoingSlide, currentSlide.value, incomingSlide)
+     const TRANSITION_CLASS = () => {
+       if (currentSlide.value === idx) return "translate-x-0 z-20";
+       if (incomingSlide === idx) return "translate-x-full z-10";
+       if (outgoingSlide === idx) return "-translate-x-full z-10";
+       return "translate-x-full";
+     };
+-    return `slide absolute top-0 left-0 transition-all ease-in-out duration-700 transform ${TRANSITION_CLASS}`;
++    return `slide absolute top-0 left-0 transition-all ease-in-out duration-700 transform ${TRANSITION_CLASS()}`;
+   };
+ 
+   const nextSlide = () => {
+diff --git a/www/data/showcase.json b/www/data/showcase.json
+index 25c774604d1..80d2b9252d6 100644
+--- a/www/data/showcase.json
++++ b/www/data/showcase.json
+@@ -402,6 +402,16 @@
+     "github": "pyrossh/pyros.sh",
+     "image": "pyrossh"
+   },
++  {
++    "title": "Living Pixel Solutions",
++    "link": "https://livingpixel.io",
++    "image": "living-pixel"
++  },
++  {
++    "title": "RFUI",
++    "link": "https://rfui.deno.dev/",
++    "image": "rfui"
++  },
+   {
+     "title": "Do not remove this, it’s for preventing conflicts by trailing comma",
+     "link": "",
+diff --git a/www/deno.json b/www/deno.json
+index 0a2b7cf65c6..273711ff8d3 100644
+--- a/www/deno.json
++++ b/www/deno.json
+@@ -12,7 +12,7 @@
+     "preact/": "https://esm.sh/preact@10.15.1/",
+     "@preact/signals": "https://esm.sh/*@preact/signals@1.1.3",
+     "@preact/signals-core": "https://esm.sh/@preact/signals-core@1.2.3",
+-    "$std/": "https://deno.land/std@0.208.0/",
++    "$std/": "https://deno.land/std@0.211.0/",
+     "$ga4": "https://raw.githubusercontent.com/denoland/ga4/main/mod.ts",
+     "$marked-mangle": "https://esm.sh/marked-mangle@1.0.1",
+     "$fresh-testing-library": "https://deno.land/x/fresh_testing_library@0.8.0/mod.ts",
+diff --git a/www/main_test.ts b/www/main_test.ts
+index 3eae19e1169..2ff04007b81 100644
+--- a/www/main_test.ts
++++ b/www/main_test.ts
+@@ -1,7 +1,7 @@
+ import { assertArrayIncludes, assertEquals } from "$std/assert/mod.ts";
+ import { withPageName } from "../tests/test_utils.ts";
+ import { dirname, join } from "$std/path/mod.ts";
+-import VERSIONS from "../versions.json" assert { type: "json" };
++import VERSIONS from "../versions.json" with { type: "json" };
+ import { createHandler } from "../server.ts";
+ import manifest from "./fresh.gen.ts";
+ import config from "./fresh.config.ts";
+diff --git a/www/routes/index.tsx b/www/routes/index.tsx
+index fb3b3c24d4f..17fdeed2deb 100644
+--- a/www/routes/index.tsx
++++ b/www/routes/index.tsx
+@@ -3,12 +3,12 @@ import { Handlers, PageProps } from "$fresh/server.ts";
+ import Counter from "../islands/Counter.tsx";
+ import LemonDrop from "../islands/LemonDrop.tsx";
+ import Footer from "../components/Footer.tsx";
+-import VERSIONS from "../../versions.json" assert { type: "json" };
++import VERSIONS from "../../versions.json" with { type: "json" };
+ import * as FeatureIcons from "../components/FeatureIcons.tsx";
+ import CopyArea from "../islands/CopyArea.tsx";
+ import * as Icons from "../components/Icons.tsx";
+ import Projects from "../components/Projects.tsx";
+-import projects from "../data/showcase.json" assert { type: "json" };
++import projects from "../data/showcase.json" with { type: "json" };
+ import Header from "../components/Header.tsx";
+ 
+ function isOpenGraphUA(header: string | null): boolean {
+diff --git a/www/routes/raw.ts b/www/routes/raw.ts
+index 39af54557fb..7c75271316c 100644
+--- a/www/routes/raw.ts
++++ b/www/routes/raw.ts
+@@ -1,7 +1,7 @@
+ import { RouteConfig } from "$fresh/server.ts";
+ import { Handlers } from "$fresh/server.ts";
+ import { format, parse } from "$std/semver/mod.ts";
+-import VERSIONS from "../../versions.json" assert { type: "json" };
++import VERSIONS from "../../versions.json" with { type: "json" };
+ import { extname } from "$std/path/mod.ts";
+ 
+ const BASE_URL = "https://raw.githubusercontent.com/denoland/fresh/";
+diff --git a/www/routes/showcase.tsx b/www/routes/showcase.tsx
+index bae949803af..3f5ee0ec7c6 100644
+--- a/www/routes/showcase.tsx
++++ b/www/routes/showcase.tsx
+@@ -3,7 +3,7 @@ import { PageProps } from "$fresh/server.ts";
+ import Projects, { Project } from "../components/Projects.tsx";
+ import Header from "../components/Header.tsx";
+ import Footer from "../components/Footer.tsx";
+-import projects from "../data/showcase.json" assert { type: "json" };
++import projects from "../data/showcase.json" with { type: "json" };
+ 
+ const TITLE = "Showcase | Fresh";
+ const DESCRIPTION = "Selection of projects that have been built with Fresh.";
+diff --git a/www/routes/update.tsx b/www/routes/update.tsx
+index 0a7c15e9812..0672665d6c0 100644
+--- a/www/routes/update.tsx
++++ b/www/routes/update.tsx
+@@ -1,5 +1,5 @@
+ import { Handlers, PageProps } from "$fresh/server.ts";
+-import VERSIONS from "../../versions.json" assert { type: "json" };
++import VERSIONS from "../../versions.json" with { type: "json" };
+ 
+ export const handler: Handlers = {
+   GET(req) {
+diff --git a/www/static/showcase/aquavibes1x.jpg b/www/static/showcase/aquavibes1x.jpg
+new file mode 100644
+index 00000000000..3329fb3b138
+Binary files /dev/null and b/www/static/showcase/aquavibes1x.jpg differ
+diff --git a/www/static/showcase/aquavibes2x.jpg b/www/static/showcase/aquavibes2x.jpg
+new file mode 100644
+index 00000000000..a6363f428fb
+Binary files /dev/null and b/www/static/showcase/aquavibes2x.jpg differ
+diff --git a/www/static/showcase/filter-hn1x.jpg b/www/static/showcase/filter-hn1x.jpg
+new file mode 100644
+index 00000000000..5bee5f6ddf2
+Binary files /dev/null and b/www/static/showcase/filter-hn1x.jpg differ
+diff --git a/www/static/showcase/filter-hn2x.jpg b/www/static/showcase/filter-hn2x.jpg
+new file mode 100644
+index 00000000000..7352e1c36a0
+Binary files /dev/null and b/www/static/showcase/filter-hn2x.jpg differ
+diff --git a/www/static/showcase/living-pixel1x.jpg b/www/static/showcase/living-pixel1x.jpg
+new file mode 100644
+index 00000000000..d804484a1cc
+Binary files /dev/null and b/www/static/showcase/living-pixel1x.jpg differ
+diff --git a/www/static/showcase/living-pixel2x.jpg b/www/static/showcase/living-pixel2x.jpg
+new file mode 100644
+index 00000000000..e126714f98f
+Binary files /dev/null and b/www/static/showcase/living-pixel2x.jpg differ
+diff --git a/www/static/showcase/pyrossh1x.jpg b/www/static/showcase/pyrossh1x.jpg
+new file mode 100644
+index 00000000000..e288aed4cf5
+Binary files /dev/null and b/www/static/showcase/pyrossh1x.jpg differ
+diff --git a/www/static/showcase/pyrossh2x.jpg b/www/static/showcase/pyrossh2x.jpg
+new file mode 100644
+index 00000000000..5efcd93eef1
+Binary files /dev/null and b/www/static/showcase/pyrossh2x.jpg differ
+diff --git a/www/static/showcase/rfui1x.jpg b/www/static/showcase/rfui1x.jpg
+new file mode 100644
+index 00000000000..2c8302af933
+Binary files /dev/null and b/www/static/showcase/rfui1x.jpg differ
+diff --git a/www/static/showcase/rfui2x.jpg b/www/static/showcase/rfui2x.jpg
+new file mode 100644
+index 00000000000..bd84412c073
+Binary files /dev/null and b/www/static/showcase/rfui2x.jpg differ
+diff --git a/www/utils/screenshot.ts b/www/utils/screenshot.ts
+index 43097dd7b64..3e32e84d891 100644
+--- a/www/utils/screenshot.ts
++++ b/www/utils/screenshot.ts
+@@ -1,6 +1,6 @@
+ import puppeteer from "https://deno.land/x/puppeteer@16.2.0/mod.ts";
+ import { Image } from "https://deno.land/x/imagescript@1.2.15/mod.ts";
+-import { join } from "https://deno.land/std@0.208.0/path/mod.ts";
++import { join } from "https://deno.land/std@0.211.0/path/mod.ts";
+ 
+ const url = Deno.args[0];
+ const id = Deno.args[1];

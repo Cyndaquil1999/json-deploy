@@ -1,0 +1,2259 @@
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+index ba89c4b26bf..87c9afa4b4d 100644
+--- a/.github/workflows/ci.yml
++++ b/.github/workflows/ci.yml
+@@ -3,8 +3,10 @@ name: ci
+ on:
+   push:
+     branches: [main]
++    paths-ignore: [www/**]
+   pull_request:
+     branches: [main]
++    paths-ignore: [www/**]
+ 
+ jobs:
+   test:
+@@ -75,7 +77,7 @@ jobs:
+         run: deno check --remote init.ts
+ 
+       - name: Type check website
+-        run: deno check --remote main.ts dev.ts
++        run: deno check main.ts dev.ts
+         working-directory: www/
+ 
+       - name: Type check examples/counter
+diff --git a/.github/workflows/www.yml b/.github/workflows/www.yml
+new file mode 100644
+index 00000000000..e1f006f53f8
+--- /dev/null
++++ b/.github/workflows/www.yml
+@@ -0,0 +1,36 @@
++name: www
++
++on:
++  push:
++    branches: [main]
++    paths: [www/**]
++  pull_request:
++    branches: [main]
++    paths: [www/**]
++
++jobs:
++  test:
++    runs-on: ubuntu-latest
++
++    steps:
++      - name: Checkout repo
++        uses: actions/checkout@v3
++
++      - name: Setup Deno
++        uses: denoland/setup-deno@v1
++
++      - name: Verify formatting
++        run: deno fmt --check
++        working-directory: www/
++
++      - name: Run linter
++        run: deno lint
++        working-directory: www/
++
++      - name: Type check website
++        run: deno check main.ts dev.ts
++        working-directory: www/
++
++      - name: Run tests
++        run: deno test -A
++        working-directory: www/
+diff --git a/README.md b/README.md
+index 6cf0a891808..b36baf6096f 100644
+--- a/README.md
++++ b/README.md
+@@ -2,7 +2,7 @@
+ 
+ # fresh
+ 
+-<img align="right" src="./www/static/logo.svg" height="150px" alt="the fresh logo: a sliced lemon dripping with juice">
++<img align="right" src="https://fresh.deno.dev/logo.svg" height="150px" alt="the fresh logo: a sliced lemon dripping with juice">
+ 
+ **Fresh** is a next generation web framework, built for speed, reliability, and
+ simplicity.
+@@ -62,6 +62,23 @@ For a more in-depth getting started guide, visit the
+ [Getting Started](https://fresh.deno.dev/docs/getting-started) page in the Fresh
+ docs.
+ 
++## Adding your project to the showcase
++
++If you feel that your project would be helpful to other fresh users, please
++consider putting your project on the
++[showcase](https://fresh.deno.dev/showcase). However, websites that are just for
++promotional purposes may not be listed.
++
++To take a screenshot, run the following command.
++
++```sh
++deno task screenshot [url] [your-app-name]
++```
++
++Then add your site to
++[showcase.json](https://github.com/denoland/fresh/blob/main/www/data/showcase.json),
++preferably with source code on GitHub, but not required.
++
+ ## Badges
+ 
+ ![Made with Fresh](./www/static/fresh-badge.svg)
+diff --git a/deno.json b/deno.json
+index f366d5bc486..7eecd243064 100644
+--- a/deno.json
++++ b/deno.json
+@@ -1,4 +1,5 @@
+ {
++  "lock": false,
+   "tasks": {
+     "test": "deno test -A && deno check --config=www/deno.json www/main.ts www/dev.ts && deno check init.ts",
+     "fixture": "deno run -A --watch=static/,routes/ tests/fixture/dev.ts",
+@@ -9,5 +10,10 @@
+   "compilerOptions": {
+     "jsx": "react-jsx",
+     "jsxImportSource": "preact"
++  },
++  "test": {
++    "files": {
++      "exclude": ["www/"]
++    }
+   }
+ }
+diff --git a/docs/concepts/architechture.md b/docs/concepts/architecture.md
+similarity index 100%
+rename from docs/concepts/architechture.md
+rename to docs/concepts/architecture.md
+diff --git a/docs/concepts/deployment.md b/docs/concepts/deployment.md
+index 5dd875b18c0..37efd74a775 100644
+--- a/docs/concepts/deployment.md
++++ b/docs/concepts/deployment.md
+@@ -60,7 +60,7 @@ $ docker build --build-arg GIT_REVISION=$(git rev-parse HEAD) -t my-fresh-app .
+ Then run your Docker container:
+ 
+ ```sh
+-$ docker run -t -i -p 80:8000 fresh-app
++$ docker run -t -i -p 80:8000 my-fresh-app
+ ```
+ 
+ To deploy to a cloud provider, push it to a container registry and follow their
+diff --git a/docs/concepts/routing.md b/docs/concepts/routing.md
+index 3d43cdd639b..fe7a009f7fc 100644
+--- a/docs/concepts/routing.md
++++ b/docs/concepts/routing.md
+@@ -44,7 +44,7 @@ This pattern will be used instead of the file path based pattern:
+ ```ts
+ // routes/x.ts
+ 
+-import { RouteConfig } from "$fresh/runtime.ts";
++import { RouteConfig } from "$fresh/server.ts";
+ 
+ export const config: RouteConfig = {
+   routeOverride: "/x/:module@:version/:path*",
+diff --git a/docs/concepts/updating.md b/docs/concepts/updating.md
+index d6f9d050ff6..e5a3fdad4c7 100644
+--- a/docs/concepts/updating.md
++++ b/docs/concepts/updating.md
+@@ -21,7 +21,7 @@ below.
+ | Fresh version | Preact           | preact-render-to-string | Deno      |
+ | ------------- | ---------------- | ----------------------- | --------- |
+ | 1.0.0-1.0.2   | >=10.8.1 <11.0.0 | >=5.2.0 <6.0.0          | >= 1.23.0 |
+-| 1.1.0-1.1.2   | >=10.8.1 <11.0.0 | >=5.2.0 <6.0.0          | >= 1.25.0 |
++| 1.1.0-1.1.3   | >=10.8.1 <11.0.0 | >=5.2.0 <6.0.0          | >= 1.25.0 |
+ 
+ ## Updating dependencies
+ 
+@@ -51,14 +51,14 @@ You will be prompted to confirm the changes that will be made to your project.
+ To manually update your project's dependencies, you can edit the
+ `import_map.json` file in the root of your projects directory. Dependency
+ versions are encoded into the URLs in this file. For example, here is how to
+-update a project from Fresh 1.0.2 to 1.1.2, and update Preact to the latest
++update a project from Fresh 1.0.2 to 1.1.3, and update Preact to the latest
+ version:
+ 
+ ```diff
+   {
+     "imports": {
+ -     "$fresh/": "https://deno.land/x/fresh@1.0.2/",
+-+     "$fresh/": "https://deno.land/x/fresh@1.1.2/",
+++     "$fresh/": "https://deno.land/x/fresh@1.1.3/",
+ 
+ -     "preact": "https://esm.sh/preact@10.8.1",
+ -     "preact/": "https://esm.sh/preact@10.8.1/",
+diff --git a/docs/integrations/index.md b/docs/integrations/index.md
+new file mode 100644
+index 00000000000..9608dfc2928
+--- /dev/null
++++ b/docs/integrations/index.md
+@@ -0,0 +1,20 @@
++---
++description: |
++  Various projects can integrate into Fresh to easily add functionality to your
++  project.
++---
++
++This section of the docs showcases modules or other projects that integrate with
++Fresh. These integrations can be used to add functionality to your project.
++
++## `fresh_charts`
++
++Fresh charts allows for easy integration of [Chart.js][chart-js] charts into
++your Fresh project. It provides a `Chart` JSX component that can be used to
++render charts on the server and client.
++
++A live demo can be found here: https://fresh-charts.deno.dev/
++
++Documentation for the module can be found here: https://deno.land/x/fresh_charts
++
++[chart-js]: https://www.chartjs.org/ "Chart.js"
+diff --git a/docs/toc.json b/docs/toc.json
+index 30e3d31ba6b..96d28a90bec 100644
+--- a/docs/toc.json
++++ b/docs/toc.json
+@@ -19,7 +19,7 @@
+   "concepts": {
+     "title": "Concepts",
+     "pages": [
+-      ["architechture", "Architecture"],
++      ["architecture", "Architecture"],
+       ["routes", "Routes"],
+       ["islands", "Interactive islands"],
+       ["static-files", "Static files"],
+@@ -31,5 +31,8 @@
+       ["plugins", "Plugins"],
+       ["updating", "Updating Fresh"]
+     ]
++  },
++  "integrations": {
++    "title": "Integrations"
+   }
+ }
+diff --git a/src/server/bundle.ts b/src/server/bundle.ts
+index 48ead530d23..cf8250e2d60 100644
+--- a/src/server/bundle.ts
++++ b/src/server/bundle.ts
+@@ -12,9 +12,16 @@ let esbuildInitialized: boolean | Promise<void> = false;
+ async function ensureEsbuildInitialized() {
+   if (esbuildInitialized === false) {
+     if (Deno.run === undefined) {
+-      esbuildInitialized = esbuild.initialize({
+-        wasmURL: "https://deno.land/x/esbuild@v0.14.51/esbuild.wasm",
+-        worker: false,
++      const wasmURL = new URL("./esbuild_v0.14.51.wasm", import.meta.url).href;
++      esbuildInitialized = fetch(wasmURL).then(async (r) => {
++        const resp = new Response(r.body, {
++          headers: { "Content-Type": "application/wasm" },
++        });
++        const wasmModule = await WebAssembly.compileStreaming(resp);
++        await esbuild.initialize({
++          wasmModule,
++          worker: false,
++        });
+       });
+     } else {
+       esbuild.initialize({});
+diff --git a/src/server/context.ts b/src/server/context.ts
+index 4fe70bdf59e..9d25e411524 100644
+--- a/src/server/context.ts
++++ b/src/server/context.ts
+@@ -151,12 +151,12 @@ export class ServerContext {
+         path.endsWith("/_middleware.ts") || path.endsWith("/_middleware.jsx") ||
+         path.endsWith("/_middleware.js");
+       if (!path.startsWith("/_") && !isMiddleware) {
+-        const { default: component, config } = (module as RouteModule);
++        const { default: component, config } = module as RouteModule;
+         let pattern = pathToPattern(baseRoute);
+         if (config?.routeOverride) {
+           pattern = String(config.routeOverride);
+         }
+-        let { handler } = (module as RouteModule);
++        let { handler } = module as RouteModule;
+         handler ??= {};
+         if (
+           component &&
+@@ -187,8 +187,8 @@ export class ServerContext {
+         path === "/_404.tsx" || path === "/_404.ts" ||
+         path === "/_404.jsx" || path === "/_404.js"
+       ) {
+-        const { default: component, config } = (module as UnknownPageModule);
+-        let { handler } = (module as UnknownPageModule);
++        const { default: component, config } = module as UnknownPageModule;
++        let { handler } = module as UnknownPageModule;
+         if (component && handler === undefined) {
+           handler = (_req, { render }) => render();
+         }
+@@ -205,8 +205,8 @@ export class ServerContext {
+         path === "/_500.tsx" || path === "/_500.ts" ||
+         path === "/_500.jsx" || path === "/_500.js"
+       ) {
+-        const { default: component, config } = (module as ErrorPageModule);
+-        let { handler } = (module as ErrorPageModule);
++        const { default: component, config } = module as ErrorPageModule;
++        let { handler } = module as ErrorPageModule;
+         if (component && handler === undefined) {
+           handler = (_req, { render }) => render();
+         }
+diff --git a/src/server/default_error_page.ts b/src/server/default_error_page.ts
+index 6b6d059e8d4..2f54f2b1a7a 100644
+--- a/src/server/default_error_page.ts
++++ b/src/server/default_error_page.ts
+@@ -42,7 +42,7 @@ export default function DefaultErrorPage(props: ErrorPageProps) {
+           padding: 16,
+           fontFamily: "sans-serif",
+         },
+-      }, "An error occured during route handling or page rendering."),
++      }, "An error occurred during route handling or page rendering."),
+       message && h("pre", {
+         style: {
+           margin: 0,
+diff --git a/src/server/deps.ts b/src/server/deps.ts
+index 2fca03b2748..05524c4beba 100644
+--- a/src/server/deps.ts
++++ b/src/server/deps.ts
+@@ -17,7 +17,7 @@ export {
+ } from "https://deno.land/std@0.150.0/media_types/mod.ts";
+ 
+ // -- rutt --
+-export * as rutt from "https://deno.land/x/rutt@0.0.13/mod.ts";
++export * as rutt from "https://deno.land/x/rutt@0.0.14/mod.ts";
+ 
+ // -- esbuild --
+ // @deno-types="https://deno.land/x/esbuild@v0.14.51/mod.d.ts"
+diff --git a/src/server/esbuild_v0.14.51.wasm b/src/server/esbuild_v0.14.51.wasm
+new file mode 100644
+index 00000000000..32d61a06345
+Binary files /dev/null and b/src/server/esbuild_v0.14.51.wasm differ
+diff --git a/tests/cli_test.ts b/tests/cli_test.ts
+index ab1694d44e2..49ef4947ce9 100644
+--- a/tests/cli_test.ts
++++ b/tests/cli_test.ts
+@@ -5,6 +5,7 @@ import {
+   assertStringIncludes,
+   delay,
+   puppeteer,
++  retry,
+   TextLineStream,
+ } from "./deps.ts";
+ 
+@@ -165,8 +166,11 @@ Deno.test({
+ 
+       await lines.cancel();
+       serverProcess.kill("SIGTERM");
++      await serverProcess.status();
+       serverProcess.close();
+     });
++
++    await retry(() => Deno.remove(tmpDirName, { recursive: true }));
+   },
+   sanitizeOps: false,
+   sanitizeResources: false,
+@@ -318,8 +322,11 @@ Deno.test({
+ 
+       await lines.cancel();
+       serverProcess.kill("SIGTERM");
++      await serverProcess.status();
+       serverProcess.close();
+     });
++
++    await retry(() => Deno.remove(tmpDirName, { recursive: true }));
+   },
+   sanitizeOps: false,
+   sanitizeResources: false,
+diff --git a/tests/deps.ts b/tests/deps.ts
+index 7d98005c1d9..3b036249d61 100644
+--- a/tests/deps.ts
++++ b/tests/deps.ts
+@@ -13,4 +13,5 @@ export {
+   TextLineStream,
+ } from "https://deno.land/std@0.150.0/streams/delimiter.ts";
+ export { delay } from "https://deno.land/std@0.150.0/async/delay.ts";
++export { retry } from "https://deno.land/std@0.170.0/async/retry.ts";
+ export { default as puppeteer } from "https://deno.land/x/puppeteer@16.2.0/mod.ts";
+diff --git a/tests/error_test.ts b/tests/error_test.ts
+index fe367a9cd30..4ce2a0d1a7f 100644
+--- a/tests/error_test.ts
++++ b/tests/error_test.ts
+@@ -28,7 +28,7 @@ Deno.test("error page rendered", async () => {
+   const body = await resp.text();
+   assertStringIncludes(
+     body,
+-    `An error occured during route handling or page rendering.`,
++    `An error occurred during route handling or page rendering.`,
+   );
+   assertStringIncludes(body, `Error: boom!`);
+   assertStringIncludes(body, `at render`);
+diff --git a/versions.json b/versions.json
+index 66afac8db0a..f5b66541e12 100644
+--- a/versions.json
++++ b/versions.json
+@@ -1,4 +1,5 @@
+ [
++  "1.1.3",
+   "1.1.2",
+   "1.1.1",
+   "1.1.0",
+diff --git a/www/components/DocsHeader.tsx b/www/components/DocsHeader.tsx
+deleted file mode 100644
+index 9e5fd45f454..00000000000
+--- a/www/components/DocsHeader.tsx
++++ /dev/null
+@@ -1,48 +0,0 @@
+-import DocsTitle from "./DocsTitle.tsx";
+-
+-export default function DocsHeader() {
+-  return (
+-    <div class="bg-green-300">
+-      <header class="mx-auto max-w-screen-lg flex gap-3 justify-between">
+-        <div class="p-4 flex">
+-          <Logo />
+-          <div>
+-            <DocsTitle />
+-          </div>
+-        </div>
+-        <label
+-          for="docs_sidebar"
+-          class="px-4 py-4 md:hidden border(l-2 green-200) flex items-center hover:bg-green-100"
+-        >
+-          <svg
+-            class="h-6 w-6"
+-            stroke="currentColor"
+-            fill="none"
+-            viewBox="0 0 24 24"
+-          >
+-            <path
+-              strokeLinecap="round"
+-              strokeLinejoin="round"
+-              strokeWidth="2"
+-              d="M4 6h16M4 12h16M4 18h7"
+-            >
+-            </path>
+-          </svg>
+-        </label>
+-      </header>
+-    </div>
+-  );
+-}
+-
+-function Logo() {
+-  return (
+-    <a href="/" class="flex mr-3 items-center">
+-      <img
+-        src="/logo.svg"
+-        alt="Fresh logo"
+-        width={40}
+-        height={40}
+-      />
+-    </a>
+-  );
+-}
+diff --git a/www/components/DocsSidebar.tsx b/www/components/DocsSidebar.tsx
+index 659b5e0d0b1..8bff7e54bf6 100644
+--- a/www/components/DocsSidebar.tsx
++++ b/www/components/DocsSidebar.tsx
+@@ -1,16 +1,52 @@
++import { Head } from "$fresh/runtime.ts";
+ import {
+   CATEGORIES,
+   TableOfContentsCategory,
+   TableOfContentsCategoryEntry,
+ } from "../data/docs.ts";
++import SearchButton from "../islands/SearchButton.tsx";
+ 
+-export default function DocsSidebar(props: { path: string }) {
++export default function DocsSidebar(props: { path: string; mobile?: boolean }) {
++  const id = String(Math.random()).replaceAll(".", "");
+   return (
+-    <ol class="list-decimal list-inside font-semibold nested">
+-      {CATEGORIES.map((category) => (
+-        <SidebarCategory path={props.path} category={category} />
+-      ))}
+-    </ol>
++    <>
++      {props.mobile
++        ? (
++          <button
++            type="button"
++            class="bg-gray-200 font-bold text-gray-400 rounded-full py-1 px-2 w-full mb-2"
++            // @ts-ignore: Inline event handler
++            onClick={`document.querySelector(".DocSearch.DocSearch-Button").click()`}
++          >
++            <span class="DocSearch-Button-Container">
++              <svg
++                width="20"
++                height="20"
++                class="DocSearch-Search-Icon"
++                viewBox="0 0 20 20"
++              >
++                <path
++                  d="M14.386 14.386l4.0877 4.0877-4.0877-4.0877c-2.9418 2.9419-7.7115 2.9419-10.6533 0-2.9419-2.9418-2.9419-7.7115 0-10.6533 2.9418-2.9419 7.7115-2.9419 10.6533 0 2.9419 2.9418 2.9419 7.7115 0 10.6533z"
++                  stroke="currentColor"
++                  fill="none"
++                  fill-rule="evenodd"
++                  stroke-linecap="round"
++                  stroke-linejoin="round"
++                >
++                </path>
++              </svg>
++              <span class="DocSearch-Button-Placeholder">Search</span>
++            </span>
++          </button>
++        )
++        : <SearchButton />}
++
++      <ol class="list-decimal list-inside font-semibold nested">
++        {CATEGORIES.map((category) => (
++          <SidebarCategory path={props.path} category={category} />
++        ))}
++      </ol>
++    </>
+   );
+ }
+ 
+diff --git a/www/components/DocsTitle.tsx b/www/components/DocsTitle.tsx
+index cc41967320f..35df7f5c01c 100644
+--- a/www/components/DocsTitle.tsx
++++ b/www/components/DocsTitle.tsx
+@@ -1,9 +1,9 @@
+-export default function DocsTitle() {
++export default function DocsTitle(props: { title: string }) {
+   return (
+     <>
+       <a
+         href="/"
+-        class="text(2xl gray-900) tracking-tight font-extrabold flex items-center gap-1"
++        class="text(2xl gray-900) block flex items-center"
+       >
+         <svg
+           preserveAspectRatio="xMinYMin"
+@@ -11,16 +11,14 @@ export default function DocsTitle() {
+           fill="none"
+           alt="Fresh logo"
+           xmlns="http://www.w3.org/2000/svg"
+-          class="h-5 inline-block py-[1px]"
++          class="h-5 inline-block"
+         >
+           <path
+             d="M14.0805 0.761269V70.0893H0V0.761269H14.0805ZM35.6322 30.2257V41.7803H10.3448V30.2257H35.6322ZM38.5057 0.761269V12.3159H10.3448V0.761269H38.5057ZM46.5517 0.761269H68.9655C73.5632 0.761269 77.5862 1.62785 80.7471 3.36105C83.908 4.80538 86.4943 7.11632 88.2184 10.2939C90.1641 13.8269 91.1548 17.8107 91.092 21.8485C91.092 25.6038 90.5172 28.7813 89.3678 31.3811C88.5057 34.2698 87.069 36.2919 85.0575 38.0251C83.046 39.7583 81.0345 40.9137 78.4483 42.3581L74.1379 44.669H56.0345V33.1143H68.3908C70.0971 33.2247 71.7975 32.8225 73.2759 31.9589C74.4253 31.0923 75.2874 29.9368 76.1494 28.4925C76.8253 26.6458 77.1186 24.6798 77.0115 22.7151C77.0115 20.6931 76.7241 18.9599 76.1494 17.2267C75.5747 15.7823 74.7126 14.338 73.2759 13.7603C72.4138 12.8937 70.6897 12.3159 68.9655 12.3159H60.3448V70.0893H46.5517V0.761269V0.761269ZM78.1609 70.0893L65.5172 39.1805H79.8851L93.1035 69.5115V70.0893H78.1609ZM140.517 58.5346V70.0893H110.345V58.5346H140.517ZM114.655 0.761269V70.0893H100.575V0.761269H114.943H114.655ZM136.494 29.0702V40.0471H110.345V29.0702H136.207H136.494ZM140.517 0.761269V12.3159H110.345V0.761269H140.517ZM178.161 51.8907C178.161 50.7352 178.161 49.5797 177.586 48.7131C177.586 47.5577 177.012 46.6911 176.149 45.8245L173.276 42.9358L167.816 40.6249L160.345 37.1585L154.023 32.8255C152.021 31.2537 150.359 29.2878 149.138 27.0481C148.066 24.5949 147.574 21.9252 147.701 19.2487C147.701 16.3601 147.989 13.4714 149.138 11.4493C150.166 9.00506 151.739 6.83084 153.736 5.09427C155.747 3.64994 158.046 2.20559 160.632 1.33899C167.362 -0.855543 174.677 -0.337717 181.034 2.78333C184.483 4.51653 186.782 7.11632 188.793 10.2939C190.517 13.1825 191.667 17.2267 191.667 21.2708H177.299C177.424 19.5169 177.229 17.7548 176.724 16.0712C176.149 14.6269 175.287 13.1825 173.851 12.6048C172.701 11.7382 170.977 11.1605 169.253 11.1605C167.529 11.1605 166.092 11.7382 164.943 12.3159C163.793 12.8937 162.931 14.0491 162.069 15.2046L161.494 19.2487C161.494 20.4042 161.782 21.5597 162.356 22.4263L164.655 24.7372C167.235 26.2818 169.924 27.6335 172.701 28.7813L181.034 32.8255C183.199 34.2594 185.136 36.0121 186.782 38.0251C188.793 39.7583 189.655 41.7803 190.805 43.8024C192.605 48.9619 192.503 54.5998 190.517 59.6901C189.368 62.001 187.931 64.0231 186.207 65.7563C184.115 67.5878 181.669 68.9647 179.023 69.8004C173.276 71.2447 176.149 75 170.402 75C164.655 75 166.667 70.667 161.207 69.8004C158.333 68.9338 155.46 67.4895 153.448 65.7563C151.19 63.7856 149.419 61.313 148.276 58.5346C147.126 55.6459 146.552 52.1795 146.552 48.4243H160.632C160.632 50.4463 160.632 52.1795 161.207 53.6239C161.494 55.0682 162.069 56.5125 162.931 57.3791C163.793 57.9569 164.943 58.8235 166.092 59.1123C167.529 59.6901 168.966 59.6901 170.402 59.6901C172.414 59.6901 173.851 59.6901 175 58.8235C176.149 57.9569 176.724 57.0903 177.299 55.9348C177.874 54.7793 178.161 53.335 178.161 51.8907V51.8907ZM239.943 28.7813V40.336H211.207V28.7813H239.943ZM215.23 0.761269V70.0893H201.437V0.761269H215.23ZM250 0.761269V70.0893H236.207V0.761269H250Z"
+             fill="#0A140C"
+           />
+         </svg>
+-        <span class="font-light block pb-[1px]">docs</span>
+       </a>
+-      <p class="text(sm gray-700)">The next-gen web framework.</p>
+     </>
+   );
+ }
+diff --git a/www/components/Header.tsx b/www/components/Header.tsx
+new file mode 100644
+index 00000000000..08fe92fe60e
+--- /dev/null
++++ b/www/components/Header.tsx
+@@ -0,0 +1,37 @@
++import DocsTitle from "./DocsTitle.tsx";
++import NavigationBar from "./NavigationBar.tsx";
++
++export default function Header(props: { title: string; active: string }) {
++  const isHome = props.active == "/";
++  return (
++    <div>
++      <header
++        class={"mx-auto max-w-screen-lg flex gap-3 " +
++          (isHome ? "justify-end" : "justify-between")}
++      >
++        {!isHome &&
++          (
++            <div class="p-4 flex items-center">
++              <Logo />
++              <DocsTitle title={props.title} />
++            </div>
++          )}
++        <NavigationBar class="hidden md:flex" active={props.active} />
++      </header>
++      <NavigationBar class="md:hidden pb-3" active={props.active} />
++    </div>
++  );
++}
++
++function Logo() {
++  return (
++    <a href="/" class="flex mr-3 items-center">
++      <img
++        src="/logo.svg"
++        alt="Fresh logo"
++        width={40}
++        height={40}
++      />
++    </a>
++  );
++}
+diff --git a/www/components/NavigationBar.tsx b/www/components/NavigationBar.tsx
+index 685b072c9db..1a0d186746a 100644
+--- a/www/components/NavigationBar.tsx
++++ b/www/components/NavigationBar.tsx
+@@ -1,9 +1,9 @@
+-export default function NavigationBar(props: { active: string }) {
++import * as Icons from "./Icons.tsx";
++
++export default function NavigationBar(
++  props: { active: string; class?: string },
++) {
+   const items = [
+-    {
+-      name: "Home",
+-      href: "/",
+-    },
+     {
+       name: "Docs",
+       href: "/docs",
+@@ -12,16 +12,26 @@ export default function NavigationBar(props: { active: string }) {
+       name: "Showcase",
+       href: "/showcase",
+     },
++    {
++      name: "Components",
++      href: "/components",
++    },
++    {
++      name: "Discord",
++      href: "https://discord.com/invite/deno",
++    },
+   ];
+-
++  const isHome = props.active == "/";
+   return (
+-    <nav class="bg-green-200 py-2">
+-      <ul class="flex justify-center gap-8 mx-4">
++    <nav class={"flex " + props.class ?? ""}>
++      <ul class="flex justify-center items-center gap-4 mx-4 my-6 flex-wrap">
+         {items.map((item) => (
+           <li>
+             <a
+               href={item.href}
+-              class={`text-gray-600 hover:underline ${
++              class={`p-2 ${
++                isHome ? "text-green-900" : "text-gray-600"
++              } hover:underline ${
+                 props.active == item.href ? "font-bold" : ""
+               }`}
+             >
+@@ -29,6 +39,15 @@ export default function NavigationBar(props: { active: string }) {
+             </a>
+           </li>
+         ))}
++
++        <li class="flex items-center">
++          <a
++            href="https://github.com/denoland/fresh"
++            class="hover:text-green-600 inline-block"
++          >
++            <Icons.GitHub />
++          </a>
++        </li>
+       </ul>
+     </nav>
+   );
+diff --git a/www/components/Projects.tsx b/www/components/Projects.tsx
+index 55332f7e7a8..d44f7c47bbf 100644
+--- a/www/components/Projects.tsx
++++ b/www/components/Projects.tsx
+@@ -18,7 +18,7 @@ export default function Projects(props: ProjectProps) {
+         props.class ?? ""
+       }`}
+     >
+-      {props.items.map((project) => (
++      {props.items.filter((item) => item.link.length > 0).map((project) => (
+         <div class="w-full max-w-sm mx-auto group">
+           <a href={project.link} tabIndex={-1}>
+             <img
+diff --git a/www/components/gallery/Background.tsx b/www/components/gallery/Background.tsx
+new file mode 100644
+index 00000000000..ce5480bbf0b
+--- /dev/null
++++ b/www/components/gallery/Background.tsx
+@@ -0,0 +1,11 @@
++import { JSX } from "preact";
++
++export default function Background(props: JSX.HTMLAttributes<HTMLDivElement>) {
++  return (
++    <div
++      {...props}
++      class="bg-gray-200 py-16 px-8 flex gap-4 items-center justify-center rounded flex-wrap"
++      style="background-image: url(/gallery/grid.svg)"
++    />
++  );
++}
+diff --git a/www/components/gallery/Button.tsx b/www/components/gallery/Button.tsx
+new file mode 100644
+index 00000000000..77ed33173e6
+--- /dev/null
++++ b/www/components/gallery/Button.tsx
+@@ -0,0 +1,14 @@
++import { JSX } from "preact";
++import { IS_BROWSER } from "$fresh/runtime.ts";
++
++export default function Button(props: JSX.HTMLAttributes<HTMLButtonElement>) {
++  return (
++    <button
++      {...props}
++      disabled={!IS_BROWSER || props.disabled}
++      class={`px-3 py-2 bg-white rounded border(gray-500 2) hover:bg-gray-200 active:bg-gray-300 disabled:(opacity-50 cursor-not-allowed) ${
++        props.class ?? ""
++      }`}
++    />
++  );
++}
+diff --git a/www/components/gallery/CodeBox.tsx b/www/components/gallery/CodeBox.tsx
+new file mode 100644
+index 00000000000..87677c52510
+--- /dev/null
++++ b/www/components/gallery/CodeBox.tsx
+@@ -0,0 +1,44 @@
++import { useState } from "preact/hooks";
++
++import Prism from "https://esm.sh/prismjs@1.27.0";
++import "https://esm.sh/prismjs@1.27.0/components/prism-typescript?no-check";
++
++interface CodeBoxProps {
++  code: string;
++}
++
++export default function CodeBox(props: CodeBoxProps) {
++  const highlighted = Prism.highlight(
++    props.code,
++    Prism.languages.typescript,
++    "typescript",
++  );
++  const onCopy = () => {
++    navigator.clipboard.writeText(props.code);
++    setCopied(true);
++  };
++
++  const [copied, setCopied] = useState(false);
++  return (
++    <div class="">
++      <details>
++        <summary class="text-center cursor-pointer bg-gray-50 select-none text-gray-600 hover:text-gray-800 hover:bg-gray-100 py-2 rounded-b">
++          Code
++        </summary>
++        <div class="relative">
++          <pre class="bg-gray-800 text-blue-300 p-2 text-sm rounded whitespace-pre-wrap">
++            <code
++              dangerouslySetInnerHTML={{ __html: highlighted }}
++            />
++          </pre>
++          <button
++            onClick={onCopy}
++            class="absolute top-2 right-2 px-3 py-2 border border-gray-400 rounded text-white bg-gray-800"
++          >
++            {copied ? "Copied!" : "Copy"}
++          </button>
++        </div>
++      </details>
++    </div>
++  );
++}
+diff --git a/www/components/gallery/ColoredButton.tsx b/www/components/gallery/ColoredButton.tsx
+new file mode 100644
+index 00000000000..2b7bc527e38
+--- /dev/null
++++ b/www/components/gallery/ColoredButton.tsx
+@@ -0,0 +1,14 @@
++import { JSX } from "preact";
++import { IS_BROWSER } from "$fresh/runtime.ts";
++
++export default function ColoredButton(
++  props: JSX.HTMLAttributes<HTMLButtonElement>,
++) {
++  return (
++    <button
++      {...props}
++      disabled={!IS_BROWSER || props.disabled}
++      class="px-3 py-2 bg-blue-200 text-blue-800 rounded hover:bg-blue-300 active:bg-blue-400"
++    />
++  );
++}
+diff --git a/www/components/gallery/Features.tsx b/www/components/gallery/Features.tsx
+new file mode 100644
+index 00000000000..d6452ea449a
+--- /dev/null
++++ b/www/components/gallery/Features.tsx
+@@ -0,0 +1,52 @@
++import IconAlarm from "https://deno.land/x/tabler_icons_tsx@0.0.2/tsx/alarm.tsx";
++import IconAirBalloon from "https://deno.land/x/tabler_icons_tsx@0.0.2/tsx/air-balloon.tsx";
++import IconArmchair from "https://deno.land/x/tabler_icons_tsx@0.0.2/tsx/armchair.tsx";
++import IconChevronRight from "https://deno.land/x/tabler_icons_tsx@0.0.2/tsx/chevron-right.tsx";
++
++export default function Features() {
++  const featureItems = [
++    {
++      icon: IconAlarm,
++      description:
++        "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed euismod, nunc ut aliquam aliquam",
++      link: "#",
++    },
++    {
++      icon: IconAirBalloon,
++      description:
++        "Nunc nisl aliquet nisl, eget aliquam nisl nisl sit amet lorem. Sed euismod, nunc ut aliquam aliquam, nunc nisl aliquet nisl, ",
++    },
++    {
++      icon: IconArmchair,
++      description: "Eget aliquam nisl nisl sit amet lorem.",
++      link: "#",
++    },
++  ];
++
++  return (
++    <div class="flex flex-col md:flex-row gap-8 bg-white p-8">
++      {featureItems.map((item) => {
++        return (
++          <div class="flex-1 space-y-2">
++            <div class="bg-blue-600 inline-block p-3 rounded-xl text-white">
++              <item.icon class="w-10 h-10" />
++            </div>
++            <p class="text-xl">
++              {item.description}
++            </p>
++
++            {item.link &&
++              (
++                <a class="block" href={item.link}>
++                  <p class="text-blue-500 cursor-pointer hover:underline inline-flex items-center group">
++                    Read More{" "}
++                    <IconChevronRight class="inline-block w-5 h-5 transition group-hover:translate-x-0.5" />
++                  </p>
++                </a>
++              )}
++          </div>
++        );
++      })}
++    </div>
++  );
++}
+diff --git a/www/components/gallery/Footer.tsx b/www/components/gallery/Footer.tsx
+new file mode 100644
+index 00000000000..1ca64b21978
+--- /dev/null
++++ b/www/components/gallery/Footer.tsx
+@@ -0,0 +1,76 @@
++import { ComponentChildren } from "preact";
++import LemonIcon from "https://deno.land/x/tabler_icons_tsx@0.0.1/tsx/lemon-2.tsx";
++import BrandGithub from "https://deno.land/x/tabler_icons_tsx@0.0.1/tsx/brand-github.tsx";
++type Props = {
++  children: ComponentChildren;
++};
++
++export default function Footer({ children }: Props) {
++  const menus = [
++    {
++      title: "Documentation",
++      children: [
++        { name: "Getting Started", href: "#" },
++        { name: "Guide", href: "#" },
++        { name: "API", href: "#" },
++        { name: "Showcase", href: "#" },
++        { name: "Pricing", href: "#" },
++      ],
++    },
++    {
++      title: "Community",
++      children: [
++        { name: "Forum", href: "#" },
++        { name: "Discord", href: "#" },
++      ],
++    },
++  ];
++
++  return (
++    <div class="bg-white flex flex-col md:flex-row w-full max-w-screen-lg gap-8 md:gap-16 px-8 py-8 text-sm">
++      <div class="flex-1">
++        <div class="flex items-center gap-1">
++          <LemonIcon class="inline-block" />
++          <div class="font-bold text-2xl">
++            Fresh
++          </div>
++        </div>
++        <div class="text-gray-500">
++          Full Stack Framework
++        </div>
++      </div>
++
++      {menus.map((item) => (
++        <div class="mb-4" key={item.title}>
++          <div class="font-bold">{item.title}</div>
++          <ul class="mt-2">
++            {item.children.map((child) => (
++              <li class="mt-2" key={child.name}>
++                <a
++                  class="text-gray-500 hover:text-gray-700"
++                  href={child.href}
++                >
++                  {child.name}
++                </a>
++              </li>
++            ))}
++          </ul>
++        </div>
++      ))}
++
++      <div class="text-gray-500 space-y-2">
++        <div class="text-xs">
++          Copyright © 2020 DenoLand<br />
++          All right reserved.
++        </div>
++
++        <a
++          href="https://github.com/denoland/fresh"
++          class="inline-block hover:text-black"
++        >
++          <BrandGithub />
++        </a>
++      </div>
++    </div>
++  );
++}
+diff --git a/www/components/gallery/Header.tsx b/www/components/gallery/Header.tsx
+new file mode 100644
+index 00000000000..45cbabda666
+--- /dev/null
++++ b/www/components/gallery/Header.tsx
+@@ -0,0 +1,37 @@
++import LemonIcon from "https://deno.land/x/tabler_icons_tsx@0.0.1/tsx/lemon-2.tsx";
++
++type Props = {
++  active: string;
++};
++
++export default function Header({ active }: Props) {
++  const menus = [
++    { name: "Home", href: "/" },
++    { name: "Components", href: "/components" },
++    { name: "Docs", href: "/docs" },
++  ];
++
++  return (
++    <div class="bg-white w-full max-w-screen-lg py-6 px-8 flex flex-col md:flex-row gap-4">
++      <div class="flex items-center flex-1">
++        <LemonIcon />
++        <div class="text-2xl  ml-1 font-bold">
++          Fresh
++        </div>
++      </div>
++      <ul class="flex items-center gap-6">
++        {menus.map((menu) => (
++          <li>
++            <a
++              href={menu.href}
++              class={"text-gray-500 hover:text-gray-700 py-1 border-gray-500" +
++                (menu.href === active ? " font-bold border-b-2" : "")}
++            >
++              {menu.name}
++            </a>
++          </li>
++        ))}
++      </ul>
++    </div>
++  );
++}
+diff --git a/www/components/gallery/Hero.tsx b/www/components/gallery/Hero.tsx
+new file mode 100644
+index 00000000000..fc70c9f5163
+--- /dev/null
++++ b/www/components/gallery/Hero.tsx
+@@ -0,0 +1,34 @@
++import IconChevronRight from "https://deno.land/x/tabler_icons_tsx@0.0.2/tsx/chevron-right.tsx";
++
++export default function Hero() {
++  return (
++    <div
++      class="w-full flex px-8 h-96 justify-center items-center flex-col gap-8 bg-cover bg-center bg-no-repeat bg-gray-100 rounded-xl text-white"
++      style="background-image:linear-gradient(rgba(0, 0, 40, 0.8),rgba(0, 0, 40, 0.8)), url('/gallery/hero-bg.webp');"
++    >
++      <div class="space-y-4 text-center">
++        <h1 class="text-4xl inline-block font-bold">Fresh Components Beta</h1>
++        <p class="text-xl max-w-lg text-blue-100">
++          Fresh Components is a collection of components built with Preact and
++          Tailwind CSS.
++        </p>
++      </div>
++
++      <div>
++        <a
++          href="#"
++          class="block mt-4 text-blue-500 cursor-pointer inline-flex items-center group text-blue-800 bg-white px-8 py-2 rounded-md hover:bg-blue-50 font-bold"
++        >
++          Sign Up{" "}
++        </a>
++        <a
++          href="#"
++          class="block mt-4 transition-colors text-blue-400 cursor-pointer inline-flex items-center group px-4 py-2 hover:text-blue-100"
++        >
++          Documentation{" "}
++          <IconChevronRight class="inline-block w-5 h-5 transition group-hover:translate-x-0.5" />
++        </a>
++      </div>
++    </div>
++  );
++}
+diff --git a/www/components/gallery/Input.tsx b/www/components/gallery/Input.tsx
+new file mode 100644
+index 00000000000..2d5f33b6504
+--- /dev/null
++++ b/www/components/gallery/Input.tsx
+@@ -0,0 +1,14 @@
++import { JSX } from "preact";
++import { IS_BROWSER } from "$fresh/runtime.ts";
++
++export default function Input(props: JSX.HTMLAttributes<HTMLInputElement>) {
++  return (
++    <input
++      {...props}
++      disabled={!IS_BROWSER || props.disabled}
++      class={`px-3 py-2 bg-white rounded border(gray-500 2) disabled:(opacity-50 cursor-not-allowed) ${
++        props.class ?? ""
++      }`}
++    />
++  );
++}
+diff --git a/www/components/gallery/LinkButton.tsx b/www/components/gallery/LinkButton.tsx
+new file mode 100644
+index 00000000000..a87284d2aa1
+--- /dev/null
++++ b/www/components/gallery/LinkButton.tsx
+@@ -0,0 +1,14 @@
++import { JSX } from "preact";
++
++export default function LinkButton(
++  props: JSX.HTMLAttributes<HTMLAnchorElement>,
++) {
++  return (
++    <a
++      {...props}
++      class={`inline-block cursor-pointer px-3 py-2 bg-white rounded hover:bg-gray-100 ${
++        props.class ?? ""
++      }`}
++    />
++  );
++}
+diff --git a/www/data/showcase.json b/www/data/showcase.json
+index 9d5f8b5211d..a9954440841 100644
+--- a/www/data/showcase.json
++++ b/www/data/showcase.json
+@@ -17,6 +17,48 @@
+     "github": "denoland/fresh/tree/main/www",
+     "image": "fresh"
+   },
++  {
++    "title": "Paquet",
++    "link": "https://paquet.shop",
++    "github": "fructoland/paquet",
++    "image": "paquet"
++  },
++  {
++    "title": "Video Poker Academy",
++    "link": "https://videopoker.academy/",
++    "github": "hyprtxt/videopoker.academy",
++    "image": "videopoker-academy"
++  },
++  {
++    "title": "D3no Data",
++    "link": "https://d3nodata.deno.dev/",
++    "github": "D3nosaurs/d3nodata-website",
++    "image": "d3nodata"
++  },
++  {
++    "title": "Fresh Blog",
++    "link": "https://fresh-blog.littlesticks.dev/",
++    "github": "littlesticks/fresh-blog",
++    "image": "fresh-blog"
++  },
++  {
++    "title": "Fresh Hacker News",
++    "link": "https://fresh-hacker-news.deno.dev/",
++    "github": "morinokami/fresh-hacker",
++    "image": "hn"
++  },
++  {
++    "title": "LDkit",
++    "link": "https://ldkit.io",
++    "github": "karelklima/ldkit",
++    "image": "ldkit"
++  },
++  {
++    "title": "CGPA(AU R-2021) Calculator",
++    "link": "https://cgpa-au-2021.deno.dev",
++    "github": "codesculpture/cgpa-au-2021",
++    "image": "cgpa-au-2021"
++  },
+   {
+     "title": "diKnow",
+     "link": "https://xyntechx-diknow.deno.dev/",
+@@ -36,16 +78,86 @@
+     "image": "fresh-strapi"
+   },
+   {
+-    "title": "Video Poker Academy",
+-    "link": "https://videopoker.academy/",
+-    "github": "hyprtxt/videopoker.academy",
+-    "image": "videopoker-academy"
++    "title": "Developer Portfolio",
++    "link": "https://hazn.me",
++    "github": "haznai/fresh-test",
++    "image": "hazn"
++  },
++  {
++    "title": "Portfolio Page",
++    "link": "http://adamsobotka.deno.dev/",
++    "github": "vorcigernix/adamsobotka",
++    "image": "adam-portfolio"
++  },
++  {
++    "title": "Developer Portfolio",
++    "link": "https://mooxl.dev",
++    "github": "mooxl/fresh.mooxl.dev",
++    "image": "mooxl"
++  },
++  {
++    "title": "Developer Portfolio",
++    "link": "https://guillaumecomte.deno.dev",
++    "github": "guigui64/www",
++    "image": "guigui64"
++  },
++  {
++    "title": "Joe Salinas Site",
++    "link": "https://joesalinas.dev",
++    "image": "joesalinasdev"
++  },
++  {
++    "title": "Fresh Project Manager",
++    "link": "https://xyntechx-project-manager.deno.dev/",
++    "github": "xyntechx/NexLiber-Projects/tree/main/Fresh%20Project%20Manager",
++    "image": "fresh-project-manager"
++  },
++  {
++    "title": "Fresh ToDo List App",
++    "link": "https://fresh-todo-list.deno.dev/",
++    "github": "MrSaeedNasiri/fresh-todo-list",
++    "image": "fresh-todo"
++  },
++  {
++    "title": "Kita",
++    "link": "https://kita.ge",
++    "image": "kita"
++  },
++  {
++    "title": "Optimem app",
++    "link": "https://optimem.org/",
++    "image": "optimem"
++  },
++  {
++    "title": "Balello",
++    "link": "https://balello.com",
++    "image": "balello"
++  },
++  {
++    "title": "Wricord",
++    "link": "https://wricord.com",
++    "image": "wricord"
+   },
+   {
+     "title": "ANDBOUNDS Inc.",
+     "link": "https://andbounds.com/",
+     "image": "andbounds"
+   },
++  {
++    "title": "YCRM",
++    "link": "https://ycrm.xyz/",
++    "image": "ycrm"
++  },
++  {
++    "title": "Local SEO Studio",
++    "link": "https://www.localseo.studio/",
++    "image": "localseostudio"
++  },
++  {
++    "title": "Fondest Landing Page",
++    "link": "https://fondest.com",
++    "image": "fondest"
++  },
+   {
+     "title": "im@sparql Data Dashboard",
+     "link": "https://imasparql-data-dashboard.deno.dev/",
+@@ -53,42 +165,92 @@
+     "image": "imasparql-dd"
+   },
+   {
+-    "title": "YCRM",
+-    "link": "https://ycrm.xyz/",
+-    "image": "ycrm"
++    "title": "kadode portal",
++    "link": "https://portal.kado.day/",
++    "github": "KadodeProject/kadode_portal",
++    "image": "kadode_portal"
+   },
+   {
+-    "title": "Optimem app",
+-    "link": "https://optimem.org/",
+-    "image": "optimem"
++    "title": "Craig's Deno Diary",
++    "link": "https://deno-blog.com",
++    "github": "https://github.com/cdoremus/deno-blog",
++    "image": "deno-diary"
+   },
+   {
+-    "title": "Fresh Blog",
+-    "link": "https://fresh-blog.littlesticks.dev/",
+-    "github": "littlesticks/fresh-blog",
+-    "image": "fresh-blog"
++    "title": "Melon",
++    "link": "https://m.not-ivy.dev/",
++    "github": "not-ivy/melon",
++    "image": "melon"
+   },
+   {
+-    "title": "Balello",
+-    "link": "https://balello.com",
+-    "image": "balello"
++    "title": "Game Orb",
++    "link": "https://fabimc-game-orb.deno.dev/",
++    "github": "fabimc/game-orb",
++    "image": "game-orb"
+   },
+   {
+-    "title": "Developer Portfolio",
+-    "link": "https://hazn.me",
+-    "github": "haznai/fresh-test",
+-    "image": "hazn"
++    "title": "Webhook Manager",
++    "link": "https://webhook-demo.deno.dev/",
++    "github": "avnigenc/deno-fresh-webhook-demo",
++    "image": "webhook-manager"
+   },
+   {
+-    "title": "Fresh Project Manager",
+-    "link": "https://xyntechx-project-manager.deno.dev/",
+-    "github": "xyntechx/NexLiber-Projects/tree/main/Fresh%20Project%20Manager",
+-    "image": "fresh-project-manager"
++    "title": "Moe Counter",
++    "link": "https://count.nekooftheabyss.moe/",
++    "github": "retraigo/moe-counter",
++    "image": "moe-counter"
+   },
+   {
+-    "title": "Portfolio Page",
+-    "link": "http://adamsobotka.deno.dev/",
+-    "github": "vorcigernix/adamsobotka",
+-    "image": "adam-portfolio"
++    "title": "Deno Jobs",
++    "link": "https://vacancy.deno.dev/",
++    "github": "VofSwords/deno-jobs",
++    "image": "deno-jobs"
++  },
++  {
++    "title": "java.minidoodle",
++    "link": "https://javaminidoodle.de/",
++    "image": "javaminidoodle"
++  },
++  {
++    "title": "Ppaste",
++    "link": "https://ppaste.deno.dev/",
++    "github": "n4ze3m/p-paste",
++    "image": "ppaste"
++  },
++  {
++    "title": "Linksapp",
++    "link": "https://linksapp.deno.dev/",
++    "github": "commune-org/linksapp-fresh",
++    "image": "linksapp"
++  },
++  {
++    "title": "Grape Chat",
++    "link": "https://grape-chat.miqsel.net/",
++    "github": "yahiro07/grape-chat",
++    "image": "grape-chat"
++  },
++  {
++    "title": "Fresh Notion Blog",
++    "link": "https://fresh-notion-blog.deno.dev/",
++    "github": "xijaja/fresh-notion-blog",
++    "image": "fresh-notion-blog"
++  },
++  {
++    "title": "Deno Paste",
++    "link": "https://deno-paste.deno.dev/",
++    "github": "stephenmelnicki/deno_paste",
++    "image": "deno-paste"
++  },
++  {
++    "title": "m33t",
++    "link": "https://m33t.deno.dev/",
++    "github": "dunkbing/m33t",
++    "image": "m33t"
++  },
++  {
++    "title": "Do not remove this, it's for prevent conflicting by trailing comma",
++    "link": "",
++    "github": "",
++    "image": ""
+   }
+ ]
+diff --git a/www/fresh.gen.ts b/www/fresh.gen.ts
+index 0e2722075eb..bb028f8c28c 100644
+--- a/www/fresh.gen.ts
++++ b/www/fresh.gen.ts
+@@ -5,31 +5,39 @@
+ import config from "./deno.json" assert { type: "json" };
+ import * as $0 from "./routes/_404.tsx";
+ import * as $1 from "./routes/_500.tsx";
+-import * as $2 from "./routes/docs/[...slug].tsx";
+-import * as $3 from "./routes/gfm.css.ts";
+-import * as $4 from "./routes/index.tsx";
+-import * as $5 from "./routes/raw.ts";
+-import * as $6 from "./routes/showcase.tsx";
+-import * as $7 from "./routes/update.tsx";
+-import * as $$0 from "./islands/CopyArea.tsx";
+-import * as $$1 from "./islands/Counter.tsx";
+-import * as $$2 from "./islands/LemonDrop.tsx";
++import * as $2 from "./routes/_middleware.ts";
++import * as $3 from "./routes/components.tsx";
++import * as $4 from "./routes/docs/[...slug].tsx";
++import * as $5 from "./routes/gfm.css.ts";
++import * as $6 from "./routes/index.tsx";
++import * as $7 from "./routes/raw.ts";
++import * as $8 from "./routes/showcase.tsx";
++import * as $9 from "./routes/update.tsx";
++import * as $$0 from "./islands/ComponentGallery.tsx";
++import * as $$1 from "./islands/CopyArea.tsx";
++import * as $$2 from "./islands/Counter.tsx";
++import * as $$3 from "./islands/LemonDrop.tsx";
++import * as $$4 from "./islands/SearchButton.tsx";
+ 
+ const manifest = {
+   routes: {
+     "./routes/_404.tsx": $0,
+     "./routes/_500.tsx": $1,
+-    "./routes/docs/[...slug].tsx": $2,
+-    "./routes/gfm.css.ts": $3,
+-    "./routes/index.tsx": $4,
+-    "./routes/raw.ts": $5,
+-    "./routes/showcase.tsx": $6,
+-    "./routes/update.tsx": $7,
++    "./routes/_middleware.ts": $2,
++    "./routes/components.tsx": $3,
++    "./routes/docs/[...slug].tsx": $4,
++    "./routes/gfm.css.ts": $5,
++    "./routes/index.tsx": $6,
++    "./routes/raw.ts": $7,
++    "./routes/showcase.tsx": $8,
++    "./routes/update.tsx": $9,
+   },
+   islands: {
+-    "./islands/CopyArea.tsx": $$0,
+-    "./islands/Counter.tsx": $$1,
+-    "./islands/LemonDrop.tsx": $$2,
++    "./islands/ComponentGallery.tsx": $$0,
++    "./islands/CopyArea.tsx": $$1,
++    "./islands/Counter.tsx": $$2,
++    "./islands/LemonDrop.tsx": $$3,
++    "./islands/SearchButton.tsx": $$4,
+   },
+   baseUrl: import.meta.url,
+   config,
+diff --git a/www/import_map.json b/www/import_map.json
+index 78ba044a199..d70a93c3381 100644
+--- a/www/import_map.json
++++ b/www/import_map.json
+@@ -11,6 +11,7 @@
+     "@preact/signals": "https://esm.sh/*@preact/signals@1.0.3",
+     "@preact/signals-core": "https://esm.sh/@preact/signals-core@1.0.1",
+ 
+-    "$std/": "https://deno.land/std@0.150.0/"
++    "$std/": "https://deno.land/std@0.150.0/",
++    "$ga4": "https://raw.githubusercontent.com/denoland/ga4/main/mod.ts"
+   }
+ }
+diff --git a/www/islands/ComponentGallery.tsx b/www/islands/ComponentGallery.tsx
+new file mode 100644
+index 00000000000..b14c96b65bf
+--- /dev/null
++++ b/www/islands/ComponentGallery.tsx
+@@ -0,0 +1,115 @@
++import Button from "../components/gallery/Button.tsx";
++import LinkButton from "../components/gallery/LinkButton.tsx";
++import ColoredButton from "../components/gallery/ColoredButton.tsx";
++import Input from "../components/gallery/Input.tsx";
++import Header from "../components/gallery/Header.tsx";
++import Footer from "../components/gallery/Footer.tsx";
++import Hero from "../components/gallery/Hero.tsx";
++import Features from "../components/gallery/Features.tsx";
++import { ComponentChildren } from "preact";
++import IconHappy from "https://deno.land/x/tabler_icons_tsx@0.0.2/tsx/mood-crazy-happy.tsx";
++import IconHeart from "https://deno.land/x/tabler_icons_tsx@0.0.2/tsx/heart.tsx";
++import Background from "../components/gallery/Background.tsx";
++import CodeBox from "../components/gallery/CodeBox.tsx";
++
++interface SectionProps {
++  title: string;
++  children: ComponentChildren;
++  source: string;
++  island?: boolean;
++}
++
++function Section(props: SectionProps) {
++  return (
++    <div>
++      <h2 class="text-2xl font-bold py-2">
++        {props.title}
++        {props.island && (
++          <span class="text-sm font-normal inline-block bg-green-200 rounded px-2 mx-2">
++            island
++          </span>
++        )}
++      </h2>
++
++      <Background>
++        {props.children}
++      </Background>
++
++      <CodeBox code={props.source} />
++    </div>
++  );
++}
++
++interface ComponentGalleryProps {
++  sources: Record<string, string>;
++}
++
++export default function ComponentGallery(props: ComponentGalleryProps) {
++  return (
++    <>
++      <Section
++        title="Button"
++        island={true}
++        source={props.sources.Button}
++      >
++        <Button>
++          Click me
++        </Button>
++        <Button class="flex gap-1">
++          <IconHappy class="w-6 h-6 inline-block text-gray-500" />
++          <div>
++            With an Icon
++          </div>
++        </Button>
++        <Button disabled>
++          Disabled
++        </Button>
++      </Section>
++      <Section
++        title="ColoredButton"
++        island={true}
++        source={props.sources.ColoredButton}
++      >
++        <ColoredButton>
++          Click me
++        </ColoredButton>
++      </Section>
++
++      <Section
++        title="LinkButton"
++        source={props.sources.LinkButton}
++      >
++        <LinkButton>
++          <IconHeart class="w-5 h-5 mr-1 inline-block text-gray-400" />
++          Like me
++        </LinkButton>
++      </Section>
++
++      <Section
++        title="Input"
++        island={true}
++        source={props.sources.Input}
++      >
++        <Input placeholder="Placeholder" />
++        <Input placeholder="Disabled" disabled />
++      </Section>
++
++      <Section title="Header" source={props.sources.Header}>
++        <Header active="/" />
++      </Section>
++
++      <Section title="Footer" source={props.sources.Footer}>
++        <Footer>
++        </Footer>
++      </Section>
++
++      <Section title="Hero" source={props.sources.Hero}>
++        <Hero />
++      </Section>
++
++      <Section title="Features" source={props.sources.Features}>
++        <Features />
++      </Section>
++    </>
++  );
++}
+diff --git a/www/islands/SearchButton.tsx b/www/islands/SearchButton.tsx
+new file mode 100644
+index 00000000000..71a3cee9c10
+--- /dev/null
++++ b/www/islands/SearchButton.tsx
+@@ -0,0 +1,28 @@
++import { Head } from "$fresh/runtime.ts";
++import { useEffect, useRef } from "preact/hooks";
++import docsearch from "https://esm.sh/@docsearch/js@3";
++
++export default function SearchButton() {
++  const ref = useRef<HTMLDivElement>(null);
++  useEffect(() => {
++    if (ref.current) {
++      docsearch({
++        appId: "CWUS37S0PK",
++        apiKey: "caa591b6dcb2c9308551361d954a728b",
++        indexName: "fresh",
++        container: ref.current,
++      });
++    }
++  }, [ref.current]);
++  return (
++    <>
++      <Head>
++        <link
++          rel="stylesheet"
++          href="/docsearch.css"
++        />
++      </Head>
++      <div class="h-9 mb-6" ref={ref}></div>
++    </>
++  );
++}
+diff --git a/www/main_test.ts b/www/main_test.ts
+new file mode 100644
+index 00000000000..98db2d1184c
+--- /dev/null
++++ b/www/main_test.ts
+@@ -0,0 +1,37 @@
++import { assertEquals } from "$std/testing/asserts.ts";
++import { TextLineStream } from "$std/streams/delimiter.ts";
++
++Deno.test("CORS should not set on GET /fresh-badge.svg", {
++  sanitizeResources: false,
++}, async () => {
++  const serverProcess = Deno.run({
++    cmd: ["deno", "run", "-A", "./main.ts"],
++    stdin: "null",
++    stdout: "piped",
++    stderr: "inherit",
++  });
++  const decoder = new TextDecoderStream();
++  const lines = serverProcess.stdout.readable
++    .pipeThrough(decoder)
++    .pipeThrough(new TextLineStream());
++
++  let started = false;
++  for await (const line of lines) {
++    if (line.includes("Listening on http://")) {
++      started = true;
++      break;
++    }
++  }
++  if (!started) {
++    throw new Error("Server didn't start up");
++  }
++
++  const res = await fetch("http://localhost:8000/fresh-badge.svg");
++  await res.body?.cancel();
++
++  assertEquals(res.headers.get("cross-origin-resource-policy"), null);
++
++  await lines.cancel();
++  serverProcess.kill("SIGTERM");
++  serverProcess.close();
++});
+diff --git a/www/routes/_middleware.ts b/www/routes/_middleware.ts
+new file mode 100644
+index 00000000000..c813f0538a8
+--- /dev/null
++++ b/www/routes/_middleware.ts
+@@ -0,0 +1,96 @@
++import { MiddlewareHandlerContext } from "$fresh/server.ts";
++import type { Event } from "$ga4";
++import { GA4Report, isDocument, isServerError } from "$ga4";
++
++const GA4_MEASUREMENT_ID = Deno.env.get("GA4_MEASUREMENT_ID");
++
++function ga4(
++  request: Request,
++  conn: MiddlewareHandlerContext,
++  response: Response,
++  _start: number,
++  error?: unknown,
++) {
++  Promise.resolve().then(async () => {
++    // We're tracking page views and file downloads. These are the only two
++    // HTTP methods that _might_ be used.
++    if (!/^(GET|POST)$/.test(request.method)) {
++      return;
++    }
++
++    // If the visitor is using a web browser, only create events when we serve
++    // a top level documents or download; skip assets like css, images, fonts.
++    if (!isDocument(request, response) && error == null) {
++      return;
++    }
++
++    let event: Event | null = null;
++    const contentType = response.headers.get("content-type");
++    if (/text\/html/.test(contentType!)) {
++      event = { name: "page_view", params: {} }; // Probably an old browser.
++    }
++
++    if (event == null && error == null) {
++      return;
++    }
++
++    // If an exception was thrown, build a separate event to report it.
++    let exceptionEvent;
++    if (error != null) {
++      exceptionEvent = {
++        name: "exception",
++        params: {
++          description: String(error),
++          fatal: isServerError(response),
++        },
++      };
++    } else {
++      exceptionEvent = undefined;
++    }
++
++    // Create basic report.
++    const measurementId = GA4_MEASUREMENT_ID;
++    const report = new GA4Report({ measurementId, request, response, conn });
++
++    // Override the default (page_view) event.
++    report.event = event;
++
++    // Add the exception event, if any.
++    if (exceptionEvent != null) {
++      report.events.push(exceptionEvent);
++    }
++
++    await report.send();
++  }).catch((err) => {
++    console.error(`Internal error: ${err}`);
++  });
++}
++
++export async function handler(
++  req: Request,
++  ctx: MiddlewareHandlerContext,
++): Promise<Response> {
++  let err;
++  let res: Response;
++  const start = performance.now();
++  try {
++    const resp = await ctx.next();
++    const headers = new Headers(resp.headers);
++    res = new Response(resp.body, { status: resp.status, headers });
++    return res;
++  } catch (e) {
++    res = new Response("Internal Server Error", {
++      status: 500,
++    });
++    err = e;
++    throw e;
++  } finally {
++    ga4(
++      req,
++      ctx,
++      res!,
++      start,
++      err,
++    );
++  }
++}
+diff --git a/www/routes/components.tsx b/www/routes/components.tsx
+new file mode 100644
+index 00000000000..85c8bd954fe
+--- /dev/null
++++ b/www/routes/components.tsx
+@@ -0,0 +1,80 @@
++import PageFooter from "../components/Footer.tsx";
++import Header from "../components/Header.tsx";
++import ComponentGallery from "../islands/ComponentGallery.tsx";
++
++import { Head } from "$fresh/runtime.ts";
++import { Handlers, PageProps } from "$fresh/server.ts";
++
++function getSource(path: string) {
++  return Deno.readTextFile(new URL(path, import.meta.url));
++}
++
++export const handler: Handlers<HomeProps> = {
++  async GET(req, ctx) {
++    const props: HomeProps = {
++      sources: {
++        "Button": await getSource("../components/gallery/Button.tsx"),
++        "LinkButton": await getSource("../components/gallery/LinkButton.tsx"),
++        "ColoredButton": await getSource(
++          "../components/gallery/ColoredButton.tsx",
++        ),
++        "Input": await getSource("../components/gallery/Input.tsx"),
++        "Header": await getSource("../components/gallery/Header.tsx"),
++        "Footer": await getSource("../components/gallery/Footer.tsx"),
++        "Hero": await getSource("../components/gallery/Hero.tsx"),
++        "Features": await getSource("../components/gallery/Features.tsx"),
++      },
++    };
++    return ctx.render(props);
++  },
++};
++
++interface HomeProps {
++  sources: Record<string, string>;
++}
++
++export default function Home(props: PageProps<HomeProps>) {
++  return (
++    <div class="bg-white h-full">
++      <Head>
++        <title>Components | fresh</title>
++        <link
++          rel="stylesheet"
++          href="https://esm.sh/prismjs@1.27.0/themes/prism-dark.min.css"
++        />
++      </Head>
++      <Header title="components" active="/components" />
++
++      <section class="my-16 px(4 sm:6 md:8) mx-auto max-w-screen-lg space-y-5">
++        <h2 class="text(3xl gray-600) font-bold">
++          Fresh Components
++        </h2>
++        <p class="text-gray-600">
++          A collection of components made for Fresh.
++        </p>
++      </section>
++      <div class="p-4 mx-auto max-w-screen-lg space-y-24 mb-16">
++        <ComponentGallery sources={props.data.sources} />
++
++        <a class="block" href="https://tabler-icons-tsx.deno.dev/">
++          <div
++            style="background-image: url(/gallery/banner-tabler-icons.png)"
++            class="h-48 bg(cover no-repeat white) hover:opacity-50 hover:underline rounded"
++          >
++            <h2 class="text-4xl font-bold p-4">Icons</h2>
++          </div>
++        </a>
++
++        <a class="block" href="https://github.com/denoland/fresh_charts">
++          <div
++            style="background-image: url(/gallery/banner-chart.png)"
++            class="h-48 bg(cover no-repeat white) hover:opacity-50 hover:underline rounded"
++          >
++            <h2 class="text-4xl font-bold p-4">Charts</h2>
++          </div>
++        </a>
++      </div>
++      <PageFooter />
++    </div>
++  );
++}
+diff --git a/www/routes/docs/[...slug].tsx b/www/routes/docs/[...slug].tsx
+index bb5cdd6fa55..6ffd09d6548 100644
+--- a/www/routes/docs/[...slug].tsx
++++ b/www/routes/docs/[...slug].tsx
+@@ -2,11 +2,10 @@ import { Head } from "$fresh/runtime.ts";
+ import { Handlers, PageProps } from "$fresh/server.ts";
+ import { frontMatter, gfm } from "../../utils/markdown.ts";
+ 
++import Header from "../../components/Header.tsx";
+ import DocsTitle from "../../components/DocsTitle.tsx";
+-import DocsHeader from "../../components/DocsHeader.tsx";
+ import DocsSidebar from "../../components/DocsSidebar.tsx";
+ import Footer from "../../components/Footer.tsx";
+-import NavigationBar from "../../components/NavigationBar.tsx";
+ import {
+   SLUGS,
+   TABLE_OF_CONTENTS,
+@@ -31,6 +30,13 @@ export const handler: Handlers<Data> = {
+         headers: { location: "/docs/introduction" },
+       });
+     }
++    if (slug === "concepts/architechture") {
++      return new Response("", {
++        status: 307,
++        headers: { location: "/docs/concepts/architecture" },
++      });
++    }
++
+     const entry = TABLE_OF_CONTENTS[slug];
+     if (!entry) {
+       return ctx.renderNotFound();
+@@ -59,19 +65,42 @@ export default function DocsPage(props: PageProps<Data>) {
+         {description && <meta name="description" content={description} />}
+       </Head>
+       <div class="flex flex-col min-h-screen">
+-        <DocsHeader />
+-        <NavigationBar active="/docs" />
++        <Header title="docs" active="/docs" />
+         <Main path={props.url.pathname} page={props.data.page} />
+         <Footer />
+       </div>
+     </>
+   );
+ }
+-
++import IconBooks from "https://deno.land/x/tabler_icons_tsx@0.0.1/tsx/books.tsx";
+ function Main(props: { path: string; page: Page }) {
+   return (
+     <div class="flex-1">
+       <MobileSidebar path={props.path} />
++      <div class="flex mx-auto max-w-screen-lg px-4 py-5 justify-end">
++        <label
++          for="docs_sidebar"
++          class="px-4 py-3 md:hidden flex items-center hover:bg-gray-100 rounded gap-2"
++        >
++          <svg
++            class="h-6 w-6"
++            stroke="currentColor"
++            fill="none"
++            viewBox="0 0 24 24"
++          >
++            <path
++              strokeLinecap="round"
++              strokeLinejoin="round"
++              strokeWidth="2"
++              d="M4 6h16M4 12h16M4 18h7"
++            >
++            </path>
++          </svg>
++          <div>
++            Menu
++          </div>
++        </label>
++      </div>
+       <div class="mx-auto max-w-screen-lg px-4 flex gap-6">
+         <DesktopSidebar path={props.path} />
+         <Content page={props.page} />
+@@ -97,10 +126,10 @@ function MobileSidebar(props: { path: string }) {
+         />
+         <div class="relative flex-1 flex flex-col w-[16rem] h-full bg-white border(r-2 gray-100)">
+           <div class="p-4 border(b-2 gray-100) bg-green-300">
+-            <DocsTitle />
++            <DocsTitle title="docs" />
+           </div>
+-          <nav class="pt-2 pb-16 px-4 overflow-x-auto">
+-            <DocsSidebar path={props.path} />
++          <nav class="pt-6 pb-16 px-4 overflow-x-auto">
++            <DocsSidebar mobile path={props.path} />
+           </nav>
+         </div>
+       </div>
+@@ -119,7 +148,7 @@ function DesktopSidebar(props: { path: string }) {
+ function Content(props: { page: Page }) {
+   const html = gfm.render(props.page.markdown);
+   return (
+-    <main class="py-8 overflow-hidden">
++    <main class="py-6 overflow-hidden">
+       <h1 class="text(4xl gray-900) tracking-tight font-extrabold mt-6">
+         {props.page.title}
+       </h1>
+diff --git a/www/routes/index.tsx b/www/routes/index.tsx
+index 0ac871e1862..e53f592e875 100644
+--- a/www/routes/index.tsx
++++ b/www/routes/index.tsx
+@@ -9,6 +9,7 @@ import CopyArea from "../islands/CopyArea.tsx";
+ import * as Icons from "../components/Icons.tsx";
+ import Projects from "../components/Projects.tsx";
+ import projects from "../data/showcase.json" assert { type: "json" };
++import Header from "../components/Header.tsx";
+ 
+ export const handler: Handlers = {
+   GET(req, ctx) {
+@@ -43,9 +44,14 @@ export default function MainPage(props: PageProps) {
+         <meta property="og:url" content={props.url.href} />
+         <meta property="og:image" content={ogImageUrl} />
+       </Head>
++
+       <div class="flex flex-col min-h-screen">
+-        <HelloBar />
+-        <Hero />
++        <div class="bg-green-300 flex flex-col">
++          <HelloBar />
++          <Header title="" active="/" />
++
++          <Hero />
++        </div>
+         <div class="flex-1">
+           <Intro />
+           <GettingStarted origin={origin} />
+@@ -75,14 +81,6 @@ function HelloBar() {
+ function Hero() {
+   return (
+     <>
+-      <div class="flex justify-end items-center bg-green-300">
+-        <a
+-          href="/docs"
+-          class="border(1 black) inline-flex items-center h-10 px-4 m-4 text-black bg-transparent rounded hover:bg-white"
+-        >
+-          Documentation
+-        </a>
+-      </div>
+       <section class="w-full flex justify-center items-center flex-col bg-green-300">
+         <LemonDrop />
+       </section>
+@@ -148,7 +146,7 @@ function Intro() {
+       <div class="md:flex items-center">
+         <div class="flex-1 text-center md:text-left">
+           <h2 class="py-2 text(5xl sm:5xl lg:5xl gray-900) sm:tracking-tight sm:leading-[1.1]! font-extrabold">
+-            The <span class="text-green-500">next-gen</span> web framework.
++            The <span class="text-green-600">next-gen</span> web framework.
+           </h2>
+ 
+           <p class="mt-4 text-gray-600">
+diff --git a/www/routes/showcase.tsx b/www/routes/showcase.tsx
+index 778b3e255f9..57c390bec8f 100644
+--- a/www/routes/showcase.tsx
++++ b/www/routes/showcase.tsx
+@@ -1,8 +1,7 @@
+ import { Head } from "$fresh/runtime.ts";
+ import Projects, { Project } from "../components/Projects.tsx";
+-import DocsHeader from "../components/DocsHeader.tsx";
++import Header from "../components/Header.tsx";
+ import Footer from "../components/Footer.tsx";
+-import NavigationBar from "../components/NavigationBar.tsx";
+ import projects from "../data/showcase.json" assert { type: "json" };
+ 
+ export default function ShowcasePage() {
+@@ -11,8 +10,7 @@ export default function ShowcasePage() {
+       <Head>
+         <title>Showcase | fresh</title>
+       </Head>
+-      <DocsHeader />
+-      <NavigationBar active="/showcase" />
++      <Header title="showcase" active="/showcase" />
+ 
+       <div class="flex flex-col min-h-screen">
+         <div class="flex-1">
+diff --git a/www/static/docsearch.css b/www/static/docsearch.css
+new file mode 100644
+index 00000000000..c18b4a5f0a2
+--- /dev/null
++++ b/www/static/docsearch.css
+@@ -0,0 +1,16 @@
++/**
++ * Skipped minification because the original files appears to be already minified.
++ * Original file: /npm/@docsearch/css@3.3.0/dist/style.css
++ *
++ * Do NOT use SRI with dynamically generated files! More information: https://www.jsdelivr.com/using-sri-with-dynamic-files
++ */
++/*! @docsearch/css 3.3.0 | MIT License | © Algolia, Inc. and contributors | https://docsearch.algolia.com */
++:root{--docsearch-primary-color:#5468ff;--docsearch-text-color:#1c1e21;--docsearch-spacing:12px;--docsearch-icon-stroke-width:1.4;--docsearch-highlight-color:var(--docsearch-primary-color);--docsearch-muted-color:#969faf;--docsearch-container-background:rgba(101,108,133,0.8);--docsearch-logo-color:#5468ff;--docsearch-modal-width:560px;--docsearch-modal-height:600px;--docsearch-modal-background:#f5f6f7;--docsearch-modal-shadow:inset 1px 1px 0 0 hsla(0,0%,100%,0.5),0 3px 8px 0 #555a64;--docsearch-searchbox-height:56px;--docsearch-searchbox-background:#ebedf0;--docsearch-searchbox-focus-background:#fff;--docsearch-searchbox-shadow:inset 0 0 0 2px var(--docsearch-primary-color);--docsearch-hit-height:56px;--docsearch-hit-color:#444950;--docsearch-hit-active-color:#fff;--docsearch-hit-background:#fff;--docsearch-hit-shadow:0 1px 3px 0 #d4d9e1;--docsearch-key-gradient:linear-gradient(-225deg,#d5dbe4,#f8f8f8);--docsearch-key-shadow:inset 0 -2px 0 0 #cdcde6,inset 0 0 1px 1px #fff,0 1px 2px 1px rgba(30,35,90,0.4);--docsearch-footer-height:44px;--docsearch-footer-background:#fff;--docsearch-footer-shadow:0 -1px 0 0 #e0e3e8,0 -3px 6px 0 rgba(69,98,155,0.12)}html[data-theme=dark]{--docsearch-text-color:#f5f6f7;--docsearch-container-background:rgba(9,10,17,0.8);--docsearch-modal-background:#15172a;--docsearch-modal-shadow:inset 1px 1px 0 0 #2c2e40,0 3px 8px 0 #000309;--docsearch-searchbox-background:#090a11;--docsearch-searchbox-focus-background:#000;--docsearch-hit-color:#bec3c9;--docsearch-hit-shadow:none;--docsearch-hit-background:#090a11;--docsearch-key-gradient:linear-gradient(-26.5deg,#565872,#31355b);--docsearch-key-shadow:inset 0 -2px 0 0 #282d55,inset 0 0 1px 1px #51577d,0 2px 2px 0 rgba(3,4,9,0.3);--docsearch-footer-background:#1e2136;--docsearch-footer-shadow:inset 0 1px 0 0 rgba(73,76,106,0.5),0 -4px 8px 0 rgba(0,0,0,0.2);--docsearch-logo-color:#fff;--docsearch-muted-color:#7f8497}.DocSearch-Button{align-items:center;background:var(--docsearch-searchbox-background);border:0;border-radius:40px;color:var(--docsearch-muted-color);cursor:pointer;display:flex;font-weight:500;height:36px;justify-content:space-between;margin:0 0 0 16px;padding:0 8px;user-select:none}.DocSearch-Button:active,.DocSearch-Button:focus,.DocSearch-Button:hover{background:var(--docsearch-searchbox-focus-background);box-shadow:var(--docsearch-searchbox-shadow);color:var(--docsearch-text-color);outline:none}.DocSearch-Button-Container{align-items:center;display:flex}.DocSearch-Search-Icon{stroke-width:1.6}.DocSearch-Button .DocSearch-Search-Icon{color:var(--docsearch-text-color)}.DocSearch-Button-Placeholder{font-size:1rem;padding:0 12px 0 6px}.DocSearch-Button-Keys{display:flex;min-width:calc(40px + .8em)}.DocSearch-Button-Key{align-items:center;background:var(--docsearch-key-gradient);border-radius:3px;box-shadow:var(--docsearch-key-shadow);color:var(--docsearch-muted-color);display:flex;height:18px;justify-content:center;margin-right:.4em;position:relative;padding:0 0 2px;border:0;top:-1px;width:20px}@media (max-width:768px){.DocSearch-Button-Keys,.DocSearch-Button-Placeholder{display:none}}.DocSearch--active{overflow:hidden!important}.DocSearch-Container,.DocSearch-Container *{box-sizing:border-box}.DocSearch-Container{background-color:var(--docsearch-container-background);height:100vh;left:0;position:fixed;top:0;width:100vw;z-index:200}.DocSearch-Container a{text-decoration:none}.DocSearch-Link{appearance:none;background:none;border:0;color:var(--docsearch-highlight-color);cursor:pointer;font:inherit;margin:0;padding:0}.DocSearch-Modal{background:var(--docsearch-modal-background);border-radius:6px;box-shadow:var(--docsearch-modal-shadow);flex-direction:column;margin:60px auto auto;max-width:var(--docsearch-modal-width);position:relative}.DocSearch-SearchBar{display:flex;padding:var(--docsearch-spacing) var(--docsearch-spacing) 0}.DocSearch-Form{align-items:center;background:var(--docsearch-searchbox-focus-background);border-radius:4px;box-shadow:var(--docsearch-searchbox-shadow);display:flex;height:var(--docsearch-searchbox-height);margin:0;padding:0 var(--docsearch-spacing);position:relative;width:100%}.DocSearch-Input{appearance:none;background:transparent;border:0;color:var(--docsearch-text-color);flex:1;font:inherit;font-size:1.2em;height:100%;outline:none;padding:0 0 0 8px;width:80%}.DocSearch-Input::placeholder{color:var(--docsearch-muted-color);opacity:1}.DocSearch-Input::-webkit-search-cancel-button,.DocSearch-Input::-webkit-search-decoration,.DocSearch-Input::-webkit-search-results-button,.DocSearch-Input::-webkit-search-results-decoration{display:none}.DocSearch-LoadingIndicator,.DocSearch-MagnifierLabel,.DocSearch-Reset{margin:0;padding:0}.DocSearch-MagnifierLabel,.DocSearch-Reset{align-items:center;color:var(--docsearch-highlight-color);display:flex;justify-content:center}.DocSearch-Container--Stalled .DocSearch-MagnifierLabel,.DocSearch-LoadingIndicator{display:none}.DocSearch-Container--Stalled .DocSearch-LoadingIndicator{align-items:center;color:var(--docsearch-highlight-color);display:flex;justify-content:center}@media screen and (prefers-reduced-motion:reduce){.DocSearch-Reset{animation:none;appearance:none;background:none;border:0;border-radius:50%;color:var(--docsearch-icon-color);cursor:pointer;right:0;stroke-width:var(--docsearch-icon-stroke-width)}}.DocSearch-Reset{animation:fade-in .1s ease-in forwards;appearance:none;background:none;border:0;border-radius:50%;color:var(--docsearch-icon-color);cursor:pointer;padding:2px;right:0;stroke-width:var(--docsearch-icon-stroke-width)}.DocSearch-Reset[hidden]{display:none}.DocSearch-Reset:focus{outline:none}.DocSearch-Reset:hover{color:var(--docsearch-highlight-color)}.DocSearch-LoadingIndicator svg,.DocSearch-MagnifierLabel svg{height:24px;width:24px}.DocSearch-Cancel{display:none}.DocSearch-Dropdown{max-height:calc(var(--docsearch-modal-height) - var(--docsearch-searchbox-height) - var(--docsearch-spacing) - var(--docsearch-footer-height));min-height:var(--docsearch-spacing);overflow-y:auto;overflow-y:overlay;padding:0 var(--docsearch-spacing);scrollbar-color:var(--docsearch-muted-color) var(--docsearch-modal-background);scrollbar-width:thin}.DocSearch-Dropdown::-webkit-scrollbar{width:12px}.DocSearch-Dropdown::-webkit-scrollbar-track{background:transparent}.DocSearch-Dropdown::-webkit-scrollbar-thumb{background-color:var(--docsearch-muted-color);border:3px solid var(--docsearch-modal-background);border-radius:20px}.DocSearch-Dropdown ul{list-style:none;margin:0;padding:0}.DocSearch-Label{font-size:.75em;line-height:1.6em}.DocSearch-Help,.DocSearch-Label{color:var(--docsearch-muted-color)}.DocSearch-Help{font-size:.9em;margin:0;user-select:none}.DocSearch-Title{font-size:1.2em}.DocSearch-Logo a{display:flex}.DocSearch-Logo svg{color:var(--docsearch-logo-color);margin-left:8px}.DocSearch-Hits:last-of-type{margin-bottom:24px}.DocSearch-Hits mark{background:none;color:var(--docsearch-highlight-color)}.DocSearch-HitsFooter{color:var(--docsearch-muted-color);display:flex;font-size:.85em;justify-content:center;margin-bottom:var(--docsearch-spacing);padding:var(--docsearch-spacing)}.DocSearch-HitsFooter a{border-bottom:1px solid;color:inherit}.DocSearch-Hit{border-radius:4px;display:flex;padding-bottom:4px;position:relative}@media screen and (prefers-reduced-motion:reduce){.DocSearch-Hit--deleting{transition:none}}.DocSearch-Hit--deleting{opacity:0;transition:all .25s linear}@media screen and (prefers-reduced-motion:reduce){.DocSearch-Hit--favoriting{transition:none}}.DocSearch-Hit--favoriting{transform:scale(0);transform-origin:top center;transition:all .25s linear;transition-delay:.25s}.DocSearch-Hit a{background:var(--docsearch-hit-background);border-radius:4px;box-shadow:var(--docsearch-hit-shadow);display:block;padding-left:var(--docsearch-spacing);width:100%}.DocSearch-Hit-source{background:var(--docsearch-modal-background);color:var(--docsearch-highlight-color);font-size:.85em;font-weight:600;line-height:32px;margin:0 -4px;padding:8px 4px 0;position:sticky;top:0;z-index:10}.DocSearch-Hit-Tree{color:var(--docsearch-muted-color);height:var(--docsearch-hit-height);opacity:.5;stroke-width:var(--docsearch-icon-stroke-width);width:24px}.DocSearch-Hit[aria-selected=true] a{background-color:var(--docsearch-highlight-color)}.DocSearch-Hit[aria-selected=true] mark{text-decoration:underline}.DocSearch-Hit-Container{align-items:center;color:var(--docsearch-hit-color);display:flex;flex-direction:row;height:var(--docsearch-hit-height);padding:0 var(--docsearch-spacing) 0 0}.DocSearch-Hit-icon{height:20px;width:20px}.DocSearch-Hit-action,.DocSearch-Hit-icon{color:var(--docsearch-muted-color);stroke-width:var(--docsearch-icon-stroke-width)}.DocSearch-Hit-action{align-items:center;display:flex;height:22px;width:22px}.DocSearch-Hit-action svg{display:block;height:18px;width:18px}.DocSearch-Hit-action+.DocSearch-Hit-action{margin-left:6px}.DocSearch-Hit-action-button{appearance:none;background:none;border:0;border-radius:50%;color:inherit;cursor:pointer;padding:2px}svg.DocSearch-Hit-Select-Icon{display:none}.DocSearch-Hit[aria-selected=true] .DocSearch-Hit-Select-Icon{display:block}.DocSearch-Hit-action-button:focus,.DocSearch-Hit-action-button:hover{background:rgba(0,0,0,.2);transition:background-color .1s ease-in}@media screen and (prefers-reduced-motion:reduce){.DocSearch-Hit-action-button:focus,.DocSearch-Hit-action-button:hover{transition:none}}.DocSearch-Hit-action-button:focus path,.DocSearch-Hit-action-button:hover path{fill:#fff}.DocSearch-Hit-content-wrapper{display:flex;flex:1 1 auto;flex-direction:column;font-weight:500;justify-content:center;line-height:1.2em;margin:0 8px;overflow-x:hidden;position:relative;text-overflow:ellipsis;white-space:nowrap;width:80%}.DocSearch-Hit-title{font-size:.9em}.DocSearch-Hit-path{color:var(--docsearch-muted-color);font-size:.75em}.DocSearch-Hit[aria-selected=true] .DocSearch-Hit-action,.DocSearch-Hit[aria-selected=true] .DocSearch-Hit-icon,.DocSearch-Hit[aria-selected=true] .DocSearch-Hit-path,.DocSearch-Hit[aria-selected=true] .DocSearch-Hit-text,.DocSearch-Hit[aria-selected=true] .DocSearch-Hit-title,.DocSearch-Hit[aria-selected=true] .DocSearch-Hit-Tree,.DocSearch-Hit[aria-selected=true] mark{color:var(--docsearch-hit-active-color)!important}@media screen and (prefers-reduced-motion:reduce){.DocSearch-Hit-action-button:focus,.DocSearch-Hit-action-button:hover{background:rgba(0,0,0,.2);transition:none}}.DocSearch-ErrorScreen,.DocSearch-NoResults,.DocSearch-StartScreen{font-size:.9em;margin:0 auto;padding:36px 0;text-align:center;width:80%}.DocSearch-Screen-Icon{color:var(--docsearch-muted-color);padding-bottom:12px}.DocSearch-NoResults-Prefill-List{display:inline-block;padding-bottom:24px;text-align:left}.DocSearch-NoResults-Prefill-List ul{display:inline-block;padding:8px 0 0}.DocSearch-NoResults-Prefill-List li{list-style-position:inside;list-style-type:"» "}.DocSearch-Prefill{appearance:none;background:none;border:0;border-radius:1em;color:var(--docsearch-highlight-color);cursor:pointer;display:inline-block;font-size:1em;font-weight:700;padding:0}.DocSearch-Prefill:focus,.DocSearch-Prefill:hover{outline:none;text-decoration:underline}.DocSearch-Footer{align-items:center;background:var(--docsearch-footer-background);border-radius:0 0 8px 8px;box-shadow:var(--docsearch-footer-shadow);display:flex;flex-direction:row-reverse;flex-shrink:0;height:var(--docsearch-footer-height);justify-content:space-between;padding:0 var(--docsearch-spacing);position:relative;user-select:none;width:100%;z-index:300}.DocSearch-Commands{color:var(--docsearch-muted-color);display:flex;list-style:none;margin:0;padding:0}.DocSearch-Commands li{align-items:center;display:flex}.DocSearch-Commands li:not(:last-of-type){margin-right:.8em}.DocSearch-Commands-Key{align-items:center;background:var(--docsearch-key-gradient);border-radius:2px;box-shadow:var(--docsearch-key-shadow);display:flex;height:18px;justify-content:center;margin-right:.4em;padding:0 0 1px;color:var(--docsearch-muted-color);border:0;width:20px}@media (max-width:768px){:root{--docsearch-spacing:10px;--docsearch-footer-height:40px}.DocSearch-Dropdown{height:100%}.DocSearch-Container{height:100vh;height:-webkit-fill-available;height:calc(var(--docsearch-vh, 1vh)*100);position:absolute}.DocSearch-Footer{border-radius:0;bottom:0;position:absolute}.DocSearch-Hit-content-wrapper{display:flex;position:relative;width:80%}.DocSearch-Modal{border-radius:0;box-shadow:none;height:100vh;height:-webkit-fill-available;height:calc(var(--docsearch-vh, 1vh)*100);margin:0;max-width:100%;width:100%}.DocSearch-Dropdown{max-height:calc(var(--docsearch-vh, 1vh)*100 - var(--docsearch-searchbox-height) - var(--docsearch-spacing) - var(--docsearch-footer-height))}.DocSearch-Cancel{appearance:none;background:none;border:0;color:var(--docsearch-highlight-color);cursor:pointer;display:inline-block;flex:none;font:inherit;font-size:1em;font-weight:500;margin-left:var(--docsearch-spacing);outline:none;overflow:hidden;padding:0;user-select:none;white-space:nowrap}.DocSearch-Commands,.DocSearch-Hit-Tree{display:none}}@keyframes fade-in{0%{opacity:0}to{opacity:1}}
++
++.DocSearch-Button{
++  margin:0;
++  width: 100%;
++}
++.DocSearch-Button-Placeholder {
++  display: initial;
++}
+\ No newline at end of file
+diff --git a/www/static/gallery/banner-chart.png b/www/static/gallery/banner-chart.png
+new file mode 100644
+index 00000000000..6e92a1fff11
+Binary files /dev/null and b/www/static/gallery/banner-chart.png differ
+diff --git a/www/static/gallery/banner-tabler-icons.png b/www/static/gallery/banner-tabler-icons.png
+new file mode 100644
+index 00000000000..adfdcfa83dd
+Binary files /dev/null and b/www/static/gallery/banner-tabler-icons.png differ
+diff --git a/www/static/gallery/grid.svg b/www/static/gallery/grid.svg
+new file mode 100644
+index 00000000000..1eb1c910b4a
+--- /dev/null
++++ b/www/static/gallery/grid.svg
+@@ -0,0 +1,11 @@
++<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%">
++    <style type="text/css">
++        circle { fill: #bbb; }
++    </style>
++    <defs>
++        <pattern id="grid" patternUnits="userSpaceOnUse" width="20" height="20">
++            <circle cx="10" cy="10" r="1"></circle>
++        </pattern>
++    </defs>
++    <rect width="100%" height="100%" fill="url(#grid)" />
++</svg>
+\ No newline at end of file
+diff --git a/www/static/gallery/hero-bg.webp b/www/static/gallery/hero-bg.webp
+new file mode 100644
+index 00000000000..7b13a5f5453
+Binary files /dev/null and b/www/static/gallery/hero-bg.webp differ
+diff --git a/www/static/showcase/cgpa-au-20211x.jpg b/www/static/showcase/cgpa-au-20211x.jpg
+new file mode 100644
+index 00000000000..e862446a73f
+Binary files /dev/null and b/www/static/showcase/cgpa-au-20211x.jpg differ
+diff --git a/www/static/showcase/cgpa-au-20212x.jpg b/www/static/showcase/cgpa-au-20212x.jpg
+new file mode 100644
+index 00000000000..1f214955c05
+Binary files /dev/null and b/www/static/showcase/cgpa-au-20212x.jpg differ
+diff --git a/www/static/showcase/d3nodata1x.jpg b/www/static/showcase/d3nodata1x.jpg
+new file mode 100644
+index 00000000000..cb9b83558f1
+Binary files /dev/null and b/www/static/showcase/d3nodata1x.jpg differ
+diff --git a/www/static/showcase/d3nodata2x.jpg b/www/static/showcase/d3nodata2x.jpg
+new file mode 100644
+index 00000000000..09132f9ce76
+Binary files /dev/null and b/www/static/showcase/d3nodata2x.jpg differ
+diff --git a/www/static/showcase/deno-diary1x.jpg b/www/static/showcase/deno-diary1x.jpg
+new file mode 100644
+index 00000000000..00ef66a9b07
+Binary files /dev/null and b/www/static/showcase/deno-diary1x.jpg differ
+diff --git a/www/static/showcase/deno-diary2x.jpg b/www/static/showcase/deno-diary2x.jpg
+new file mode 100644
+index 00000000000..23a23494463
+Binary files /dev/null and b/www/static/showcase/deno-diary2x.jpg differ
+diff --git a/www/static/showcase/deno-jobs1x.jpg b/www/static/showcase/deno-jobs1x.jpg
+new file mode 100644
+index 00000000000..7c24dc97068
+Binary files /dev/null and b/www/static/showcase/deno-jobs1x.jpg differ
+diff --git a/www/static/showcase/deno-jobs2x.jpg b/www/static/showcase/deno-jobs2x.jpg
+new file mode 100644
+index 00000000000..e7ab19af3b3
+Binary files /dev/null and b/www/static/showcase/deno-jobs2x.jpg differ
+diff --git a/www/static/showcase/deno-paste1x.jpg b/www/static/showcase/deno-paste1x.jpg
+new file mode 100644
+index 00000000000..104082e6f74
+Binary files /dev/null and b/www/static/showcase/deno-paste1x.jpg differ
+diff --git a/www/static/showcase/deno-paste2x.jpg b/www/static/showcase/deno-paste2x.jpg
+new file mode 100644
+index 00000000000..52d6168bf70
+Binary files /dev/null and b/www/static/showcase/deno-paste2x.jpg differ
+diff --git a/www/static/showcase/fondest1x.jpg b/www/static/showcase/fondest1x.jpg
+new file mode 100644
+index 00000000000..5bc0728de3e
+Binary files /dev/null and b/www/static/showcase/fondest1x.jpg differ
+diff --git a/www/static/showcase/fondest2x.jpg b/www/static/showcase/fondest2x.jpg
+new file mode 100644
+index 00000000000..a6adf5989e1
+Binary files /dev/null and b/www/static/showcase/fondest2x.jpg differ
+diff --git a/www/static/showcase/fresh-notion-blog1x.jpg b/www/static/showcase/fresh-notion-blog1x.jpg
+new file mode 100644
+index 00000000000..796d23db6ae
+Binary files /dev/null and b/www/static/showcase/fresh-notion-blog1x.jpg differ
+diff --git a/www/static/showcase/fresh-notion-blog2x.jpg b/www/static/showcase/fresh-notion-blog2x.jpg
+new file mode 100644
+index 00000000000..8d4bc88011f
+Binary files /dev/null and b/www/static/showcase/fresh-notion-blog2x.jpg differ
+diff --git a/www/static/showcase/fresh-todo1x.jpg b/www/static/showcase/fresh-todo1x.jpg
+new file mode 100644
+index 00000000000..27dde2807ec
+Binary files /dev/null and b/www/static/showcase/fresh-todo1x.jpg differ
+diff --git a/www/static/showcase/fresh-todo2x.jpg b/www/static/showcase/fresh-todo2x.jpg
+new file mode 100644
+index 00000000000..003f9e2ce2b
+Binary files /dev/null and b/www/static/showcase/fresh-todo2x.jpg differ
+diff --git a/www/static/showcase/game-orb1x.jpg b/www/static/showcase/game-orb1x.jpg
+new file mode 100644
+index 00000000000..05e8d964c7f
+Binary files /dev/null and b/www/static/showcase/game-orb1x.jpg differ
+diff --git a/www/static/showcase/game-orb2x.jpg b/www/static/showcase/game-orb2x.jpg
+new file mode 100644
+index 00000000000..05e8d964c7f
+Binary files /dev/null and b/www/static/showcase/game-orb2x.jpg differ
+diff --git a/www/static/showcase/grape-chat1x.jpg b/www/static/showcase/grape-chat1x.jpg
+new file mode 100644
+index 00000000000..cb5d4905980
+Binary files /dev/null and b/www/static/showcase/grape-chat1x.jpg differ
+diff --git a/www/static/showcase/grape-chat2x.jpg b/www/static/showcase/grape-chat2x.jpg
+new file mode 100644
+index 00000000000..23ef666a096
+Binary files /dev/null and b/www/static/showcase/grape-chat2x.jpg differ
+diff --git a/www/static/showcase/guigui641x.jpg b/www/static/showcase/guigui641x.jpg
+new file mode 100644
+index 00000000000..e15ed611cbb
+Binary files /dev/null and b/www/static/showcase/guigui641x.jpg differ
+diff --git a/www/static/showcase/guigui642x.jpg b/www/static/showcase/guigui642x.jpg
+new file mode 100644
+index 00000000000..8c906364614
+Binary files /dev/null and b/www/static/showcase/guigui642x.jpg differ
+diff --git a/www/static/showcase/hn1x.jpg b/www/static/showcase/hn1x.jpg
+new file mode 100644
+index 00000000000..7057f723712
+Binary files /dev/null and b/www/static/showcase/hn1x.jpg differ
+diff --git a/www/static/showcase/hn2x.jpg b/www/static/showcase/hn2x.jpg
+new file mode 100644
+index 00000000000..8cc500e96fa
+Binary files /dev/null and b/www/static/showcase/hn2x.jpg differ
+diff --git a/www/static/showcase/javaminidoodle1x.jpg b/www/static/showcase/javaminidoodle1x.jpg
+new file mode 100644
+index 00000000000..751c27a5605
+Binary files /dev/null and b/www/static/showcase/javaminidoodle1x.jpg differ
+diff --git a/www/static/showcase/javaminidoodle2x.jpg b/www/static/showcase/javaminidoodle2x.jpg
+new file mode 100644
+index 00000000000..f339676e5ff
+Binary files /dev/null and b/www/static/showcase/javaminidoodle2x.jpg differ
+diff --git a/www/static/showcase/joesalinasdev1x.jpg b/www/static/showcase/joesalinasdev1x.jpg
+new file mode 100644
+index 00000000000..ba8eaae2639
+Binary files /dev/null and b/www/static/showcase/joesalinasdev1x.jpg differ
+diff --git a/www/static/showcase/joesalinasdev2x.jpg b/www/static/showcase/joesalinasdev2x.jpg
+new file mode 100644
+index 00000000000..ec813175120
+Binary files /dev/null and b/www/static/showcase/joesalinasdev2x.jpg differ
+diff --git a/www/static/showcase/kadode_portal1x.jpg b/www/static/showcase/kadode_portal1x.jpg
+new file mode 100644
+index 00000000000..da46324d45b
+Binary files /dev/null and b/www/static/showcase/kadode_portal1x.jpg differ
+diff --git a/www/static/showcase/kadode_portal2x.jpg b/www/static/showcase/kadode_portal2x.jpg
+new file mode 100644
+index 00000000000..635e92fc5dc
+Binary files /dev/null and b/www/static/showcase/kadode_portal2x.jpg differ
+diff --git a/www/static/showcase/kita1x.jpg b/www/static/showcase/kita1x.jpg
+new file mode 100644
+index 00000000000..2f82679f7f3
+Binary files /dev/null and b/www/static/showcase/kita1x.jpg differ
+diff --git a/www/static/showcase/kita2x.jpg b/www/static/showcase/kita2x.jpg
+new file mode 100644
+index 00000000000..c6dc72b79fc
+Binary files /dev/null and b/www/static/showcase/kita2x.jpg differ
+diff --git a/www/static/showcase/ldkit1x.jpg b/www/static/showcase/ldkit1x.jpg
+new file mode 100644
+index 00000000000..1283b08f9aa
+Binary files /dev/null and b/www/static/showcase/ldkit1x.jpg differ
+diff --git a/www/static/showcase/ldkit2x.jpg b/www/static/showcase/ldkit2x.jpg
+new file mode 100644
+index 00000000000..75276995729
+Binary files /dev/null and b/www/static/showcase/ldkit2x.jpg differ
+diff --git a/www/static/showcase/linksapp1x.jpg b/www/static/showcase/linksapp1x.jpg
+new file mode 100644
+index 00000000000..90b9985e5ed
+Binary files /dev/null and b/www/static/showcase/linksapp1x.jpg differ
+diff --git a/www/static/showcase/linksapp2x.jpg b/www/static/showcase/linksapp2x.jpg
+new file mode 100644
+index 00000000000..735aed3bd9b
+Binary files /dev/null and b/www/static/showcase/linksapp2x.jpg differ
+diff --git a/www/static/showcase/localseostudio1x.jpg b/www/static/showcase/localseostudio1x.jpg
+new file mode 100644
+index 00000000000..cc66a0d1671
+Binary files /dev/null and b/www/static/showcase/localseostudio1x.jpg differ
+diff --git a/www/static/showcase/localseostudio2x.jpg b/www/static/showcase/localseostudio2x.jpg
+new file mode 100644
+index 00000000000..c7def8a6c11
+Binary files /dev/null and b/www/static/showcase/localseostudio2x.jpg differ
+diff --git a/www/static/showcase/m33t1x.jpg b/www/static/showcase/m33t1x.jpg
+new file mode 100644
+index 00000000000..9562b029005
+Binary files /dev/null and b/www/static/showcase/m33t1x.jpg differ
+diff --git a/www/static/showcase/m33t2x.jpg b/www/static/showcase/m33t2x.jpg
+new file mode 100644
+index 00000000000..acb90b3e2dd
+Binary files /dev/null and b/www/static/showcase/m33t2x.jpg differ
+diff --git a/www/static/showcase/melon1x.jpg b/www/static/showcase/melon1x.jpg
+new file mode 100644
+index 00000000000..59d54d63d4c
+Binary files /dev/null and b/www/static/showcase/melon1x.jpg differ
+diff --git a/www/static/showcase/melon2x.jpg b/www/static/showcase/melon2x.jpg
+new file mode 100644
+index 00000000000..ae181a8da42
+Binary files /dev/null and b/www/static/showcase/melon2x.jpg differ
+diff --git a/www/static/showcase/moe-counter1x.jpg b/www/static/showcase/moe-counter1x.jpg
+new file mode 100644
+index 00000000000..5889bb2b81c
+Binary files /dev/null and b/www/static/showcase/moe-counter1x.jpg differ
+diff --git a/www/static/showcase/moe-counter2x.jpg b/www/static/showcase/moe-counter2x.jpg
+new file mode 100644
+index 00000000000..bf55fd12383
+Binary files /dev/null and b/www/static/showcase/moe-counter2x.jpg differ
+diff --git a/www/static/showcase/mooxl1x.jpg b/www/static/showcase/mooxl1x.jpg
+new file mode 100644
+index 00000000000..1ae2b44419d
+Binary files /dev/null and b/www/static/showcase/mooxl1x.jpg differ
+diff --git a/www/static/showcase/mooxl2x.jpg b/www/static/showcase/mooxl2x.jpg
+new file mode 100644
+index 00000000000..e2227019656
+Binary files /dev/null and b/www/static/showcase/mooxl2x.jpg differ
+diff --git a/www/static/showcase/paquet1x.jpg b/www/static/showcase/paquet1x.jpg
+new file mode 100644
+index 00000000000..28163ba1a5e
+Binary files /dev/null and b/www/static/showcase/paquet1x.jpg differ
+diff --git a/www/static/showcase/paquet2x.jpg b/www/static/showcase/paquet2x.jpg
+new file mode 100644
+index 00000000000..3aadc3bfc6d
+Binary files /dev/null and b/www/static/showcase/paquet2x.jpg differ
+diff --git a/www/static/showcase/ppaste1x.jpg b/www/static/showcase/ppaste1x.jpg
+new file mode 100644
+index 00000000000..4175c5cc12a
+Binary files /dev/null and b/www/static/showcase/ppaste1x.jpg differ
+diff --git a/www/static/showcase/ppaste2x.jpg b/www/static/showcase/ppaste2x.jpg
+new file mode 100644
+index 00000000000..f3c2bbb81fe
+Binary files /dev/null and b/www/static/showcase/ppaste2x.jpg differ
+diff --git a/www/static/showcase/webhook-manager1x.jpg b/www/static/showcase/webhook-manager1x.jpg
+new file mode 100644
+index 00000000000..a852f688d65
+Binary files /dev/null and b/www/static/showcase/webhook-manager1x.jpg differ
+diff --git a/www/static/showcase/webhook-manager2x.jpg b/www/static/showcase/webhook-manager2x.jpg
+new file mode 100644
+index 00000000000..e30b076faa0
+Binary files /dev/null and b/www/static/showcase/webhook-manager2x.jpg differ
+diff --git a/www/static/showcase/wricord1x.jpg b/www/static/showcase/wricord1x.jpg
+new file mode 100644
+index 00000000000..0cf6bad1623
+Binary files /dev/null and b/www/static/showcase/wricord1x.jpg differ
+diff --git a/www/static/showcase/wricord2x.jpg b/www/static/showcase/wricord2x.jpg
+new file mode 100644
+index 00000000000..553c811742d
+Binary files /dev/null and b/www/static/showcase/wricord2x.jpg differ
+diff --git a/www/utils/screenshot.ts b/www/utils/screenshot.ts
+index 4b40f469685..c98adc62048 100644
+--- a/www/utils/screenshot.ts
++++ b/www/utils/screenshot.ts
+@@ -5,9 +5,19 @@ import { join } from "https://deno.land/std@0.137.0/path/mod.ts";
+ const url = Deno.args[0];
+ const id = Deno.args[1];
+ 
+-if (!url || !id) {
++if (Deno.args.length == 0) {
+   console.log("Usage: screenshot <url> <id>");
+-  Deno.exit(1);
++  Deno.exit(0);
++}
++
++if (!(url.match(/^http[s]?:\/\//)) || !url) {
++  console.log("Provided URL is Broken or Wrong");
++  Deno.exit(0);
++}
++
++if (!id) {
++  console.log("Provide id to Process");
++  Deno.exit(0);
+ }
+ 
+ const outDir = "./www/static/showcase";
+@@ -16,18 +26,19 @@ const browser = await puppeteer.launch({
+ });
+ const page = await browser.newPage();
+ await page.goto(url, { waitUntil: "networkidle2" });
+-const png2x = join(outDir, `${id}.png`);
+-await page.screenshot({ path: png2x });
++const raw = await page.screenshot();
+ 
+ await browser.close();
+ 
++if (!(raw instanceof Uint8Array)) {
++  console.log("Invalid Image");
++  Deno.exit(0);
++}
+ // convert to jpeg
+-const image2x = await Image.decode(await Deno.readFile(png2x));
++const image2x = await Image.decode(raw);
+ const jpeg2x = join(outDir, `${id}2x.jpg`);
+ await Deno.writeFile(jpeg2x, await image2x.encodeJPEG(80));
+ 
+ const jpeg1x = join(outDir, `${id}1x.jpg`);
+ const image1x = image2x.resize(image2x.width / 2, Image.RESIZE_AUTO);
+ await Deno.writeFile(jpeg1x, await image1x.encodeJPEG(80));
+-
+-await Deno.removeSync(png2x);

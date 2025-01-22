@@ -1,0 +1,1707 @@
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+index 87c9afa4b4d..edac9897147 100644
+--- a/.github/workflows/ci.yml
++++ b/.github/workflows/ci.yml
+@@ -11,10 +11,14 @@ on:
+ jobs:
+   test:
+     runs-on: ${{ matrix.os }}
++    timeout-minutes: 10
+ 
+     strategy:
+       matrix:
+-        deno: ["v1.x", "canary"]
++        # TODO(kt3k): Change this back to ["v1.x", "canary"]
++        # when denoland/deno#18572 is released.
++        # Note: v1.32.2 and v1.32.3 are not compatible with Fresh.
++        deno: ["v1.32.1", "canary"]
+         os: [macOS-latest, windows-latest, ubuntu-latest]
+ 
+     steps:
+diff --git a/.github/workflows/lighthouse.yml b/.github/workflows/lighthouse.yml
+index 2f8da383ff5..209e105aef0 100644
+--- a/.github/workflows/lighthouse.yml
++++ b/.github/workflows/lighthouse.yml
+@@ -6,6 +6,7 @@ jobs:
+   lighthouse:
+     name: lighthouse
+     runs-on: ubuntu-latest
++    timeout-minutes: 5
+     if: github.event.deployment_status.state == 'success' && github.event.deployment_status.creator.login == 'deno-deploy[bot]'
+ 
+     env:
+diff --git a/.github/workflows/www.yml b/.github/workflows/www.yml
+index e1f006f53f8..a8f7b6f1dbc 100644
+--- a/.github/workflows/www.yml
++++ b/.github/workflows/www.yml
+@@ -11,6 +11,7 @@ on:
+ jobs:
+   test:
+     runs-on: ubuntu-latest
++    timeout-minutes: 5
+ 
+     steps:
+       - name: Checkout repo
+diff --git a/.vscode/import_map.json b/.vscode/import_map.json
+index e917bb74efd..f7937c91f59 100644
+--- a/.vscode/import_map.json
++++ b/.vscode/import_map.json
+@@ -4,16 +4,13 @@
+   },
+   "imports": {
+     "$fresh/": "../",
+-
+-    "twind": "https://esm.sh/twind@0.16.17",
+-    "twind/": "https://esm.sh/twind@0.16.17/",
+-
+-    "preact": "https://esm.sh/preact@10.11.0",
+-    "preact/": "https://esm.sh/preact@10.11.0/",
+-    "preact-render-to-string": "https://esm.sh/*preact-render-to-string@5.2.4",
+-    "@preact/signals": "https://esm.sh/*@preact/signals@1.0.3",
+-    "@preact/signals-core": "https://esm.sh/@preact/signals-core@1.0.1",
+-
+-    "$std/": "https://deno.land/std@0.150.0/"
++    "twind": "https://esm.sh/twind@0.16.19",
++    "twind/": "https://esm.sh/twind@0.16.19/",
++    "preact": "https://esm.sh/preact@10.13.1",
++    "preact/": "https://esm.sh/preact@10.13.1/",
++    "preact-render-to-string": "https://esm.sh/*preact-render-to-string@5.2.6",
++    "@preact/signals": "https://esm.sh/*@preact/signals@1.1.3",
++    "@preact/signals-core": "https://esm.sh/@preact/signals-core@1.2.3",
++    "$std/": "https://deno.land/std@0.178.0/"
+   }
+ }
+diff --git a/LICENSE b/LICENSE
+index 5e0fffb3f37..bf67e0ceb06 100644
+--- a/LICENSE
++++ b/LICENSE
+@@ -1,21 +1,20 @@
+ MIT License
+ 
+-Copyright (c) 2021 Luca Casonato
++Copyright (c) 2021-2023 Luca Casonato
+ 
+-Permission is hereby granted, free of charge, to any person obtaining a copy
+-of this software and associated documentation files (the "Software"), to deal
+-in the Software without restriction, including without limitation the rights
+-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+-copies of the Software, and to permit persons to whom the Software is
+-furnished to do so, subject to the following conditions:
++Permission is hereby granted, free of charge, to any person obtaining a copy of
++this software and associated documentation files (the "Software"), to deal in
++the Software without restriction, including without limitation the rights to
++use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of
++the Software, and to permit persons to whom the Software is furnished to do so,
++subject to the following conditions:
+ 
+ The above copyright notice and this permission notice shall be included in all
+ copies or substantial portions of the Software.
+ 
+ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+-SOFTWARE.
++IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
++FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
++COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
++IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
++CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+diff --git a/docs/concepts/updating.md b/docs/concepts/updating.md
+index 474e13f2e56..2a9d0917ff9 100644
+--- a/docs/concepts/updating.md
++++ b/docs/concepts/updating.md
+@@ -21,7 +21,7 @@ below.
+ | Fresh version | Preact           | preact-render-to-string | Deno      |
+ | ------------- | ---------------- | ----------------------- | --------- |
+ | 1.0.0-1.0.2   | >=10.8.1 <11.0.0 | >=5.2.0 <6.0.0          | >= 1.23.0 |
+-| 1.1.0-1.1.4   | >=10.8.1 <11.0.0 | >=5.2.0 <6.0.0          | >= 1.25.0 |
++| 1.1.0-1.1.5   | >=10.8.1 <11.0.0 | >=5.2.0 <6.0.0          | >= 1.25.0 |
+ 
+ ## Updating dependencies
+ 
+@@ -58,7 +58,7 @@ version:
+   {
+     "imports": {
+ -     "$fresh/": "https://deno.land/x/fresh@1.0.2/",
+-+     "$fresh/": "https://deno.land/x/fresh@1.1.4/",
+++     "$fresh/": "https://deno.land/x/fresh@1.1.5/",
+ 
+ -     "preact": "https://esm.sh/preact@10.8.1",
+ -     "preact/": "https://esm.sh/preact@10.8.1/",
+diff --git a/examples/counter/import_map.json b/examples/counter/import_map.json
+index 33e13f90be0..bf3f2f997b9 100644
+--- a/examples/counter/import_map.json
++++ b/examples/counter/import_map.json
+@@ -1,8 +1,8 @@
+ {
+   "imports": {
+     "$fresh/": "../../",
+-    "preact": "https://esm.sh/preact@10.11.0",
+-    "preact/": "https://esm.sh/preact@10.11.0/",
+-    "preact-render-to-string": "https://esm.sh/*preact-render-to-string@5.2.4"
++    "preact": "https://esm.sh/preact@10.13.1",
++    "preact/": "https://esm.sh/preact@10.13.1/",
++    "preact-render-to-string": "https://esm.sh/*preact-render-to-string@5.2.6"
+   }
+ }
+diff --git a/plugins/twindv1/main.ts b/plugins/twindv1/main.ts
+index 9b6a1902022..1d7f0e990f2 100644
+--- a/plugins/twindv1/main.ts
++++ b/plugins/twindv1/main.ts
+@@ -1,5 +1,17 @@
+-import { getSheet, setup, TwindConfig } from "https://esm.sh/@twind/core@1.1.3";
++import {
++  cssom,
++  getSheet,
++  setup,
++  TwindConfig,
++} from "https://esm.sh/@twind/core@1.1.3";
++import { STYLE_ELEMENT_ID } from "./shared.ts";
+ 
+ export default function hydrate(options: TwindConfig) {
+-  setup(options, getSheet());
++  const elem = document.getElementById(STYLE_ELEMENT_ID) as HTMLStyleElement;
++  const sheet = cssom(elem);
++
++  sheet.resume = getSheet().resume.bind(sheet);
++  document.querySelector('[data-twind="claimed"]')?.remove();
++
++  setup(options, sheet);
+ }
+diff --git a/src/dev/deps.ts b/src/dev/deps.ts
+index d3dc884b813..b6f819b9a2b 100644
+--- a/src/dev/deps.ts
++++ b/src/dev/deps.ts
+@@ -6,10 +6,10 @@ export {
+   join,
+   resolve,
+   toFileUrl,
+-} from "https://deno.land/std@0.150.0/path/mod.ts";
+-export { walk } from "https://deno.land/std@0.150.0/fs/walk.ts";
+-export { parse } from "https://deno.land/std@0.150.0/flags/mod.ts";
+-export { gte } from "https://deno.land/std@0.150.0/semver/mod.ts";
++} from "https://deno.land/std@0.178.0/path/mod.ts";
++export { walk } from "https://deno.land/std@0.178.0/fs/walk.ts";
++export { parse } from "https://deno.land/std@0.178.0/flags/mod.ts";
++export { gte } from "https://deno.land/std@0.178.0/semver/mod.ts";
+ 
+ // ts-morph
+-export { Node, Project } from "https://deno.land/x/ts_morph@16.0.0/mod.ts";
++export { Node, Project } from "https://deno.land/x/ts_morph@17.0.1/mod.ts";
+diff --git a/src/dev/imports.ts b/src/dev/imports.ts
+index 326d5ee9766..c27d5a2563f 100644
+--- a/src/dev/imports.ts
++++ b/src/dev/imports.ts
+@@ -1,8 +1,8 @@
+-export const RECOMMENDED_PREACT_VERSION = "10.11.0";
+-export const RECOMMENDED_PREACT_RTS_VERSION = "5.2.4";
+-export const RECOMMENDED_PREACT_SIGNALS_VERSION = "1.0.3";
+-export const RECOMMENDED_PREACT_SIGNALS_CORE_VERSION = "1.0.1";
+-export const RECOMMENDED_TWIND_VERSION = "0.16.17";
++export const RECOMMENDED_PREACT_VERSION = "10.13.1";
++export const RECOMMENDED_PREACT_RTS_VERSION = "5.2.6";
++export const RECOMMENDED_PREACT_SIGNALS_VERSION = "1.1.3";
++export const RECOMMENDED_PREACT_SIGNALS_CORE_VERSION = "1.2.3";
++export const RECOMMENDED_TWIND_VERSION = "0.16.19";
+ 
+ export function freshImports(imports: Record<string, string>) {
+   imports["$fresh/"] = new URL("../../", import.meta.url).href;
+diff --git a/src/dev/mod.ts b/src/dev/mod.ts
+index d874977e964..37bf5aaa9ed 100644
+--- a/src/dev/mod.ts
++++ b/src/dev/mod.ts
+@@ -134,24 +134,23 @@ const manifest = {
+ export default manifest;
+ `;
+ 
+-  const proc = Deno.run({
+-    cmd: [Deno.execPath(), "fmt", "-"],
++  const proc = new Deno.Command(Deno.execPath(), {
++    args: ["fmt", "-"],
+     stdin: "piped",
+     stdout: "piped",
+     stderr: "null",
+-  });
++  }).spawn();
++
+   const raw = new ReadableStream({
+     start(controller) {
+       controller.enqueue(new TextEncoder().encode(output));
+       controller.close();
+     },
+   });
+-  await raw.pipeTo(proc.stdin.writable);
+-  const out = await proc.output();
+-  await proc.status();
+-  proc.close();
++  await raw.pipeTo(proc.stdin);
++  const { stdout } = await proc.output();
+ 
+-  const manifestStr = new TextDecoder().decode(out);
++  const manifestStr = new TextDecoder().decode(stdout);
+   const manifestPath = join(directory, "./fresh.gen.ts");
+ 
+   await Deno.writeTextFile(manifestPath, manifestStr);
+diff --git a/src/server/bundle.ts b/src/server/bundle.ts
+index cf8250e2d60..2c3a02133a6 100644
+--- a/src/server/bundle.ts
++++ b/src/server/bundle.ts
+@@ -1,4 +1,4 @@
+-import { BuildOptions } from "https://deno.land/x/esbuild@v0.14.51/mod.js";
++import { BuildOptions } from "https://deno.land/x/esbuild@v0.17.11/mod.js";
+ import { BUILD_ID } from "./constants.ts";
+ import { denoPlugin, esbuild, toFileUrl } from "./deps.ts";
+ import { Island, Plugin } from "./types.ts";
+@@ -12,7 +12,7 @@ let esbuildInitialized: boolean | Promise<void> = false;
+ async function ensureEsbuildInitialized() {
+   if (esbuildInitialized === false) {
+     if (Deno.run === undefined) {
+-      const wasmURL = new URL("./esbuild_v0.14.51.wasm", import.meta.url).href;
++      const wasmURL = new URL("./esbuild_v0.17.11.wasm", import.meta.url).href;
+       esbuildInitialized = fetch(wasmURL).then(async (r) => {
+         const resp = new Response(r.body, {
+           headers: { "Content-Type": "application/wasm" },
+diff --git a/src/server/context.ts b/src/server/context.ts
+index d2d765d6ff5..77359bccbe6 100644
+--- a/src/server/context.ts
++++ b/src/server/context.ts
+@@ -391,8 +391,10 @@ export class ServerContext {
+    */
+   #handlers(): [
+     rutt.Routes<RouterState>,
+-    rutt.Handler<RouterState>,
+-    rutt.ErrorHandler<RouterState>,
++    {
++      otherHandler: rutt.Handler<RouterState>;
++      errorHandler: rutt.ErrorHandler<RouterState>;
++    },
+   ] {
+     const routes: rutt.Routes<RouterState> = {};
+ 
+@@ -539,7 +541,7 @@ export class ServerContext {
+       }
+     }
+ 
+-    const unknownHandler: rutt.Handler<RouterState> = (
++    const otherHandler: rutt.Handler<RouterState> = (
+       req,
+       ctx,
+     ) =>
+@@ -575,7 +577,7 @@ export class ServerContext {
+       );
+     };
+ 
+-    return [routes, unknownHandler, errorHandler];
++    return [routes, { otherHandler, errorHandler }];
+   }
+ 
+   #staticFileHandler(
+diff --git a/src/server/deps.ts b/src/server/deps.ts
+index 05524c4beba..00e7cc52673 100644
+--- a/src/server/deps.ts
++++ b/src/server/deps.ts
+@@ -3,29 +3,31 @@ export {
+   extname,
+   fromFileUrl,
+   toFileUrl,
+-} from "https://deno.land/std@0.150.0/path/mod.ts";
+-export { walk } from "https://deno.land/std@0.150.0/fs/walk.ts";
+-export { serve } from "https://deno.land/std@0.150.0/http/server.ts";
++} from "https://deno.land/std@0.178.0/path/mod.ts";
++export { walk } from "https://deno.land/std@0.178.0/fs/walk.ts";
++export { serve } from "https://deno.land/std@0.178.0/http/server.ts";
+ export type {
+   ConnInfo,
+   Handler as RequestHandler,
+   ServeInit,
+-} from "https://deno.land/std@0.150.0/http/server.ts";
+-export { Status } from "https://deno.land/std@0.150.0/http/http_status.ts";
++} from "https://deno.land/std@0.178.0/http/server.ts";
++export { Status } from "https://deno.land/std@0.178.0/http/http_status.ts";
+ export {
+   typeByExtension,
+-} from "https://deno.land/std@0.150.0/media_types/mod.ts";
++} from "https://deno.land/std@0.178.0/media_types/mod.ts";
+ 
+ // -- rutt --
+-export * as rutt from "https://deno.land/x/rutt@0.0.14/mod.ts";
++export * as rutt from "https://deno.land/x/rutt@0.1.0/mod.ts";
+ 
+ // -- esbuild --
+-// @deno-types="https://deno.land/x/esbuild@v0.14.51/mod.d.ts"
+-import * as esbuildWasm from "https://deno.land/x/esbuild@v0.14.51/wasm.js";
+-import * as esbuildNative from "https://deno.land/x/esbuild@v0.14.51/mod.js";
++// @deno-types="https://deno.land/x/esbuild@v0.17.11/mod.d.ts"
++import * as esbuildWasm from "https://deno.land/x/esbuild@v0.17.11/wasm.js";
++import * as esbuildNative from "https://deno.land/x/esbuild@v0.17.11/mod.js";
+ // @ts-ignore trust me
+ const esbuild: typeof esbuildWasm = Deno.run === undefined
+   ? esbuildWasm
+   : esbuildNative;
+ export { esbuild, esbuildWasm as esbuildTypes };
+-export { denoPlugin } from "https://deno.land/x/esbuild_deno_loader@0.5.2/mod.ts";
++
++// TODO(lino-levan): Replace with versioned import
++export { denoPlugin } from "https://raw.githubusercontent.com/lucacasonato/esbuild_deno_loader/8031f71afa1bbcd3237a94b11f53a2e5c5c0e7bf/mod.ts";
+diff --git a/src/server/esbuild_v0.14.51.wasm b/src/server/esbuild_v0.17.11.wasm
+similarity index 56%
+rename from src/server/esbuild_v0.14.51.wasm
+rename to src/server/esbuild_v0.17.11.wasm
+index 32d61a06345..359e887a8ec 100644
+Binary files a/src/server/esbuild_v0.14.51.wasm and b/src/server/esbuild_v0.17.11.wasm differ
+diff --git a/src/server/types.ts b/src/server/types.ts
+index 68e071ff5e6..0765ce7637f 100644
+--- a/src/server/types.ts
++++ b/src/server/types.ts
+@@ -87,7 +87,7 @@ export type Handler<T = any, State = Record<string, unknown>> = (
+ 
+ // deno-lint-ignore no-explicit-any
+ export type Handlers<T = any, State = Record<string, unknown>> = {
+-  [K in typeof rutt.METHODS[number]]?: Handler<T, State>;
++  [K in typeof rutt.knownMethods[number]]?: Handler<T, State>;
+ };
+ 
+ export interface RouteModule {
+diff --git a/tests/cli_test.ts b/tests/cli_test.ts
+index 49ef4947ce9..4f26f90fc19 100644
+--- a/tests/cli_test.ts
++++ b/tests/cli_test.ts
+@@ -42,9 +42,8 @@ Deno.test({
+     const tmpDirName = await Deno.makeTempDir();
+ 
+     await t.step("execute init command", async () => {
+-      const cliProcess = Deno.run({
+-        cmd: [
+-          "deno",
++      const cliProcess = new Deno.Command(Deno.execPath(), {
++        args: [
+           "run",
+           "-A",
+           "init.ts",
+@@ -53,8 +52,7 @@ Deno.test({
+         stdin: "null",
+         stdout: "null",
+       });
+-      const { code } = await cliProcess.status();
+-      cliProcess.close();
++      const { code } = await cliProcess.output();
+       assertEquals(code, 0);
+     });
+ 
+@@ -113,15 +111,15 @@ Deno.test({
+     });
+ 
+     await t.step("start up the server and access the root page", async () => {
+-      const serverProcess = Deno.run({
+-        cmd: ["deno", "run", "-A", "--check", "main.ts"],
++      const serverProcess = new Deno.Command(Deno.execPath(), {
++        args: ["run", "-A", "--check", "main.ts"],
+         stdin: "null",
+         stdout: "piped",
+         stderr: "inherit",
+         cwd: tmpDirName,
+-      });
++      }).spawn();
+ 
+-      const lines = serverProcess.stdout.readable
++      const lines = serverProcess.stdout
+         .pipeThrough(new TextDecoderStream())
+         .pipeThrough(new TextLineStream());
+ 
+@@ -166,13 +164,11 @@ Deno.test({
+ 
+       await lines.cancel();
+       serverProcess.kill("SIGTERM");
+-      await serverProcess.status();
+-      serverProcess.close();
++      await delay(100);
+     });
+ 
+     await retry(() => Deno.remove(tmpDirName, { recursive: true }));
+   },
+-  sanitizeOps: false,
+   sanitizeResources: false,
+ });
+ 
+@@ -183,9 +179,8 @@ Deno.test({
+     const tmpDirName = await Deno.makeTempDir();
+ 
+     await t.step("execute init command", async () => {
+-      const cliProcess = Deno.run({
+-        cmd: [
+-          "deno",
++      const cliProcess = new Deno.Command(Deno.execPath(), {
++        args: [
+           "run",
+           "-A",
+           "init.ts",
+@@ -196,8 +191,7 @@ Deno.test({
+         stdin: "null",
+         stdout: "null",
+       });
+-      const { code } = await cliProcess.status();
+-      cliProcess.close();
++      const { code } = await cliProcess.output();
+       assertEquals(code, 0);
+     });
+ 
+@@ -265,15 +259,15 @@ Deno.test({
+     });
+ 
+     await t.step("start up the server and access the root page", async () => {
+-      const serverProcess = Deno.run({
+-        cmd: ["deno", "run", "-A", "--check", "main.ts"],
++      const serverProcess = new Deno.Command(Deno.execPath(), {
++        args: ["run", "-A", "--check", "main.ts"],
+         stdin: "null",
+         stdout: "piped",
+         stderr: "inherit",
+         cwd: tmpDirName,
+-      });
++      }).spawn();
+ 
+-      const lines = serverProcess.stdout.readable
++      const lines = serverProcess.stdout
+         .pipeThrough(new TextDecoderStream())
+         .pipeThrough(new TextLineStream());
+ 
+@@ -322,13 +316,11 @@ Deno.test({
+ 
+       await lines.cancel();
+       serverProcess.kill("SIGTERM");
+-      await serverProcess.status();
+-      serverProcess.close();
++      await delay(100);
+     });
+ 
+     await retry(() => Deno.remove(tmpDirName, { recursive: true }));
+   },
+-  sanitizeOps: false,
+   sanitizeResources: false,
+ });
+ 
+@@ -338,18 +330,15 @@ Deno.test("fresh-init error(help)", async function (t) {
+   await t.step(
+     "execute invalid init command (deno run -A init.ts)",
+     async () => {
+-      const cliProcess = Deno.run({
+-        cmd: ["deno", "run", "-A", "init.ts"],
++      const cliProcess = new Deno.Command(Deno.execPath(), {
++        args: ["run", "-A", "init.ts"],
+         stdin: "null",
+         stderr: "piped",
+       });
+-      const { code } = await cliProcess.status();
+-      cliProcess.close();
++      const { code, stderr } = await cliProcess.output();
+       assertEquals(code, 1);
+ 
+-      const rawError = await cliProcess.stderrOutput();
+-      const errorString = new TextDecoder().decode(rawError);
+-
++      const errorString = new TextDecoder().decode(stderr);
+       assertStringIncludes(errorString, includeText);
+     },
+   );
+@@ -357,18 +346,13 @@ Deno.test("fresh-init error(help)", async function (t) {
+   await t.step(
+     "execute invalid init command (deno run -A init.ts -f)",
+     async () => {
+-      const cliProcess = Deno.run({
+-        cmd: ["deno", "run", "-A", "init.ts", "-f"],
+-        stdin: "null",
+-        stderr: "piped",
++      const cliProcess = new Deno.Command(Deno.execPath(), {
++        args: ["run", "-A", "init.ts", "-f"],
+       });
+-      const { code } = await cliProcess.status();
+-      cliProcess.close();
++      const { code, stderr } = await cliProcess.output();
+       assertEquals(code, 1);
+ 
+-      const rawError = await cliProcess.stderrOutput();
+-      const errorString = new TextDecoder().decode(rawError);
+-
++      const errorString = new TextDecoder().decode(stderr);
+       assertStringIncludes(errorString, includeText);
+     },
+   );
+@@ -376,18 +360,13 @@ Deno.test("fresh-init error(help)", async function (t) {
+   await t.step(
+     "execute invalid init command (deno run -A init.ts --foo)",
+     async () => {
+-      const cliProcess = Deno.run({
+-        cmd: ["deno", "run", "-A", "init.ts", "--foo"],
+-        stdin: "null",
+-        stderr: "piped",
++      const cliProcess = new Deno.Command(Deno.execPath(), {
++        args: ["run", "-A", "init.ts", "--foo"],
+       });
+-      const { code } = await cliProcess.status();
+-      cliProcess.close();
++      const { code, stderr } = await cliProcess.output();
+       assertEquals(code, 1);
+ 
+-      const rawError = await cliProcess.stderrOutput();
+-      const errorString = new TextDecoder().decode(rawError);
+-
++      const errorString = new TextDecoder().decode(stderr);
+       assertStringIncludes(errorString, includeText);
+     },
+   );
+diff --git a/tests/deps.ts b/tests/deps.ts
+index 3b036249d61..4a9217d1bd1 100644
+--- a/tests/deps.ts
++++ b/tests/deps.ts
+@@ -8,10 +8,10 @@ export {
+   assert,
+   assertEquals,
+   assertStringIncludes,
+-} from "https://deno.land/std@0.150.0/testing/asserts.ts";
++} from "https://deno.land/std@0.178.0/testing/asserts.ts";
+ export {
+   TextLineStream,
+-} from "https://deno.land/std@0.150.0/streams/delimiter.ts";
+-export { delay } from "https://deno.land/std@0.150.0/async/delay.ts";
+-export { retry } from "https://deno.land/std@0.170.0/async/retry.ts";
++} from "https://deno.land/std@0.178.0/streams/text_line_stream.ts";
++export { delay } from "https://deno.land/std@0.178.0/async/delay.ts";
++export { retry } from "https://deno.land/std@0.178.0/async/retry.ts";
+ export { default as puppeteer } from "https://deno.land/x/puppeteer@16.2.0/mod.ts";
+diff --git a/tests/fixture/import_map.json b/tests/fixture/import_map.json
+index 33e13f90be0..bf3f2f997b9 100644
+--- a/tests/fixture/import_map.json
++++ b/tests/fixture/import_map.json
+@@ -1,8 +1,8 @@
+ {
+   "imports": {
+     "$fresh/": "../../",
+-    "preact": "https://esm.sh/preact@10.11.0",
+-    "preact/": "https://esm.sh/preact@10.11.0/",
+-    "preact-render-to-string": "https://esm.sh/*preact-render-to-string@5.2.4"
++    "preact": "https://esm.sh/preact@10.13.1",
++    "preact/": "https://esm.sh/preact@10.13.1/",
++    "preact-render-to-string": "https://esm.sh/*preact-render-to-string@5.2.6"
+   }
+ }
+diff --git a/tests/fixture/main_wasm.ts b/tests/fixture/main_wasm.ts
+new file mode 100644
+index 00000000000..a48ed37cd78
+--- /dev/null
++++ b/tests/fixture/main_wasm.ts
+@@ -0,0 +1,16 @@
++// Simulate Deno Deploy environment
++
++/// <reference no-default-lib="true" />
++/// <reference lib="dom" />
++/// <reference lib="dom.iterable" />
++/// <reference lib="dom.asynciterable" />
++/// <reference lib="deno.ns" />
++
++import "./polyfill_deno_deploy.ts";
++import { start } from "$fresh/server.ts";
++import routes from "./fresh.gen.ts";
++import options from "./options.ts";
++
++const experimentalDenoServe = Deno.args.includes("--experimental-deno-serve");
++
++await start(routes, { ...options, experimentalDenoServe });
+diff --git a/tests/fixture/polyfill_deno_deploy.ts b/tests/fixture/polyfill_deno_deploy.ts
+new file mode 100644
+index 00000000000..c56adf826f2
+--- /dev/null
++++ b/tests/fixture/polyfill_deno_deploy.ts
+@@ -0,0 +1,4 @@
++// Simulate Deno Deploy environment
++
++//@ts-ignore: Remove Deno.run for simulating deno deploy env
++delete Deno.run;
+diff --git a/tests/fixture_error/import_map.json b/tests/fixture_error/import_map.json
+index 33e13f90be0..bf3f2f997b9 100644
+--- a/tests/fixture_error/import_map.json
++++ b/tests/fixture_error/import_map.json
+@@ -1,8 +1,8 @@
+ {
+   "imports": {
+     "$fresh/": "../../",
+-    "preact": "https://esm.sh/preact@10.11.0",
+-    "preact/": "https://esm.sh/preact@10.11.0/",
+-    "preact-render-to-string": "https://esm.sh/*preact-render-to-string@5.2.4"
++    "preact": "https://esm.sh/preact@10.13.1",
++    "preact/": "https://esm.sh/preact@10.13.1/",
++    "preact-render-to-string": "https://esm.sh/*preact-render-to-string@5.2.6"
+   }
+ }
+diff --git a/tests/fixture_jsx_pragma/import-map.json b/tests/fixture_jsx_pragma/import-map.json
+index e59539e4ddd..68f2947f151 100644
+--- a/tests/fixture_jsx_pragma/import-map.json
++++ b/tests/fixture_jsx_pragma/import-map.json
+@@ -1,8 +1,8 @@
+ {
+   "imports": {
+     "$fresh/": "../../",
+-    "preact": "https://esm.sh/preact@10.10.0",
+-    "preact/": "https://esm.sh/preact@10.10.0/",
+-    "preact-render-to-string": "https://esm.sh/preact-render-to-string@5.2.1?external=preact"
++    "preact": "https://esm.sh/preact@10.13.1",
++    "preact/": "https://esm.sh/preact@10.13.1/",
++    "preact-render-to-string": "https://esm.sh/preact-render-to-string@5.2.6?external=preact"
+   }
+ }
+diff --git a/tests/fixture_plugin/import_map.json b/tests/fixture_plugin/import_map.json
+index 33e13f90be0..bf3f2f997b9 100644
+--- a/tests/fixture_plugin/import_map.json
++++ b/tests/fixture_plugin/import_map.json
+@@ -1,8 +1,8 @@
+ {
+   "imports": {
+     "$fresh/": "../../",
+-    "preact": "https://esm.sh/preact@10.11.0",
+-    "preact/": "https://esm.sh/preact@10.11.0/",
+-    "preact-render-to-string": "https://esm.sh/*preact-render-to-string@5.2.4"
++    "preact": "https://esm.sh/preact@10.13.1",
++    "preact/": "https://esm.sh/preact@10.13.1/",
++    "preact-render-to-string": "https://esm.sh/*preact-render-to-string@5.2.6"
+   }
+ }
+diff --git a/tests/fixture_twind_hydrate/deno.json b/tests/fixture_twind_hydrate/deno.json
+new file mode 100644
+index 00000000000..8d9ac336cfe
+--- /dev/null
++++ b/tests/fixture_twind_hydrate/deno.json
+@@ -0,0 +1,10 @@
++{
++  "tasks": {
++    "start": "deno run -A --watch=static/,routes/ dev.ts"
++  },
++  "importMap": "./import_map.json",
++  "compilerOptions": {
++    "jsx": "react-jsx",
++    "jsxImportSource": "preact"
++  }
++}
+diff --git a/tests/fixture_twind_hydrate/dev.ts b/tests/fixture_twind_hydrate/dev.ts
+new file mode 100755
+index 00000000000..2d85d6c183c
+--- /dev/null
++++ b/tests/fixture_twind_hydrate/dev.ts
+@@ -0,0 +1,5 @@
++#!/usr/bin/env -S deno run -A --watch=static/,routes/
++
++import dev from "$fresh/dev.ts";
++
++await dev(import.meta.url, "./main.ts");
+diff --git a/tests/fixture_twind_hydrate/fresh.gen.ts b/tests/fixture_twind_hydrate/fresh.gen.ts
+new file mode 100644
+index 00000000000..521f4ee531b
+--- /dev/null
++++ b/tests/fixture_twind_hydrate/fresh.gen.ts
+@@ -0,0 +1,26 @@
++// DO NOT EDIT. This file is generated by fresh.
++// This file SHOULD be checked into source version control.
++// This file is automatically updated during development when running `dev.ts`.
++
++import config from "./deno.json" assert { type: "json" };
++import * as $0 from "./routes/check-duplication.tsx";
++import * as $1 from "./routes/insert-cssrules.tsx";
++import * as $2 from "./routes/static.tsx";
++import * as $$0 from "./islands/CheckDuplication.tsx";
++import * as $$1 from "./islands/InsertCssrules.tsx";
++
++const manifest = {
++  routes: {
++    "./routes/check-duplication.tsx": $0,
++    "./routes/insert-cssrules.tsx": $1,
++    "./routes/static.tsx": $2,
++  },
++  islands: {
++    "./islands/CheckDuplication.tsx": $$0,
++    "./islands/InsertCssrules.tsx": $$1,
++  },
++  baseUrl: import.meta.url,
++  config,
++};
++
++export default manifest;
+diff --git a/tests/fixture_twind_hydrate/import_map.json b/tests/fixture_twind_hydrate/import_map.json
+new file mode 100644
+index 00000000000..2914af6c4e1
+--- /dev/null
++++ b/tests/fixture_twind_hydrate/import_map.json
+@@ -0,0 +1,10 @@
++{
++  "imports": {
++    "$fresh/": "../../",
++    "preact": "https://esm.sh/preact@10.11.0",
++    "preact/": "https://esm.sh/preact@10.11.0/",
++    "preact-render-to-string": "https://esm.sh/*preact-render-to-string@5.2.4",
++    "@preact/signals": "https://esm.sh/*@preact/signals@1.0.3",
++    "@preact/signals-core": "https://esm.sh/*@preact/signals-core@1.0.1"
++  }
++}
+diff --git a/tests/fixture_twind_hydrate/islands/CheckDuplication.tsx b/tests/fixture_twind_hydrate/islands/CheckDuplication.tsx
+new file mode 100644
+index 00000000000..1c8d5245601
+--- /dev/null
++++ b/tests/fixture_twind_hydrate/islands/CheckDuplication.tsx
+@@ -0,0 +1,63 @@
++// https://github.com/denoland/fresh/pull/1050
++import { useEffect, useState } from "preact/hooks";
++import { cmpCssRules } from "../utils/utils.ts";
++
++/**
++ * Returns a cssrulelist of styleElement matching the selector.
++ */
++function getCssrules(selector: string) {
++  const elem = document.querySelector(selector) as HTMLStyleElement;
++  return elem?.sheet?.cssRules;
++}
++
++export default function CheckDuplication() {
++  const [cssRulesFRSHTWIND, setCssRulesFRSHTWIND] = useState<
++    undefined | CSSRuleList
++  >(undefined);
++  const [cssRulesClaimed, setCssRulesClaimed] = useState<
++    undefined | CSSRuleList
++  >(undefined);
++
++  // Init
++  useEffect(() => {
++    // get <style id="__FRSH_TWIND">
++    setCssRulesFRSHTWIND(getCssrules("#__FRSH_TWIND"));
++
++    // get <style data-twind="claimed">
++    // see https://github.com/tw-in-js/twind/blob/main/packages/core/src/sheets.ts#L5-L16
++    setCssRulesClaimed(
++      getCssrules('[data-twind="claimed"]:not(#__FRSH_TWIND)'),
++    );
++  });
++
++  return (
++    <div class="p-2">
++      {/* At least one class is required in the islands for hydrate to work. */}
++      <h2>Check duplicated cssrules</h2>
++
++      {/* Status of duplicates */}
++      {(() => {
++        if (cssRulesFRSHTWIND != null && cssRulesClaimed != null) {
++          return (
++            <div>
++              <p>Error :</p>
++              <p id="numDuplicates">
++                {`${
++                  cmpCssRules(
++                    cssRulesFRSHTWIND,
++                    cssRulesClaimed,
++                  )
++                }`}
++              </p>
++              <p>cssrules are duplicated</p>
++            </div>
++          );
++        } else if (cssRulesFRSHTWIND != null && cssRulesClaimed == null) {
++          return <p id="okNoDuplicates">Ok : No duplicates</p>;
++        } else {
++          return <p id="errorNoExistsRules">Error : Cssrules does not exist</p>;
++        }
++      })()}
++    </div>
++  );
++}
+diff --git a/tests/fixture_twind_hydrate/islands/InsertCssrules.tsx b/tests/fixture_twind_hydrate/islands/InsertCssrules.tsx
+new file mode 100644
+index 00000000000..2fd979c24d8
+--- /dev/null
++++ b/tests/fixture_twind_hydrate/islands/InsertCssrules.tsx
+@@ -0,0 +1,73 @@
++// https://github.com/denoland/fresh/pull/1050
++import { useEffect, useState } from "preact/hooks";
++
++/**
++ * Returns a number of cssrules set by twind.
++ */
++function getNumCssrules(): number | undefined {
++  const elem = document.getElementById("__FRSH_TWIND") as HTMLStyleElement;
++  return elem.sheet?.cssRules.length;
++}
++
++export default function InsertCssrules() {
++  const [numDefCssRules, setNumDefCssRules] = useState<number | undefined>(
++    undefined,
++  );
++  const [numCssRules, setNumCssRules] = useState<number | undefined>(undefined);
++  const [insertedStyles, setInsertedStyles] = useState("");
++
++  // Init numDefCssRules
++  useEffect(() => {
++    setNumDefCssRules(getNumCssrules());
++  }, []);
++
++  // Init and Update numCssRules
++  useEffect(() => {
++    setNumCssRules(getNumCssrules());
++  }, [insertedStyles]);
++
++  return (
++    <div>
++      <h2>Insert cssrule in islands</h2>
++
++      <div>
++        <p>Default Number of __FRSH_TWIND CssRules :</p>
++        <p id="defaultNumCssRules" class={`text-xl`}>
++          {numDefCssRules ? numDefCssRules : "Error : Cannot get cssrules"}
++        </p>
++      </div>
++
++      <div>
++        <p>Current Number of __FRSH_TWIND CssRules :</p>
++        <p id="currentNumCssRules" class={`text-xl ${insertedStyles}`}>
++          {numCssRules ? numCssRules : "Error : Cannot get cssrules"}
++        </p>
++      </div>
++
++      {/* Status of insert css rules */}
++      {(() => {
++        if (insertedStyles === "") {
++          return <p id="waitClickButton">Plese click button</p>;
++        } else if (numDefCssRules === numCssRules) {
++          return (
++            <p id="errorInsertCssrules">
++              {'Error: A cssrule has been inserted into a style sheet other than <style id="__FRSH_TWIND">'}
++            </p>
++          );
++        } else {
++          return <p id="okInsertCssRuleSuccess">Success</p>;
++        }
++      })()}
++
++      <button
++        id="insertCssRuleButton"
++        onClick={() => {
++          setInsertedStyles("text-green-600");
++        }}
++        disabled={insertedStyles === "" ? false : true}
++      >
++        Add `text-green-600` to Cureent Number Class
++      </button>
++    </div>
++  );
++}
+diff --git a/tests/fixture_twind_hydrate/main.ts b/tests/fixture_twind_hydrate/main.ts
+new file mode 100644
+index 00000000000..1895b320788
+--- /dev/null
++++ b/tests/fixture_twind_hydrate/main.ts
+@@ -0,0 +1,11 @@
++/// <reference no-default-lib="true" />
++/// <reference lib="dom" />
++/// <reference lib="dom.iterable" />
++/// <reference lib="dom.asynciterable" />
++/// <reference lib="deno.ns" />
++
++import { start } from "$fresh/server.ts";
++import manifest from "./fresh.gen.ts";
++import options from "./options.ts";
++
++await start(manifest, options);
+diff --git a/tests/fixture_twind_hydrate/options.ts b/tests/fixture_twind_hydrate/options.ts
+new file mode 100644
+index 00000000000..d3975809ba4
+--- /dev/null
++++ b/tests/fixture_twind_hydrate/options.ts
+@@ -0,0 +1,5 @@
++import { FreshOptions } from "$fresh/server.ts";
++import twindPlugin from "../../plugins/twindv1.ts";
++import twindConfig from "./twind.config.ts";
++
++export default { plugins: [twindPlugin(twindConfig)] } as FreshOptions;
+diff --git a/tests/fixture_twind_hydrate/routes/check-duplication.tsx b/tests/fixture_twind_hydrate/routes/check-duplication.tsx
+new file mode 100644
+index 00000000000..9b0e09c1044
+--- /dev/null
++++ b/tests/fixture_twind_hydrate/routes/check-duplication.tsx
+@@ -0,0 +1,9 @@
++import CheckDuplication from "../islands/CheckDuplication.tsx";
++
++export default function Home() {
++  return (
++    <div>
++      <CheckDuplication></CheckDuplication>
++    </div>
++  );
++}
+diff --git a/tests/fixture_twind_hydrate/routes/insert-cssrules.tsx b/tests/fixture_twind_hydrate/routes/insert-cssrules.tsx
+new file mode 100644
+index 00000000000..d2b40241903
+--- /dev/null
++++ b/tests/fixture_twind_hydrate/routes/insert-cssrules.tsx
+@@ -0,0 +1,9 @@
++import InsertCssrules from "../islands/InsertCssrules.tsx";
++
++export default function Home() {
++  return (
++    <div>
++      <InsertCssrules></InsertCssrules>
++    </div>
++  );
++}
+diff --git a/tests/fixture_twind_hydrate/routes/static.tsx b/tests/fixture_twind_hydrate/routes/static.tsx
+new file mode 100644
+index 00000000000..d7203209908
+--- /dev/null
++++ b/tests/fixture_twind_hydrate/routes/static.tsx
+@@ -0,0 +1,11 @@
++import { Head } from "$fresh/runtime.ts";
++
++export default function Home() {
++  return (
++    <div>
++      <h1 id="helloTwind" class="text-xl text-blue-600">
++        Hello Twind!
++      </h1>
++    </div>
++  );
++}
+diff --git a/tests/fixture_twind_hydrate/twind.config.ts b/tests/fixture_twind_hydrate/twind.config.ts
+new file mode 100644
+index 00000000000..b218b209548
+--- /dev/null
++++ b/tests/fixture_twind_hydrate/twind.config.ts
+@@ -0,0 +1,9 @@
++import { defineConfig } from "https://esm.sh/@twind/core@1.1.3";
++import presetTailwind from "https://esm.sh/@twind/preset-tailwind@1.1.4";
++
++export default {
++  ...defineConfig({
++    presets: [presetTailwind()],
++  }),
++  selfURL: import.meta.url,
++};
+diff --git a/tests/fixture_twind_hydrate/utils/utils.ts b/tests/fixture_twind_hydrate/utils/utils.ts
+new file mode 100644
+index 00000000000..18068e17d8d
+--- /dev/null
++++ b/tests/fixture_twind_hydrate/utils/utils.ts
+@@ -0,0 +1,26 @@
++/**
++ * Returns the number of string duplicates that compare two string[].
++ */
++export function cmpStringArray(a: string[], b: string[]) {
++  const bSet = new Set(b);
++
++  const duplicateString = a.filter((value) => {
++    return bSet.has(value);
++  });
++
++  return duplicateString.length;
++}
++
++/**
++ * Returns the number of csstext duplicates that compare two cssrulelist.
++ */
++export function cmpCssRules(a: CSSRuleList, b: CSSRuleList) {
++  const aCssTextArray = Array.from(a).map((elem: CSSRule) => {
++    return elem.cssText;
++  });
++  const bCssTextArray = Array.from(b).map((elem: CSSRule) => {
++    return elem.cssText;
++  });
++
++  return cmpStringArray(aCssTextArray, bCssTextArray);
++}
+diff --git a/tests/islands_test.ts b/tests/islands_test.ts
+index 41db1599d7c..bad8d121e7e 100644
+--- a/tests/islands_test.ts
++++ b/tests/islands_test.ts
+@@ -10,14 +10,14 @@ Deno.test({
+   name: "island tests",
+   async fn(t) {
+     // Preparation
+-    const serverProcess = Deno.run({
+-      cmd: ["deno", "run", "-A", "./tests/fixture/main.ts"],
++    const serverProcess = new Deno.Command(Deno.execPath(), {
++      args: ["run", "-A", "./tests/fixture/main.ts"],
+       stdout: "piped",
+       stderr: "inherit",
+-    });
++    }).spawn();
+ 
+     const decoder = new TextDecoderStream();
+-    const lines = serverProcess.stdout.readable
++    const lines = serverProcess.stdout
+       .pipeThrough(decoder)
+       .pipeThrough(new TextLineStream());
+ 
+@@ -77,7 +77,6 @@ Deno.test({
+ 
+     await lines.cancel();
+     serverProcess.kill("SIGTERM");
+-    serverProcess.close();
+   },
+   sanitizeOps: false,
+   sanitizeResources: false,
+@@ -87,14 +86,14 @@ Deno.test({
+   name: "island tests with </script>",
+   async fn(t) {
+     // Preparation
+-    const serverProcess = Deno.run({
+-      cmd: ["deno", "run", "-A", "./tests/fixture/main.ts"],
++    const serverProcess = new Deno.Command(Deno.execPath(), {
++      args: ["run", "-A", "./tests/fixture/main.ts"],
+       stdout: "piped",
+       stderr: "inherit",
+-    });
++    }).spawn();
+ 
+     const decoder = new TextDecoderStream();
+-    const lines = serverProcess.stdout.readable
++    const lines = serverProcess.stdout
+       .pipeThrough(decoder)
+       .pipeThrough(new TextLineStream());
+ 
+@@ -136,7 +135,6 @@ Deno.test({
+ 
+     await lines.cancel();
+     serverProcess.kill("SIGTERM");
+-    serverProcess.close();
+   },
+   sanitizeOps: false,
+   sanitizeResources: false,
+diff --git a/tests/islands_wasm_test.ts b/tests/islands_wasm_test.ts
+new file mode 100644
+index 00000000000..1cbd51852f1
+--- /dev/null
++++ b/tests/islands_wasm_test.ts
+@@ -0,0 +1,63 @@
++import { assert, delay, puppeteer, TextLineStream } from "./deps.ts";
++
++Deno.test({
++  name: "wasm island tests",
++  ignore: Deno.build.os === "windows",
++  async fn(t) {
++    // Preparation
++    const serverProcess = new Deno.Command(Deno.execPath(), {
++      args: ["run", "-A", "./tests/fixture/main_wasm.ts"],
++      stdout: "piped",
++    }).spawn();
++
++    const decoder = new TextDecoderStream();
++    const lines = serverProcess.stdout
++      .pipeThrough(decoder)
++      .pipeThrough(new TextLineStream());
++
++    let started = false;
++    for await (const line of lines) {
++      if (line.includes("Listening on http://")) {
++        started = true;
++        break;
++      }
++    }
++    if (!started) {
++      throw new Error("Server didn't start up");
++    }
++
++    await delay(100);
++
++    const browser = await puppeteer.launch({ args: ["--no-sandbox"] });
++    const page = await browser.newPage();
++
++    async function counterTest(counterId: string, originalValue: number) {
++      const pElem = await page.waitForSelector(`#${counterId} > p`);
++      let value = await pElem?.evaluate((el) => el.textContent);
++      assert(value === `${originalValue}`, `${counterId} first value`);
++
++      const buttonPlus = await page.$(`#b-${counterId}`);
++      await buttonPlus?.click();
++      await delay(100);
++      value = await pElem?.evaluate((el) => el.textContent);
++      assert(value === `${originalValue + 1}`, `${counterId} click`);
++    }
++
++    await page.goto("http://localhost:8000/islands", {
++      waitUntil: "networkidle2",
++    });
++
++    await t.step("Ensure 3 islands on 1 page are revived", async () => {
++      await counterTest("counter1", 3);
++      await counterTest("counter2", 10);
++      await counterTest("kebab-case-file-counter", 5);
++    });
++
++    await browser.close();
++
++    await lines.cancel();
++    serverProcess.kill("SIGTERM");
++  },
++  sanitizeOps: false,
++  sanitizeResources: false,
++});
+diff --git a/tests/main_test.ts b/tests/main_test.ts
+index ea4c3199255..5e8f7116e6e 100644
+--- a/tests/main_test.ts
++++ b/tests/main_test.ts
+@@ -500,9 +500,8 @@ Deno.test("experimental Deno.serve", {
+   ignore: Deno.build.os === "windows", // TODO: Deno.serve hang on Windows?
+ }, async (t) => {
+   // Preparation
+-  const serverProcess = Deno.run({
+-    cmd: [
+-      "deno",
++  const serverProcess = new Deno.Command(Deno.execPath(), {
++    args: [
+       "run",
+       "-A",
+       "--unstable",
+@@ -511,10 +510,10 @@ Deno.test("experimental Deno.serve", {
+     ],
+     stdout: "piped",
+     stderr: "inherit",
+-  });
++  }).spawn();
+ 
+   const decoder = new TextDecoderStream();
+-  const lines = serverProcess.stdout.readable
++  const lines = serverProcess.stdout
+     .pipeThrough(decoder)
+     .pipeThrough(new TextLineStream());
+ 
+@@ -556,13 +555,14 @@ Deno.test("experimental Deno.serve", {
+     assert(body.startsWith("bar"));
+     const etag = resp.headers.get("etag");
+     assert(etag);
+-    assert(!etag.startsWith("W/"), "etag should be weak");
++    // TODO(kt3k): Enable this assertion when new Deno.serve is released.
++    // https://github.com/denoland/deno/pull/18568
++    // assert(etag.startsWith("W/"), "etag should be weak");
+     assertEquals(resp.headers.get("content-type"), "text/plain");
+   });
+ 
+   await lines.cancel();
+   serverProcess.kill("SIGTERM");
+-  serverProcess.close();
+ });
+ 
+ Deno.test("jsx pragma works", {
+@@ -570,14 +570,14 @@ Deno.test("jsx pragma works", {
+   sanitizeResources: false,
+ }, async (t) => {
+   // Preparation
+-  const serverProcess = Deno.run({
+-    cmd: ["deno", "run", "-A", "./tests/fixture_jsx_pragma/main.ts"],
++  const serverProcess = new Deno.Command(Deno.execPath(), {
++    args: ["run", "-A", "./tests/fixture_jsx_pragma/main.ts"],
+     stdout: "piped",
+     stderr: "inherit",
+-  });
++  }).spawn();
+ 
+   const decoder = new TextDecoderStream();
+-  const lines = serverProcess.stdout.readable
++  const lines = serverProcess.stdout
+     .pipeThrough(decoder)
+     .pipeThrough(new TextLineStream());
+ 
+@@ -617,5 +617,4 @@ Deno.test("jsx pragma works", {
+ 
+   await lines.cancel();
+   serverProcess.kill("SIGTERM");
+-  serverProcess.close();
+ });
+diff --git a/tests/plugin_test.ts b/tests/plugin_test.ts
+index e7920e46061..0f1f067e162 100644
+--- a/tests/plugin_test.ts
++++ b/tests/plugin_test.ts
+@@ -54,14 +54,14 @@ Deno.test({
+   name: "/with-island hydration",
+   async fn(t) {
+     // Preparation
+-    const serverProcess = Deno.run({
+-      cmd: ["deno", "run", "-A", "./tests/fixture_plugin/main.ts"],
++    const serverProcess = new Deno.Command(Deno.execPath(), {
++      args: ["run", "-A", "./tests/fixture_plugin/main.ts"],
+       stdout: "piped",
+       stderr: "inherit",
+-    });
++    }).spawn();
+ 
+     const decoder = new TextDecoderStream();
+-    const lines = serverProcess.stdout.readable
++    const lines = serverProcess.stdout
+       .pipeThrough(decoder)
+       .pipeThrough(new TextLineStream());
+ 
+@@ -98,7 +98,6 @@ Deno.test({
+ 
+     await lines.cancel();
+     serverProcess.kill("SIGTERM");
+-    serverProcess.close();
+   },
+   sanitizeOps: false,
+   sanitizeResources: false,
+diff --git a/tests/twind_test.ts b/tests/twind_test.ts
+new file mode 100644
+index 00000000000..62ee355a326
+--- /dev/null
++++ b/tests/twind_test.ts
+@@ -0,0 +1,316 @@
++import { assert, delay, puppeteer, TextLineStream } from "./deps.ts";
++
++import { cmpStringArray } from "./fixture_twind_hydrate/utils/utils.ts";
++
++/**
++ * Start the server with the main file.
++ *
++ * Returns a page instance and a method to terminate the server.
++ */
++async function setUpServer(path: string) {
++  const serverProcessCmd = new Deno.Command("deno", {
++    args: [
++      "run",
++      "-A",
++      path,
++    ],
++    stdout: "piped",
++    stderr: "inherit",
++  });
++
++  const serverProcess = serverProcessCmd.spawn();
++
++  const lines = serverProcess.stdout
++    .pipeThrough(new TextDecoderStream())
++    .pipeThrough(new TextLineStream());
++
++  let started = false;
++
++  for await (const line of lines) {
++    if (line.includes("Listening on http://")) {
++      started = true;
++      break;
++    }
++  }
++  if (!started) {
++    throw new Error("Server didn't start up");
++  }
++
++  await delay(100);
++
++  const browser = await puppeteer.launch({ args: ["--no-sandbox"] });
++  const page = await browser.newPage();
++
++  /**
++   * terminate server
++   */
++  const terminate = async () => {
++    await browser.close();
++
++    serverProcess.kill("SIGKILL");
++    await serverProcess.status;
++
++    // TextDecoder leaks, so close it manually.
++    const denoResourcesMap = new Map(
++      Object.entries(Deno.resources()).map(([rid, representation]) => {
++        return [representation, parseInt(rid)];
++      }),
++    );
++    const textDecoderRid = denoResourcesMap.get("textDecoder");
++    if (textDecoderRid != null) {
++      Deno.close(textDecoderRid);
++    }
++  };
++
++  return { page: page, terminate: terminate };
++}
++
++/**
++ * Main file path
++ */
++const MAIN_FILE_PATH = "./tests/fixture_twind_hydrate/main.ts";
++
++Deno.test({
++  name: "twind static test",
++  async fn(t) {
++    // Preparation
++    const server = await setUpServer(MAIN_FILE_PATH);
++    const page = server.page;
++
++    /**
++     * Compare the class of element of any id with the selectorText of cssrules in stylesheet.
++     * Ensure that twind compliles the class of element.
++     */
++    async function compiledCssRulesTest(id: string, styleId: string) {
++      const elemClassList = await page.evaluate((selector) => {
++        const classList = document.querySelector(selector)?.classList;
++        if (classList != null) {
++          return Array.from(classList);
++        } else {
++          return [];
++        }
++      }, `#${id}`);
++      assert(elemClassList.length !== 0, `Element of id=${id} has no class`);
++
++      const twindCssRules = await page.evaluate((selector) => {
++        const styleElem = document.querySelector(selector);
++        if (styleElem == null) {
++          return [];
++        }
++        const cssRules = (styleElem as HTMLStyleElement).sheet?.cssRules;
++        if (cssRules == null) {
++          return [];
++        }
++
++        return Array.from(cssRules).map((cssRule) => {
++          const cssStyleRule = cssRule as CSSStyleRule;
++          return cssStyleRule.selectorText;
++        });
++      }, `#${styleId}`);
++
++      const twindCssRulesSet = new Set(twindCssRules);
++
++      for (const elemClass of elemClassList) {
++        assert(
++          twindCssRulesSet.has("." + elemClass),
++          `'${elemClass}' is not compiled by twind`,
++        );
++      }
++    }
++
++    await page.goto("http://localhost:8000/static", {
++      waitUntil: "networkidle2",
++    });
++
++    // For avoid leaking async ops.
++    await delay(10);
++
++    await t.step("Twind complies cssrules from dom class in ssr", async () => {
++      await compiledCssRulesTest("helloTwind", "__FRSH_TWIND");
++    });
++
++    await server.terminate();
++  },
++});
++
++Deno.test({
++  name: "No duplicate twind cssrules",
++  async fn(t) {
++    // Preparation
++    const server = await setUpServer(MAIN_FILE_PATH);
++    const page = server.page;
++
++    /**
++     * Ensure that the cssrule of the two style elements specified do not duplicate.
++     * PR946 fails and PR1050 passes.
++     */
++    async function noDuplicatesTest(
++      twindStyleElemSelector: string,
++      twindClaimedStyleElemSelector: string,
++    ) {
++      const twindCssRuleList = await page.evaluate((selector) => {
++        const elem = document.querySelector(selector) as HTMLStyleElement;
++        const cssRules = elem?.sheet?.cssRules;
++        if (cssRules != null) {
++          return Array.from(cssRules).map((el) => {
++            return el.cssText;
++          });
++        } else {
++          return null;
++        }
++      }, twindStyleElemSelector);
++
++      if (twindCssRuleList == null) {
++        assert(false, `StyleElement(${twindStyleElemSelector}) is no exists`);
++      }
++
++      const twindClaimedCssRuleList = await page.evaluate((selector) => {
++        const elem = document.querySelector(selector) as HTMLStyleElement;
++        const cssRules = elem?.sheet?.cssRules;
++        if (cssRules != null) {
++          return Array.from(cssRules).map((el) => {
++            return el.cssText;
++          });
++        } else {
++          return null;
++        }
++      }, twindClaimedStyleElemSelector);
++
++      if (twindClaimedCssRuleList == null) {
++        // There is only one style element by twind.
++        return;
++      }
++
++      const numDuplicates = cmpStringArray(
++        twindCssRuleList,
++        twindClaimedCssRuleList,
++      );
++
++      assert(false, `${numDuplicates} cssrules are duplicated`);
++    }
++
++    await page.goto("http://localhost:8000/check-duplication", {
++      waitUntil: "networkidle2",
++    });
++
++    // For avoid leaking async ops.
++    await delay(10);
++
++    await t.step("Ensure no dupulicate twind cssrules in islands", async () => {
++      await noDuplicatesTest(
++        "#__FRSH_TWIND",
++        '[data-twind="claimed"]:not(#__FRSH_TWIND)',
++      );
++    });
++
++    await server.terminate();
++  },
++});
++
++Deno.test({
++  name: "Dynamically insert cssrules",
++  async fn(t) {
++    // Preparation
++    const server = await setUpServer(MAIN_FILE_PATH);
++    const page = server.page;
++
++    /**
++     * Ensure that the class dynamically inserted in islands is compiled by twind.
++     * PR946 fails and PR1050 passes.
++     */
++    async function DynamicallyInsertCssrulesTest(twindStyleId: string) {
++      const numCssRulesBeforeInsert = await page.$eval(
++        `#${twindStyleId}`,
++        (el) => {
++          const styleElem = el as HTMLStyleElement;
++          const cssRules = styleElem.sheet?.cssRules;
++          const numCssRules = cssRules?.length;
++
++          return numCssRules != null ? numCssRules : NaN;
++        },
++      );
++
++      assert(
++        !isNaN(numCssRulesBeforeInsert),
++        "StyleElement(#${twindStyleId}) is no exists",
++      );
++
++      const classBeforeInsert = await page.$eval(
++        "#currentNumCssRules",
++        (el) => {
++          return Array.from(el.classList) as string[];
++        },
++      );
++
++      // After click, `text-green-600` is inserted to the class of the element in #currentNumCssRules.
++      await page.$eval("#insertCssRuleButton", (el) => {
++        return el.click();
++      });
++
++      const [numCssRulesAfterInsert, twindCssRulesAfterInsert] = await page
++        .$eval(`#${twindStyleId}`, (el) => {
++          const styleElem = el as HTMLStyleElement;
++          const cssRules = styleElem.sheet?.cssRules;
++          const numCssRules = cssRules?.length;
++          const cssRulesSelectorTextArray = cssRules != null
++            ? Array.from(cssRules).map((el) => {
++              return (el as CSSStyleRule).selectorText;
++            })
++            : null;
++
++          return [
++            numCssRules != null ? numCssRules : NaN,
++            cssRulesSelectorTextArray,
++          ] as [number, string[] | null];
++        });
++
++      assert(
++        !isNaN(numCssRulesAfterInsert),
++        `StyleElement(#${twindStyleId}) is no exists`,
++      );
++
++      const classAfterInsert = await page.$eval("#currentNumCssRules", (el) => {
++        return Array.from(el.classList) as string[];
++      });
++
++      const classBeforeInsertSet = new Set(classBeforeInsert);
++
++      const dynInsertedClassArray = classAfterInsert.filter((c) => {
++        return !classBeforeInsertSet.has(c);
++      });
++
++      // Check if the added class is compiled by twind.
++      const twindCssRulesAfterInsertSet = new Set(twindCssRulesAfterInsert);
++      for (const insertedClass of dynInsertedClassArray) {
++        assert(
++          twindCssRulesAfterInsertSet.has(`.${insertedClass}`),
++          `'${insertedClass} has been inserted into a style sheet other than <style id="${twindStyleId}">'`,
++        );
++      }
++
++      // If twind in csr monitors <style id="${twindStyleId}"> ,
++      // the class(not compiled) just inserted will be compiled
++      // and the cssrule will increase.
++      assert(
++        numCssRulesBeforeInsert !== numCssRulesAfterInsert,
++        `Cssrule has been inserted into a style sheet other than <style id="${twindStyleId}"> or it was compiled at the time of SSR.`,
++      );
++    }
++
++    await page.goto("http://localhost:8000/insert-cssrules", {
++      waitUntil: "networkidle2",
++    });
++
++    // For avoid leaking async ops.
++    await delay(10);
++
++    await t.step(
++      "Ensure that the class dynamically inserted in islands is compiled",
++      async () => {
++        await DynamicallyInsertCssrulesTest("__FRSH_TWIND");
++      },
++    );
++
++    await server.terminate();
++  },
++});
+diff --git a/versions.json b/versions.json
+index ae3da55b722..2499476a1e8 100644
+--- a/versions.json
++++ b/versions.json
+@@ -1,4 +1,5 @@
+ [
++  "1.1.5",
+   "1.1.4",
+   "1.1.3",
+   "1.1.2",
+diff --git a/www/data/showcase.json b/www/data/showcase.json
+index abb79570d05..33bc35964c1 100644
+--- a/www/data/showcase.json
++++ b/www/data/showcase.json
+@@ -257,7 +257,7 @@
+     "title": "Denosoar",
+     "link": "https://denosoar.deno.dev/",
+     "github": "Denosoar-GUI/Denosoar-GUI",
+-    "image": "super-deno"
++    "image": "Denosoar"
+   },
+   {
+     "title": "link-maker",
+@@ -265,6 +265,12 @@
+     "github": "kuizuo/link-maker",
+     "image": "link-maker"
+   },
++  {
++    "title": "Delicious",
++    "link": "https://sking.deno.dev/",
++    "github": "shijianzhong/fresh-blog-system",
++    "image": "fresh-blog-system"
++  },
+   {
+     "title": "Do not remove this, it's for prevent conflicting by trailing comma",
+     "link": "",
+diff --git a/www/import_map.json b/www/import_map.json
+index d70a93c3381..8a2dcbabb01 100644
+--- a/www/import_map.json
++++ b/www/import_map.json
+@@ -1,17 +1,14 @@
+ {
+   "imports": {
+     "$fresh/": "../",
+-
+-    "twind": "https://esm.sh/twind@0.16.17",
+-    "twind/": "https://esm.sh/twind@0.16.17/",
+-
+-    "preact": "https://esm.sh/preact@10.11.0",
+-    "preact/": "https://esm.sh/preact@10.11.0/",
+-    "preact-render-to-string": "https://esm.sh/*preact-render-to-string@5.2.4",
+-    "@preact/signals": "https://esm.sh/*@preact/signals@1.0.3",
+-    "@preact/signals-core": "https://esm.sh/@preact/signals-core@1.0.1",
+-
+-    "$std/": "https://deno.land/std@0.150.0/",
++    "twind": "https://esm.sh/twind@0.16.19",
++    "twind/": "https://esm.sh/twind@0.16.19/",
++    "preact": "https://esm.sh/preact@10.13.1",
++    "preact/": "https://esm.sh/preact@10.13.1/",
++    "preact-render-to-string": "https://esm.sh/*preact-render-to-string@5.2.6",
++    "@preact/signals": "https://esm.sh/*@preact/signals@1.1.3",
++    "@preact/signals-core": "https://esm.sh/@preact/signals-core@1.2.3",
++    "$std/": "https://deno.land/std@0.178.0/",
+     "$ga4": "https://raw.githubusercontent.com/denoland/ga4/main/mod.ts"
+   }
+ }
+diff --git a/www/main_test.ts b/www/main_test.ts
+index 98db2d1184c..d2803d57e5e 100644
+--- a/www/main_test.ts
++++ b/www/main_test.ts
+@@ -1,17 +1,19 @@
+ import { assertEquals } from "$std/testing/asserts.ts";
+-import { TextLineStream } from "$std/streams/delimiter.ts";
++import { TextLineStream } from "$std/streams/text_line_stream.ts";
++import { delay } from "$std/async/delay.ts";
+ 
+ Deno.test("CORS should not set on GET /fresh-badge.svg", {
+   sanitizeResources: false,
+ }, async () => {
+-  const serverProcess = Deno.run({
+-    cmd: ["deno", "run", "-A", "./main.ts"],
++  const serverProcess = new Deno.Command(Deno.execPath(), {
++    args: ["run", "-A", "./main.ts"],
+     stdin: "null",
+     stdout: "piped",
+     stderr: "inherit",
+-  });
++  }).spawn();
++
+   const decoder = new TextDecoderStream();
+-  const lines = serverProcess.stdout.readable
++  const lines = serverProcess.stdout
+     .pipeThrough(decoder)
+     .pipeThrough(new TextLineStream());
+ 
+@@ -33,5 +35,6 @@ Deno.test("CORS should not set on GET /fresh-badge.svg", {
+ 
+   await lines.cancel();
+   serverProcess.kill("SIGTERM");
+-  serverProcess.close();
++  // await for the server to close
++  await delay(100);
+ });
+diff --git a/www/static/showcase/fresh-blog-system1x.jpg b/www/static/showcase/fresh-blog-system1x.jpg
+new file mode 100644
+index 00000000000..b222e8d2c65
+Binary files /dev/null and b/www/static/showcase/fresh-blog-system1x.jpg differ
+diff --git a/www/static/showcase/fresh-blog-system2x.jpg b/www/static/showcase/fresh-blog-system2x.jpg
+new file mode 100644
+index 00000000000..a7e11a3bd28
+Binary files /dev/null and b/www/static/showcase/fresh-blog-system2x.jpg differ
+diff --git a/www/utils/markdown.ts b/www/utils/markdown.ts
+index b880e64b112..e3da90d40d8 100644
+--- a/www/utils/markdown.ts
++++ b/www/utils/markdown.ts
+@@ -1,7 +1,7 @@
+-export * as gfm from "https://deno.land/x/gfm@0.1.23/mod.ts";
+-import "https://esm.sh/prismjs@1.27.0/components/prism-jsx.js?no-check";
+-import "https://esm.sh/prismjs@1.27.0/components/prism-typescript.js?no-check";
+-import "https://esm.sh/prismjs@1.27.0/components/prism-tsx.js?no-check";
+-import "https://esm.sh/prismjs@1.27.0/components/prism-diff.js?no-check";
++export * as gfm from "https://deno.land/x/gfm@0.2.1/mod.ts";
++import "https://esm.sh/prismjs@1.29.0/components/prism-jsx.js?no-check";
++import "https://esm.sh/prismjs@1.29.0/components/prism-typescript.js?no-check";
++import "https://esm.sh/prismjs@1.29.0/components/prism-tsx.js?no-check";
++import "https://esm.sh/prismjs@1.29.0/components/prism-diff.js?no-check";
+ 
+-export { extract as frontMatter } from "$std/encoding/front_matter.ts";
++export { extract as frontMatter } from "$std/encoding/front_matter/yaml.ts";
+diff --git a/www/utils/screenshot.ts b/www/utils/screenshot.ts
+index c98adc62048..aa287b02767 100644
+--- a/www/utils/screenshot.ts
++++ b/www/utils/screenshot.ts
+@@ -1,6 +1,6 @@
+ import puppeteer from "https://deno.land/x/puppeteer@16.2.0/mod.ts";
+-import { Image } from "https://deno.land/x/imagescript@v1.2.14/mod.ts";
+-import { join } from "https://deno.land/std@0.137.0/path/mod.ts";
++import { Image } from "https://deno.land/x/imagescript@1.2.15/mod.ts";
++import { join } from "https://deno.land/std@0.178.0/path/mod.ts";
+ 
+ const url = Deno.args[0];
+ const id = Deno.args[1];

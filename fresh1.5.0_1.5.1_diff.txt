@@ -1,0 +1,1747 @@
+diff --git a/docs/latest/concepts/partials.md b/docs/latest/concepts/partials.md
+index ae2a403459c..94266c4fa97 100644
+--- a/docs/latest/concepts/partials.md
++++ b/docs/latest/concepts/partials.md
+@@ -48,12 +48,12 @@ Behind the scenes, when the user clicks an `<a>`-tag, Fresh fetches the new page
+ and only pulls out the relevant content out of the HTML response. When it finds
+ a matching partial area it will update the content inside the partial.
+ 
+-> ℹ️ The `name` prop of the `<Partial>` component is expected to be unique among
+-> Partials. That's how Fresh knows which parts of the response need to go on the
+-> current page.
++> [info]: The `name` prop of the `<Partial>` component is expected to be unique
++> among Partials. That's how Fresh knows which parts of the response need to go
++> on the current page.
+ 
+-> ℹ️ Passing `f-client-nav={false}` disables client side navigation and partials
+-> for the current elements and the elements below it.
++> [info]: Passing `f-client-nav={false}` disables client side navigation for all
++> elements below the current node.
+ 
+ ### Optimizing partial requests
+ 
+@@ -194,5 +194,5 @@ export default function LogView() {
+ }
+ ```
+ 
+-> ℹ️ When picking the `prepend` or `append` mode, make sure to add keys to the
+-> elements.
++> [info]: When picking the `prepend` or `append` mode, make sure to add keys to
++> the elements.
+diff --git a/docs/latest/concepts/server-configuration.md b/docs/latest/concepts/server-configuration.md
+index 31b3f09fcd9..e0e609113ef 100644
+--- a/docs/latest/concepts/server-configuration.md
++++ b/docs/latest/concepts/server-configuration.md
+@@ -8,22 +8,16 @@ In this page we discuss how the server can be configured during startup.
+ The signature of the primary method looks like this:
+ 
+ ```ts main.ts
+-export async function start(routes: Manifest, opts: StartOptions = {});
++export async function start(manifest: Manifest, config: FreshConfig = {});
+ ```
+ 
+-## Options
++## Configuration
+ 
+-`Manifest` comes from `fresh.gen.ts`, so nothing to do there. `opts` is where
+-things get interesting. `StartOptions` looks like this:
+-
+-```
+-export type StartOptions = ServeInit & FreshOptions;
+-```
+-
+-The good stuff is really in...
++`Manifest` comes from `fresh.gen.ts`, so nothing to do there. `config` is where
++things get interesting. `FreshConfig` looks like this:
+ 
+ ```ts
+-export interface FreshOptions {
++export interface FreshConfig {
+   render?: RenderFunction;
+   plugins?: Plugin[];
+   staticDir?: string;
+diff --git a/docs/latest/examples/index.md b/docs/latest/examples/index.md
+index 5e78cd82bb5..39876d8cae0 100644
+--- a/docs/latest/examples/index.md
++++ b/docs/latest/examples/index.md
+@@ -19,5 +19,4 @@ like to see here, please open
+ - [Handling complex routes](./examples/handling-complex-routes)
+ - [Rendering markdown](./examples/rendering-markdown)
+ - [Sharing state between islands](./examples/sharing-state-between-islands)
+-- [Using Deno KV Oauth](./examples/using-deno-kv-oauth)
+ - [Using CSP](./examples/using-csp)
+diff --git a/docs/latest/examples/using-deno-kv-oauth.md b/docs/latest/examples/using-deno-kv-oauth.md
+deleted file mode 100644
+index 33d58ccd3c3..00000000000
+--- a/docs/latest/examples/using-deno-kv-oauth.md
++++ /dev/null
+@@ -1,170 +0,0 @@
+----
+-description: Easily integrate OAuth 2.0 into your Fresh project with the official Deno KV OAuth plugin.
+----
+-
+-> ⚠️ Please note that this functionality relies on
+-> [Deno KV](https://deno.com/manual/runtime/kv) which is currently marked as
+-> **experimental** and is **subject to change**. It is only available when using
+-> the `--unstable` flag.
+-
+-> ⚠️ Please note that Deno KV OAuth is still in **beta** and is **subject to
+-> change**. See [the documentation](https://deno.land/x/deno_kv_oauth) for
+-> further details.
+-
+-> ⚠️ Please note that the **minimum required version** for plugins in Fresh is
+-> **1.3.0**.
+-
+-Fresh comes with an official Deno KV OAuth plugin based on the first-party
+-[Deno KV OAuth](https://deno.land/x/deno_kv_oauth) module. This plugin creates
+-and configures your OAuth routes for your Fresh project.
+-
+-## Basic Setup
+-
+-The most basic setup is that using a single provider with a pre-defined OAuth
+-configuration. This automatically creates the following routes:
+-
+-- `GET /oauth/signin`
+-- `GET /oauth/callback`
+-- `GET /oauth/signout`
+-
+-This is implemented as follows:
+-
+-1. Create your OAuth 2.0 application for your given provider.
+-
+-   > This example uses GitHub. However, you can choose from a list of providers
+-   > that have pre-defined configurations
+-   > [here](https://deno.land/x/deno_kv_oauth#providers).
+-
+-1. Create your pre-defined OAuth configuration and configure Fresh to use the
+-   plugin.
+-
+-   ```ts main.ts
+-   import { start } from "$fresh/server.ts";
+-   import {
+-     createGitHubOAuth2Client,
+-     createRoutes,
+-   } from "$fresh/plugins/kv_oauth.ts";
+-   import manifest from "./fresh.gen.ts";
+-
+-   await start(manifest, {
+-     plugins: [
+-       {
+-         name: "kv-oauth",
+-         routes: createRoutes(createGitHubOAuth2Client()),
+-       },
+-     ],
+-   });
+-   ```
+-
+-1. Create and configure your protected route(s) using
+-   [`getSessionId()`](https://deno.land/x/deno_kv_oauth/mod.ts?s=getSessionId).
+-
+-   ```ts routes/protected.ts
+-   import type { Handlers } from "$fresh/server.ts";
+-   import { getSessionId } from "$fresh/plugins/kv_oauth.ts";
+-
+-   export const handler: Handlers = {
+-     async GET(req) {
+-       return getSessionId(request) === undefined
+-         ? new Response("Unauthorized", { status: 401 })
+-         : new Response("You are allowed");
+-     },
+-   };
+-   ```
+-
+-1. ⚠️ While Deno KV is still **experimental** you need to add the `--unstable`
+-   option to the `start` task in the `deno.json` file.
+-
+-   ```json
+-   "start": "deno run -A --watch=static/,routes/ --unstable dev.ts",
+-   ```
+-
+-1. Start your project with the necessary environment variables.
+-
+-   ```sh
+-   GITHUB_CLIENT_ID=xxx GITHUB_CLIENT_SECRET=xxx deno task start
+-   ```
+-
+-## Further Setup
+-
+-The plugin is capable of having multiple providers, custom OAuth configurations
+-and custom parent OAuth routes. These are implemented similar to the above
+-example, as follows:
+-
+-1. Create your OAuth 2.0 applications for your given providers.
+-
+-1. Create your configurations and configure Fresh to use the plugin.
+-
+-   ```ts main.ts
+-   import { start } from "$fresh/server.ts";
+-   import {
+-     createNotionOAuthConfig,
+-     createRoutes,
+-   } from "$fresh/plugins/kv_oauth.ts";
+-   import manifest from "./fresh.gen.ts";
+-
+-   await start(manifest, {
+-     plugins: [
+-       {
+-         name: "kv-oauth",
+-         routes: [
+-           ...createRoutes(createNotionOAuthConfig(), "/oauth/notion"),
+-           ...createRoutes({
+-             clientId: getRequiredEnv("CUSTOM_CLIENT_ID"),
+-             clientSecret: getRequiredEnv("CUSTOM_CLIENT_SECRET"),
+-             authorizationEndpointUri: "https://custom.com/oauth/authorize",
+-             tokenUri: "https://custom.com/oauth/token",
+-             redirectUri: "https://my-site.com/oauth/custom/callback",
+-           }, "/oauth/custom"),
+-         ],
+-       },
+-     ],
+-   });
+-   ```
+-
+-   > Here, the 2nd parameter of `createRoutes()` is used to set the parent path
+-   > for OAuth routes.
+-
+-1. Create and configure your protected route(s) using
+-   [`getSessionId()`](https://deno.land/x/deno_kv_oauth/mod.ts?s=getSessionId).
+-
+-   ```ts routes/protected.ts
+-   import type { Handlers } from "$fresh/server.ts";
+-   import { getSessionId } from "$fresh/plugins/kv_oauth.ts";
+-
+-   export const handler: Handlers = {
+-     async GET(req) {
+-       return getSessionId(request) === undefined
+-         ? new Response("Unauthorized", { status: 401 })
+-         : new Response("You are allowed");
+-     },
+-   };
+-   ```
+-
+-1. ⚠️ While Deno KV is still **experimental** you need to add the `--unstable`
+-   option to the `start` task in the `deno.json` file.
+-
+-   ```json
+-   "start": "deno run -A --watch=static/,routes/ --unstable dev.ts",
+-   ```
+-
+-1. Start your project with the necessary environment variables.
+-
+-   ```sh
+-   NOTION_CLIENT_ID=xxx NOTION_CLIENT_SECRET=xxx CUSTOM_CLIENT_ID=yyy CUSTOM_CLIENT_SECRET=yyy deno task start
+-   ```
+-
+-### Advanced Setups
+-
+-If you require more advanced setups, you can create your own custom plugin that
+-defines the routes and their behaviors. To do this, check out the following
+-resources:
+-
+-- The [source code](plugins/kv_oauth.ts) for the Deno KV OAuth plugin
+-- The [documentation](https://fresh.deno.dev/docs/concepts/plugins) for plugins
+-- The
+-  [Fresh + Deno KV OAuth demo](https://github.com/denoland/fresh-deno-kv-oauth-demo)
+-  which uses the Fresh plugin
+-- [Deno SaaSKit](https://saaskit.deno.dev/)'s custom
+-  [plugin implementation](https://github.com/denoland/saaskit/blob/3accffdc44c2d2eb6dba28126f8d4cb525eba340/plugins/kv_oauth.ts)
+-  as an example
+diff --git a/docs/latest/getting-started/running-locally.md b/docs/latest/getting-started/running-locally.md
+index ac629e6cbd3..7c76c6a1650 100644
+--- a/docs/latest/getting-started/running-locally.md
++++ b/docs/latest/getting-started/running-locally.md
+@@ -35,7 +35,7 @@ passing the extra folder as an argument: `--watch=static/`. You should also add
+ `routes/` to the watch list, so that the server restarts automatically whenever
+ you add a new route.
+ 
+-If you want to change the port or host, modify the options bag of the `start()`
++If you want to change the port or host, modify the config bag of the `start()`
+ call in `main.ts` to include an explicit port number:
+ 
+ ```js main.ts
+diff --git a/docs/toc.ts b/docs/toc.ts
+index d0dd258b08b..7c1ed368dca 100644
+--- a/docs/toc.ts
++++ b/docs/toc.ts
+@@ -95,7 +95,6 @@ const toc: RawTableOfContents = {
+             "Sharing state between islands",
+             "link:latest",
+           ],
+-          ["using-deno-kv-oauth", "Using Deno KV OAuth", "link:latest"],
+           ["using-csp", "Using CSP", "link:latest"],
+           ["active-links", "Styling active links", "link:latest"],
+         ],
+@@ -162,7 +161,6 @@ const toc: RawTableOfContents = {
+           ["handling-complex-routes", "Handling complex routes"],
+           ["rendering-markdown", "Rendering markdown"],
+           ["sharing-state-between-islands", "Sharing state between islands"],
+-          ["using-deno-kv-oauth", "Using Deno KV OAuth"],
+           ["using-csp", "Using CSP"],
+           ["active-links", "Styling active links"],
+         ],
+diff --git a/plugins/kv_oauth.ts b/plugins/kv_oauth.ts
+deleted file mode 100644
+index aa186af17c8..00000000000
+--- a/plugins/kv_oauth.ts
++++ /dev/null
+@@ -1,72 +0,0 @@
+-import {
+-  createAuth0OAuthConfig,
+-  createDiscordOAuthConfig,
+-  createDropboxOAuthConfig,
+-  createFacebookOAuthConfig,
+-  createGitHubOAuthConfig,
+-  createGitLabOAuthConfig,
+-  createGoogleOAuthConfig,
+-  createNotionOAuthConfig,
+-  createOktaOAuthConfig,
+-  createPatreonOAuthConfig,
+-  createSlackOAuthConfig,
+-  createSpotifyOAuthConfig,
+-  createTwitterOAuthConfig,
+-  getRequiredEnv,
+-  handleCallback,
+-  type OAuth2ClientConfig,
+-  signIn,
+-  signOut,
+-} from "https://deno.land/x/deno_kv_oauth@v0.9.1/mod.ts";
+-import type { Handler } from "$fresh/server.ts";
+-
+-export {
+-  createAuth0OAuthConfig,
+-  createDiscordOAuthConfig,
+-  createDropboxOAuthConfig,
+-  createFacebookOAuthConfig,
+-  createGitHubOAuthConfig,
+-  createGitLabOAuthConfig,
+-  createGoogleOAuthConfig,
+-  createNotionOAuthConfig,
+-  createOktaOAuthConfig,
+-  createPatreonOAuthConfig,
+-  createSlackOAuthConfig,
+-  createSpotifyOAuthConfig,
+-  createTwitterOAuthConfig,
+-  getRequiredEnv,
+-  type OAuth2ClientConfig,
+-};
+-
+-/** @see {@link https://fresh.deno.dev/docs/examples/using-deno-kv-oauth} */
+-export function createRoutes<T extends string = "/oauth">(
+-  oauthConfig: OAuth2ClientConfig,
+-  /** Parent path for sign-in, callback and sign-out pages. */
+-  oauthPath = "/oauth" as T,
+-): [
+-  { path: `${T}/signin`; handler: Handler },
+-  { path: `${T}/callback`; handler: Handler },
+-  { path: `${T}/signout`; handler: Handler },
+-] {
+-  return [
+-    {
+-      path: `${oauthPath}/signin`,
+-      handler: async (req) => await signIn(req, oauthConfig),
+-    },
+-    {
+-      path: `${oauthPath}/callback`,
+-      handler: async (req) => {
+-        // Return object also includes `accessToken` and `sessionId` properties.
+-        const { response } = await handleCallback(
+-          req,
+-          oauthConfig,
+-        );
+-        return response;
+-      },
+-    },
+-    {
+-      path: `${oauthPath}/signout`,
+-      handler: signOut,
+-    },
+-  ];
+-}
+diff --git a/plugins/kv_oauth_test.ts b/plugins/kv_oauth_test.ts
+deleted file mode 100644
+index fd3da688516..00000000000
+--- a/plugins/kv_oauth_test.ts
++++ /dev/null
+@@ -1,48 +0,0 @@
+-// Copyright 2023 the Deno authors. All rights reserved. MIT license.
+-import { assertArrayIncludes } from "$std/testing/asserts.ts";
+-import { colors } from "$fresh/src/server/deps.ts";
+-import { createRoutes } from "$fresh/plugins/kv_oauth.ts";
+-
+-function randomOAuthConfig() {
+-  return {
+-    clientId: crypto.randomUUID(),
+-    clientSecret: crypto.randomUUID(),
+-    authorizationEndpointUri: `http://${crypto.randomUUID()}.com/authorize`,
+-    tokenUri: `http://${crypto.randomUUID()}.com/token`,
+-  };
+-}
+-
+-// @ts-ignore openKv is only available with --unstable
+-const isKvEnabled = typeof Deno.openKv === "function";
+-if (!isKvEnabled) {
+-  console.log(
+-    colors.yellow(`Skipping Deno KV tests. Pass "--unstable" to run them.`),
+-  );
+-}
+-
+-Deno.test({
+-  name: "createRoutes() has all handlers defined with default OAuth path",
+-  ignore: !isKvEnabled,
+-  fn: () => {
+-    const routes = createRoutes(randomOAuthConfig());
+-    assertArrayIncludes(routes.map((route) => route.path), [
+-      "/oauth/signin",
+-      "/oauth/callback",
+-      "/oauth/signout",
+-    ]);
+-  },
+-});
+-
+-Deno.test({
+-  name: "createRoutes() has all handlers defined with set OAuth path",
+-  ignore: !isKvEnabled,
+-  fn: () => {
+-    const oauthPath = "/" + crypto.randomUUID();
+-    const routes = createRoutes(randomOAuthConfig(), oauthPath);
+-    assertArrayIncludes(routes.map((route) => route.path), [
+-      oauthPath + "/signin",
+-      oauthPath + "/callback",
+-      oauthPath + "/signout",
+-    ]);
+-  },
+-});
+diff --git a/src/dev/build.ts b/src/dev/build.ts
+index 3e61139120b..2e59e3ffc2f 100644
+--- a/src/dev/build.ts
++++ b/src/dev/build.ts
+@@ -3,10 +3,10 @@ import { join } from "../server/deps.ts";
+ import { colors, fs } from "./deps.ts";
+ import { BuildSnapshotJson } from "../build/mod.ts";
+ import { BUILD_ID } from "../server/build_id.ts";
+-import { InternalFreshOptions } from "../server/types.ts";
++import { InternalFreshConfig } from "../server/types.ts";
+ 
+ export async function build(
+-  config: InternalFreshOptions,
++  config: InternalFreshConfig,
+ ) {
+   // Ensure that build dir is empty
+   await fs.emptyDir(config.build.outDir);
+diff --git a/src/dev/dev_command.ts b/src/dev/dev_command.ts
+index dd3d5c9340e..177af3175f3 100644
+--- a/src/dev/dev_command.ts
++++ b/src/dev/dev_command.ts
+@@ -1,6 +1,6 @@
+ import { updateCheck } from "./update_check.ts";
+ import { DAY, dirname, fromFileUrl, join, toFileUrl } from "./deps.ts";
+-import { FreshOptions, Manifest as ServerManifest } from "../server/mod.ts";
++import { FreshConfig, Manifest as ServerManifest } from "../server/mod.ts";
+ import { build } from "./build.ts";
+ import { collect, ensureMinDenoVersion, generate, Manifest } from "./mod.ts";
+ import { startFromContext } from "../server/boot.ts";
+@@ -10,7 +10,7 @@ import { getServerContext } from "$fresh/src/server/context.ts";
+ export async function dev(
+   base: string,
+   entrypoint: string,
+-  options?: FreshOptions,
++  config?: FreshConfig,
+ ) {
+   ensureMinDenoVersion();
+ 
+@@ -26,7 +26,7 @@ export async function dev(
+   } else {
+     currentManifest = { islands: [], routes: [] };
+   }
+-  const newManifest = await collect(dir, options?.router?.ignoreFilePattern);
++  const newManifest = await collect(dir, config?.router?.ignoreFilePattern);
+   Deno.env.set("FRSH_DEV_PREVIOUS_MANIFEST", JSON.stringify(newManifest));
+ 
+   const manifestChanged =
+@@ -39,22 +39,22 @@ export async function dev(
+     .default as ServerManifest;
+ 
+   if (Deno.args.includes("build")) {
+-    const config = await getFreshConfigWithDefaults(
++    const configWithDefaults = await getFreshConfigWithDefaults(
+       manifest,
+-      options ?? {},
++      config ?? {},
+     );
+-    config.dev = false;
+-    config.loadSnapshot = false;
+-    await build(config);
+-  } else if (options) {
+-    const config = await getFreshConfigWithDefaults(
++    configWithDefaults.dev = false;
++    configWithDefaults.loadSnapshot = false;
++    await build(configWithDefaults);
++  } else if (config) {
++    const configWithDefaults = await getFreshConfigWithDefaults(
+       manifest,
+-      options,
++      config,
+     );
+-    config.dev = true;
+-    config.loadSnapshot = false;
+-    const ctx = await getServerContext(config);
+-    await startFromContext(ctx, config.server);
++    configWithDefaults.dev = true;
++    configWithDefaults.loadSnapshot = false;
++    const ctx = await getServerContext(configWithDefaults);
++    await startFromContext(ctx, configWithDefaults.server);
+   } else {
+     // Legacy entry point: Back then `dev.ts` would call `main.ts` but
+     // this causes duplicate plugin instantiation if both `dev.ts` and
+diff --git a/src/runtime/entrypoints/main.ts b/src/runtime/entrypoints/main.ts
+index 88a01d2e248..baa047d8db7 100644
+--- a/src/runtime/entrypoints/main.ts
++++ b/src/runtime/entrypoints/main.ts
+@@ -910,8 +910,10 @@ document.addEventListener("click", async (e) => {
+     ) {
+       const partial = el.getAttribute(PARTIAL_ATTR);
+ 
+-      // Check if the user opted out of client side navigation.
++      // Check if the user opted out of client side navigation or if
++      // we're doing a fragment navigation.
+       if (
++        el.getAttribute("href")?.startsWith("#") ||
+         !checkClientNavEnabled() ||
+         el.closest(`[${CLIENT_NAV_ATTR}="true"]`) === null
+       ) {
+diff --git a/src/server/config.ts b/src/server/config.ts
+index da382e8a79f..e310d0ad227 100644
+--- a/src/server/config.ts
++++ b/src/server/config.ts
+@@ -1,6 +1,6 @@
+ import { dirname, fromFileUrl, isAbsolute, join, JSONC } from "./deps.ts";
+-import { FromManifestOptions, Manifest } from "./mod.ts";
+-import { DenoConfig, InternalFreshOptions } from "./types.ts";
++import { FromManifestConfig, Manifest } from "./mod.ts";
++import { DenoConfig, InternalFreshConfig } from "./types.ts";
+ 
+ export async function readDenoConfig(
+   directory: string,
+@@ -39,8 +39,8 @@ function isObject(value: unknown) {
+ 
+ export async function getFreshConfigWithDefaults(
+   manifest: Manifest,
+-  opts: FromManifestOptions,
+-): Promise<InternalFreshOptions> {
++  config: FromManifestConfig,
++): Promise<InternalFreshConfig> {
+   const base = dirname(fromFileUrl(manifest.baseUrl));
+   const { config: denoJson, path: denoJsonPath } = await readDenoConfig(base);
+ 
+@@ -50,59 +50,59 @@ export async function getFreshConfigWithDefaults(
+     );
+   }
+ 
+-  const config: InternalFreshOptions = {
+-    loadSnapshot: typeof opts.skipSnapshot === "boolean"
+-      ? !opts.skipSnapshot
++  const internalConfig: InternalFreshConfig = {
++    loadSnapshot: typeof config.skipSnapshot === "boolean"
++      ? !config.skipSnapshot
+       : false,
+-    dev: opts.dev ?? false,
++    dev: config.dev ?? false,
+     denoJsonPath,
+     denoJson,
+     manifest,
+     build: {
+       outDir: "",
+-      target: opts.build?.target ?? ["chrome99", "firefox99", "safari15"],
++      target: config.build?.target ?? ["chrome99", "firefox99", "safari15"],
+     },
+-    plugins: opts.plugins ?? [],
++    plugins: config.plugins ?? [],
+     staticDir: "",
+-    render: opts.render,
+-    router: opts.router,
+-    server: opts.server ?? {},
++    render: config.render,
++    router: config.router,
++    server: config.server ?? {},
+   };
+ 
+-  if (opts.cert) {
+-    config.server.cert = opts.cert;
++  if (config.cert) {
++    internalConfig.server.cert = config.cert;
+   }
+-  if (opts.hostname) {
+-    config.server.hostname = opts.hostname;
++  if (config.hostname) {
++    internalConfig.server.hostname = config.hostname;
+   }
+-  if (opts.key) {
+-    config.server.key = opts.key;
++  if (config.key) {
++    internalConfig.server.key = config.key;
+   }
+-  if (opts.onError) {
+-    config.server.onError = opts.onError;
++  if (config.onError) {
++    internalConfig.server.onError = config.onError;
+   }
+-  if (opts.onListen) {
+-    config.server.onListen = opts.onListen;
++  if (config.onListen) {
++    internalConfig.server.onListen = config.onListen;
+   }
+-  if (opts.port) {
+-    config.server.port = opts.port;
++  if (config.port) {
++    internalConfig.server.port = config.port;
+   }
+-  if (opts.reusePort) {
+-    config.server.reusePort = opts.reusePort;
++  if (config.reusePort) {
++    internalConfig.server.reusePort = config.reusePort;
+   }
+-  if (opts.signal) {
+-    config.server.signal = opts.signal;
++  if (config.signal) {
++    internalConfig.server.signal = config.signal;
+   }
+ 
+-  config.build.outDir = opts.build?.outDir
+-    ? parseFileOrUrl(opts.build.outDir, base)
++  internalConfig.build.outDir = config.build?.outDir
++    ? parseFileOrUrl(config.build.outDir, base)
+     : join(base, "_fresh");
+ 
+-  config.staticDir = opts.staticDir
+-    ? parseFileOrUrl(opts.staticDir, base)
++  internalConfig.staticDir = config.staticDir
++    ? parseFileOrUrl(config.staticDir, base)
+     : join(base, "static");
+ 
+-  return config;
++  return internalConfig;
+ }
+ 
+ function parseFileOrUrl(input: string, base: string) {
+diff --git a/src/server/context.ts b/src/server/context.ts
+index 4b2af5ad861..6cc5a533745 100644
+--- a/src/server/context.ts
++++ b/src/server/context.ts
+@@ -9,7 +9,7 @@ import {
+ } from "./deps.ts";
+ import { ComponentType, h } from "preact";
+ import * as router from "./router.ts";
+-import { Manifest } from "./mod.ts";
++import { FreshConfig, Manifest } from "./mod.ts";
+ import { ALIVE_URL, JS_PREFIX, REFRESH_JS_URL } from "./constants.ts";
+ import { BUILD_ID, setBuildId } from "./build_id.ts";
+ import DefaultErrorHandler from "./default_error_page.tsx";
+@@ -18,9 +18,8 @@ import {
+   BaseRoute,
+   ErrorPage,
+   ErrorPageModule,
+-  FreshOptions,
+   Handler,
+-  InternalFreshOptions,
++  InternalFreshConfig,
+   Island,
+   LayoutModule,
+   LayoutRoute,
+@@ -79,12 +78,17 @@ interface StaticFile {
+   etag: string;
+ }
+ 
+-export type FromManifestOptions = FreshOptions & {
++/**
++ * @deprecated Use {@linkcode FromManifestConfig} instead
++ */
++export type FromManifestOptions = FromManifestConfig;
++
++export type FromManifestConfig = FreshConfig & {
+   skipSnapshot?: boolean;
+   dev?: boolean;
+ };
+ 
+-export async function getServerContext(opts: InternalFreshOptions) {
++export async function getServerContext(opts: InternalFreshConfig) {
+   const { manifest, denoJson: config, denoJsonPath: configPath } = opts;
+   // Get the manifest' base URL.
+   const baseUrl = new URL("./", manifest.baseUrl).href;
+@@ -455,18 +459,21 @@ export class ServerContext {
+    */
+   static async fromManifest(
+     manifest: Manifest,
+-    opts: FromManifestOptions,
++    config: FromManifestConfig,
+   ): Promise<ServerContext> {
+     const isLegacyDev = Deno.env.get("__FRSH_LEGACY_DEV") === "true";
+-    opts.dev = isLegacyDev ||
+-      Boolean(opts.dev);
++    config.dev = isLegacyDev ||
++      Boolean(config.dev);
+ 
+     if (isLegacyDev) {
+-      opts.skipSnapshot = true;
++      config.skipSnapshot = true;
+     }
+ 
+-    const config = await getFreshConfigWithDefaults(manifest, opts);
+-    return getServerContext(config);
++    const configWithDefaults = await getFreshConfigWithDefaults(
++      manifest,
++      config,
++    );
++    return getServerContext(configWithDefaults);
+   }
+ 
+   /**
+diff --git a/src/server/defines.ts b/src/server/defines.ts
+index b396ffd7ef8..61718abd1c7 100644
+--- a/src/server/defines.ts
++++ b/src/server/defines.ts
+@@ -2,14 +2,14 @@ import { ComponentChildren } from "preact";
+ import {
+   AsyncLayout,
+   AsyncRoute,
++  FreshConfig,
+   LayoutContext,
+   RouteContext,
+-  StartOptions,
+ } from "./types.ts";
+ import { checkAsyncComponent } from "./render.ts";
+ import { AppContext } from "$fresh/server.ts";
+ 
+-export function defineConfig(config: StartOptions): StartOptions {
++export function defineConfig(config: FreshConfig): FreshConfig {
+   return config;
+ }
+ 
+diff --git a/src/server/mod.ts b/src/server/mod.ts
+index ac35c723fd8..d65b9603e25 100644
+--- a/src/server/mod.ts
++++ b/src/server/mod.ts
+@@ -1,8 +1,9 @@
+ import { ServerContext } from "./context.ts";
+-export type { FromManifestOptions } from "./context.ts";
++export type { FromManifestConfig, FromManifestOptions } from "./context.ts";
+ export { Status } from "./deps.ts";
+ import {
+   ErrorHandler,
++  FreshConfig,
+   Handler,
+   Handlers,
+   IslandModule,
+@@ -10,7 +11,6 @@ import {
+   MiddlewareModule,
+   RouteConfig,
+   ServeHandlerInfo,
+-  StartOptions,
+   UnknownHandler,
+ } from "./types.ts";
+ import { startFromContext } from "./boot.ts";
+@@ -27,6 +27,7 @@ export type {
+   ErrorHandler,
+   ErrorHandlerContext,
+   ErrorPageProps,
++  FreshConfig,
+   FreshOptions,
+   Handler,
+   HandlerContext,
+@@ -85,20 +86,20 @@ export interface Manifest {
+ export { ServerContext };
+ 
+ export async function createHandler(
+-  routes: Manifest,
+-  opts: StartOptions = {},
++  manifest: Manifest,
++  config: FreshConfig = {},
+ ): Promise<
+   (req: Request, connInfo?: ServeHandlerInfo) => Promise<Response>
+ > {
+-  const ctx = await ServerContext.fromManifest(routes, opts);
++  const ctx = await ServerContext.fromManifest(manifest, config);
+   return ctx.handler();
+ }
+ 
+-export async function start(routes: Manifest, opts: StartOptions = {}) {
+-  const ctx = await ServerContext.fromManifest(routes, {
+-    ...opts,
++export async function start(manifest: Manifest, config: FreshConfig = {}) {
++  const ctx = await ServerContext.fromManifest(manifest, {
++    ...config,
+     skipSnapshot: false,
+     dev: false,
+   });
+-  await startFromContext(ctx, opts.server ?? opts);
++  await startFromContext(ctx, config.server ?? config);
+ }
+diff --git a/src/server/types.ts b/src/server/types.ts
+index 01aba104400..8a6106dce10 100644
+--- a/src/server/types.ts
++++ b/src/server/types.ts
+@@ -23,9 +23,17 @@ export interface DenoConfig {
+ 
+ // --- APPLICATION CONFIGURATION ---
+ 
+-export type StartOptions = FreshOptions;
++/**
++ * @deprecated Use {@linkcode FreshConfig} instead
++ */
++export type StartOptions = FreshConfig;
++
++/**
++ * @deprecated Use {@linkcode FreshConfig} interface instead.
++ */
++export type FreshOptions = FreshConfig;
+ 
+-export interface FreshOptions {
++export interface FreshConfig {
+   build?: {
+     /**
+      * The directory to write generated files to when `dev.ts build` is run.
+@@ -100,7 +108,7 @@ export interface FreshOptions {
+   onListen?: (params: { hostname: string; port: number }) => void;
+ }
+ 
+-export interface InternalFreshOptions {
++export interface InternalFreshConfig {
+   dev: boolean;
+   loadSnapshot: boolean;
+   denoJsonPath: string;
+diff --git a/tests/fixture_preact_rts_v5/options.ts b/tests/fixture/fresh.config.ts
+similarity index 75%
+rename from tests/fixture_preact_rts_v5/options.ts
+rename to tests/fixture/fresh.config.ts
+index 8d1b39864d3..252cb21333c 100644
+--- a/tests/fixture_preact_rts_v5/options.ts
++++ b/tests/fixture/fresh.config.ts
+@@ -1,4 +1,4 @@
+-import { FreshOptions } from "$fresh/server.ts";
++import { FreshConfig } from "$fresh/server.ts";
+ 
+ export default {
+   async render(_ctx, render) {
+@@ -8,4 +8,4 @@ export default {
+       throw new Error("body is missing");
+     }
+   },
+-} as FreshOptions;
++} as FreshConfig;
+diff --git a/tests/fixture/main.ts b/tests/fixture/main.ts
+index 1409a21d698..fc9359215e3 100644
+--- a/tests/fixture/main.ts
++++ b/tests/fixture/main.ts
+@@ -5,7 +5,7 @@
+ /// <reference lib="deno.ns" />
+ 
+ import { start } from "$fresh/server.ts";
+-import routes from "./fresh.gen.ts";
+-import options from "./options.ts";
++import manifest from "./fresh.gen.ts";
++import config from "./fresh.config.ts";
+ 
+-await start(routes, options);
++await start(manifest, config);
+diff --git a/tests/fixture/main_tls.ts b/tests/fixture/main_tls.ts
+index c95b489a643..be8ec20b3db 100644
+--- a/tests/fixture/main_tls.ts
++++ b/tests/fixture/main_tls.ts
+@@ -5,8 +5,8 @@
+ /// <reference lib="deno.ns" />
+ 
+ import { start } from "$fresh/server.ts";
+-import routes from "./fresh.gen.ts";
+-import options from "./options.ts";
++import manifest from "./fresh.gen.ts";
++import config from "./fresh.config.ts";
+ 
+ // this just exists to function as a type check to assert that we can actually pass a key and cert in
+-await start(routes, { ...options, key: "test", cert: "test" });
++await start(manifest, { ...config, key: "test", cert: "test" });
+diff --git a/tests/fixture/main_wasm.ts b/tests/fixture/main_wasm.ts
+index 946b1edee78..2068d2dcdf3 100644
+--- a/tests/fixture/main_wasm.ts
++++ b/tests/fixture/main_wasm.ts
+@@ -8,7 +8,7 @@
+ 
+ import "./polyfill_deno_deploy.ts";
+ import { start } from "$fresh/server.ts";
+-import routes from "./fresh.gen.ts";
+-import options from "./options.ts";
++import manifest from "./fresh.gen.ts";
++import config from "./fresh.config.ts";
+ 
+-await start(routes, options);
++await start(manifest, config);
+diff --git a/tests/fixture_build/main.ts b/tests/fixture_build/main.ts
+index bb97cc80de2..dedce9cbb04 100644
+--- a/tests/fixture_build/main.ts
++++ b/tests/fixture_build/main.ts
+@@ -5,6 +5,6 @@
+ /// <reference lib="deno.ns" />
+ 
+ import { start } from "$fresh/server.ts";
+-import routes from "./fresh.gen.ts";
++import manifest from "./fresh.gen.ts";
+ 
+-await start(routes);
++await start(manifest);
+diff --git a/tests/fixture_build_out_dir/main.ts b/tests/fixture_build_out_dir/main.ts
+index bb97cc80de2..dedce9cbb04 100644
+--- a/tests/fixture_build_out_dir/main.ts
++++ b/tests/fixture_build_out_dir/main.ts
+@@ -5,6 +5,6 @@
+ /// <reference lib="deno.ns" />
+ 
+ import { start } from "$fresh/server.ts";
+-import routes from "./fresh.gen.ts";
++import manifest from "./fresh.gen.ts";
+ 
+-await start(routes);
++await start(manifest);
+diff --git a/tests/fixture_build_out_dir_sub/src/main.ts b/tests/fixture_build_out_dir_sub/src/main.ts
+index bb97cc80de2..dedce9cbb04 100644
+--- a/tests/fixture_build_out_dir_sub/src/main.ts
++++ b/tests/fixture_build_out_dir_sub/src/main.ts
+@@ -5,6 +5,6 @@
+ /// <reference lib="deno.ns" />
+ 
+ import { start } from "$fresh/server.ts";
+-import routes from "./fresh.gen.ts";
++import manifest from "./fresh.gen.ts";
+ 
+-await start(routes);
++await start(manifest);
+diff --git a/tests/fixture_build_out_dir_sub2/src/main.ts b/tests/fixture_build_out_dir_sub2/src/main.ts
+index bb97cc80de2..dedce9cbb04 100644
+--- a/tests/fixture_build_out_dir_sub2/src/main.ts
++++ b/tests/fixture_build_out_dir_sub2/src/main.ts
+@@ -5,6 +5,6 @@
+ /// <reference lib="deno.ns" />
+ 
+ import { start } from "$fresh/server.ts";
+-import routes from "./fresh.gen.ts";
++import manifest from "./fresh.gen.ts";
+ 
+-await start(routes);
++await start(manifest);
+diff --git a/tests/fixture_build_sub_dir/src/main.ts b/tests/fixture_build_sub_dir/src/main.ts
+index bb97cc80de2..dedce9cbb04 100644
+--- a/tests/fixture_build_sub_dir/src/main.ts
++++ b/tests/fixture_build_sub_dir/src/main.ts
+@@ -5,6 +5,6 @@
+ /// <reference lib="deno.ns" />
+ 
+ import { start } from "$fresh/server.ts";
+-import routes from "./fresh.gen.ts";
++import manifest from "./fresh.gen.ts";
+ 
+-await start(routes);
++await start(manifest);
+diff --git a/tests/fixture_build_target/main.ts b/tests/fixture_build_target/main.ts
+index bb97cc80de2..dedce9cbb04 100644
+--- a/tests/fixture_build_target/main.ts
++++ b/tests/fixture_build_target/main.ts
+@@ -5,6 +5,6 @@
+ /// <reference lib="deno.ns" />
+ 
+ import { start } from "$fresh/server.ts";
+-import routes from "./fresh.gen.ts";
++import manifest from "./fresh.gen.ts";
+ 
+-await start(routes);
++await start(manifest);
+diff --git a/tests/fixture_config/main.ts b/tests/fixture_config/main.ts
+index 0df18bfc634..edbe2b0a921 100644
+--- a/tests/fixture_config/main.ts
++++ b/tests/fixture_config/main.ts
+@@ -5,7 +5,7 @@
+ /// <reference lib="deno.ns" />
+ 
+ import { start } from "$fresh/server.ts";
+-import routes from "./fresh.gen.ts";
++import manifest from "./fresh.gen.ts";
+ 
+ const TEST_CONFIG_SERVER = Deno.env.get("TEST_CONFIG_SERVER") === "true";
+ const onListen = (params: { hostname: string; port: number }) => {
+@@ -17,7 +17,7 @@ const onListen2 = (params: { hostname: string; port: number }) => {
+   console.log(`http://localhost:${params.port}`);
+ };
+ 
+-await start(routes, {
++await start(manifest, {
+   server: {
+     onListen: TEST_CONFIG_SERVER ? onListen2 : undefined,
+   },
+diff --git a/tests/fixture_island_nesting/main.ts b/tests/fixture_island_nesting/main.ts
+index bb97cc80de2..dedce9cbb04 100644
+--- a/tests/fixture_island_nesting/main.ts
++++ b/tests/fixture_island_nesting/main.ts
+@@ -5,6 +5,6 @@
+ /// <reference lib="deno.ns" />
+ 
+ import { start } from "$fresh/server.ts";
+-import routes from "./fresh.gen.ts";
++import manifest from "./fresh.gen.ts";
+ 
+-await start(routes);
++await start(manifest);
+diff --git a/tests/fixture_island_nesting/main_wasm.ts b/tests/fixture_island_nesting/main_wasm.ts
+index 714834e64f5..3e76084f418 100644
+--- a/tests/fixture_island_nesting/main_wasm.ts
++++ b/tests/fixture_island_nesting/main_wasm.ts
+@@ -8,6 +8,6 @@
+ 
+ import "./polyfill_deno_deploy.ts";
+ import { start } from "$fresh/server.ts";
+-import routes from "./fresh.gen.ts";
++import manifest from "./fresh.gen.ts";
+ 
+-await start(routes);
++await start(manifest);
+diff --git a/tests/fixture_npm/main.ts b/tests/fixture_npm/main.ts
+index bb97cc80de2..dedce9cbb04 100644
+--- a/tests/fixture_npm/main.ts
++++ b/tests/fixture_npm/main.ts
+@@ -5,6 +5,6 @@
+ /// <reference lib="deno.ns" />
+ 
+ import { start } from "$fresh/server.ts";
+-import routes from "./fresh.gen.ts";
++import manifest from "./fresh.gen.ts";
+ 
+-await start(routes);
++await start(manifest);
+diff --git a/tests/fixture_partials/fresh.gen.ts b/tests/fixture_partials/fresh.gen.ts
+index a5c60b922ae..9949634aef3 100644
+--- a/tests/fixture_partials/fresh.gen.ts
++++ b/tests/fixture_partials/fresh.gen.ts
+@@ -33,62 +33,63 @@ import * as $27 from "./routes/form/index.tsx";
+ import * as $28 from "./routes/form/injected.tsx";
+ import * as $29 from "./routes/form/update.tsx";
+ import * as $30 from "./routes/fragment_nav.tsx";
+-import * as $31 from "./routes/head_merge/duplicate.tsx";
+-import * as $32 from "./routes/head_merge/index.tsx";
+-import * as $33 from "./routes/head_merge/injected.tsx";
+-import * as $34 from "./routes/head_merge/update.tsx";
+-import * as $35 from "./routes/index.tsx";
+-import * as $36 from "./routes/island_instance/index.tsx";
+-import * as $37 from "./routes/island_instance/injected.tsx";
+-import * as $38 from "./routes/island_instance/partial.tsx";
+-import * as $39 from "./routes/island_instance/partial_remove.tsx";
+-import * as $40 from "./routes/island_instance/partial_replace.tsx";
+-import * as $41 from "./routes/island_instance_multiple/index.tsx";
+-import * as $42 from "./routes/island_instance_multiple/injected.tsx";
+-import * as $43 from "./routes/island_instance_multiple/partial.tsx";
+-import * as $44 from "./routes/island_instance_multiple/partial_both.tsx";
+-import * as $45 from "./routes/island_instance_nested/index.tsx";
+-import * as $46 from "./routes/island_instance_nested/injected.tsx";
+-import * as $47 from "./routes/island_instance_nested/partial.tsx";
+-import * as $48 from "./routes/island_instance_nested/replace.tsx";
+-import * as $49 from "./routes/island_props/index.tsx";
+-import * as $50 from "./routes/island_props/injected.tsx";
+-import * as $51 from "./routes/island_props/partial.tsx";
+-import * as $52 from "./routes/island_props_signals/index.tsx";
+-import * as $53 from "./routes/island_props_signals/injected.tsx";
+-import * as $54 from "./routes/island_props_signals/partial.tsx";
+-import * as $55 from "./routes/keys/index.tsx";
+-import * as $56 from "./routes/keys/injected.tsx";
+-import * as $57 from "./routes/keys/swap.tsx";
+-import * as $58 from "./routes/keys_components/index.tsx";
+-import * as $59 from "./routes/keys_components/injected.tsx";
+-import * as $60 from "./routes/keys_components/swap.tsx";
+-import * as $61 from "./routes/keys_dom/index.tsx";
+-import * as $62 from "./routes/keys_dom/injected.tsx";
+-import * as $63 from "./routes/keys_dom/swap.tsx";
+-import * as $64 from "./routes/keys_outside/index.tsx";
+-import * as $65 from "./routes/loading/index.tsx";
+-import * as $66 from "./routes/loading/injected.tsx";
+-import * as $67 from "./routes/loading/update.tsx";
+-import * as $68 from "./routes/missing_partial/index.tsx";
+-import * as $69 from "./routes/missing_partial/injected.tsx";
+-import * as $70 from "./routes/missing_partial/update.tsx";
+-import * as $71 from "./routes/mode/append.tsx";
+-import * as $72 from "./routes/mode/index.tsx";
+-import * as $73 from "./routes/mode/injected.tsx";
+-import * as $74 from "./routes/mode/prepend.tsx";
+-import * as $75 from "./routes/mode/replace.tsx";
+-import * as $76 from "./routes/no_islands/index.tsx";
+-import * as $77 from "./routes/no_islands/injected.tsx";
+-import * as $78 from "./routes/no_islands/update.tsx";
+-import * as $79 from "./routes/no_partial_response/index.tsx";
+-import * as $80 from "./routes/no_partial_response/injected.tsx";
+-import * as $81 from "./routes/no_partial_response/update.tsx";
+-import * as $82 from "./routes/partial_slot_inside_island.tsx";
+-import * as $83 from "./routes/relative_link/index.tsx";
+-import * as $84 from "./routes/scroll_restoration/index.tsx";
+-import * as $85 from "./routes/scroll_restoration/injected.tsx";
+-import * as $86 from "./routes/scroll_restoration/update.tsx";
++import * as $31 from "./routes/fragment_nav_scroll.tsx";
++import * as $32 from "./routes/head_merge/duplicate.tsx";
++import * as $33 from "./routes/head_merge/index.tsx";
++import * as $34 from "./routes/head_merge/injected.tsx";
++import * as $35 from "./routes/head_merge/update.tsx";
++import * as $36 from "./routes/index.tsx";
++import * as $37 from "./routes/island_instance/index.tsx";
++import * as $38 from "./routes/island_instance/injected.tsx";
++import * as $39 from "./routes/island_instance/partial.tsx";
++import * as $40 from "./routes/island_instance/partial_remove.tsx";
++import * as $41 from "./routes/island_instance/partial_replace.tsx";
++import * as $42 from "./routes/island_instance_multiple/index.tsx";
++import * as $43 from "./routes/island_instance_multiple/injected.tsx";
++import * as $44 from "./routes/island_instance_multiple/partial.tsx";
++import * as $45 from "./routes/island_instance_multiple/partial_both.tsx";
++import * as $46 from "./routes/island_instance_nested/index.tsx";
++import * as $47 from "./routes/island_instance_nested/injected.tsx";
++import * as $48 from "./routes/island_instance_nested/partial.tsx";
++import * as $49 from "./routes/island_instance_nested/replace.tsx";
++import * as $50 from "./routes/island_props/index.tsx";
++import * as $51 from "./routes/island_props/injected.tsx";
++import * as $52 from "./routes/island_props/partial.tsx";
++import * as $53 from "./routes/island_props_signals/index.tsx";
++import * as $54 from "./routes/island_props_signals/injected.tsx";
++import * as $55 from "./routes/island_props_signals/partial.tsx";
++import * as $56 from "./routes/keys/index.tsx";
++import * as $57 from "./routes/keys/injected.tsx";
++import * as $58 from "./routes/keys/swap.tsx";
++import * as $59 from "./routes/keys_components/index.tsx";
++import * as $60 from "./routes/keys_components/injected.tsx";
++import * as $61 from "./routes/keys_components/swap.tsx";
++import * as $62 from "./routes/keys_dom/index.tsx";
++import * as $63 from "./routes/keys_dom/injected.tsx";
++import * as $64 from "./routes/keys_dom/swap.tsx";
++import * as $65 from "./routes/keys_outside/index.tsx";
++import * as $66 from "./routes/loading/index.tsx";
++import * as $67 from "./routes/loading/injected.tsx";
++import * as $68 from "./routes/loading/update.tsx";
++import * as $69 from "./routes/missing_partial/index.tsx";
++import * as $70 from "./routes/missing_partial/injected.tsx";
++import * as $71 from "./routes/missing_partial/update.tsx";
++import * as $72 from "./routes/mode/append.tsx";
++import * as $73 from "./routes/mode/index.tsx";
++import * as $74 from "./routes/mode/injected.tsx";
++import * as $75 from "./routes/mode/prepend.tsx";
++import * as $76 from "./routes/mode/replace.tsx";
++import * as $77 from "./routes/no_islands/index.tsx";
++import * as $78 from "./routes/no_islands/injected.tsx";
++import * as $79 from "./routes/no_islands/update.tsx";
++import * as $80 from "./routes/no_partial_response/index.tsx";
++import * as $81 from "./routes/no_partial_response/injected.tsx";
++import * as $82 from "./routes/no_partial_response/update.tsx";
++import * as $83 from "./routes/partial_slot_inside_island.tsx";
++import * as $84 from "./routes/relative_link/index.tsx";
++import * as $85 from "./routes/scroll_restoration/index.tsx";
++import * as $86 from "./routes/scroll_restoration/injected.tsx";
++import * as $87 from "./routes/scroll_restoration/update.tsx";
+ import * as $$0 from "./islands/Counter.tsx";
+ import * as $$1 from "./islands/CounterA.tsx";
+ import * as $$2 from "./islands/CounterB.tsx";
+@@ -137,62 +138,63 @@ const manifest = {
+     "./routes/form/injected.tsx": $28,
+     "./routes/form/update.tsx": $29,
+     "./routes/fragment_nav.tsx": $30,
+-    "./routes/head_merge/duplicate.tsx": $31,
+-    "./routes/head_merge/index.tsx": $32,
+-    "./routes/head_merge/injected.tsx": $33,
+-    "./routes/head_merge/update.tsx": $34,
+-    "./routes/index.tsx": $35,
+-    "./routes/island_instance/index.tsx": $36,
+-    "./routes/island_instance/injected.tsx": $37,
+-    "./routes/island_instance/partial.tsx": $38,
+-    "./routes/island_instance/partial_remove.tsx": $39,
+-    "./routes/island_instance/partial_replace.tsx": $40,
+-    "./routes/island_instance_multiple/index.tsx": $41,
+-    "./routes/island_instance_multiple/injected.tsx": $42,
+-    "./routes/island_instance_multiple/partial.tsx": $43,
+-    "./routes/island_instance_multiple/partial_both.tsx": $44,
+-    "./routes/island_instance_nested/index.tsx": $45,
+-    "./routes/island_instance_nested/injected.tsx": $46,
+-    "./routes/island_instance_nested/partial.tsx": $47,
+-    "./routes/island_instance_nested/replace.tsx": $48,
+-    "./routes/island_props/index.tsx": $49,
+-    "./routes/island_props/injected.tsx": $50,
+-    "./routes/island_props/partial.tsx": $51,
+-    "./routes/island_props_signals/index.tsx": $52,
+-    "./routes/island_props_signals/injected.tsx": $53,
+-    "./routes/island_props_signals/partial.tsx": $54,
+-    "./routes/keys/index.tsx": $55,
+-    "./routes/keys/injected.tsx": $56,
+-    "./routes/keys/swap.tsx": $57,
+-    "./routes/keys_components/index.tsx": $58,
+-    "./routes/keys_components/injected.tsx": $59,
+-    "./routes/keys_components/swap.tsx": $60,
+-    "./routes/keys_dom/index.tsx": $61,
+-    "./routes/keys_dom/injected.tsx": $62,
+-    "./routes/keys_dom/swap.tsx": $63,
+-    "./routes/keys_outside/index.tsx": $64,
+-    "./routes/loading/index.tsx": $65,
+-    "./routes/loading/injected.tsx": $66,
+-    "./routes/loading/update.tsx": $67,
+-    "./routes/missing_partial/index.tsx": $68,
+-    "./routes/missing_partial/injected.tsx": $69,
+-    "./routes/missing_partial/update.tsx": $70,
+-    "./routes/mode/append.tsx": $71,
+-    "./routes/mode/index.tsx": $72,
+-    "./routes/mode/injected.tsx": $73,
+-    "./routes/mode/prepend.tsx": $74,
+-    "./routes/mode/replace.tsx": $75,
+-    "./routes/no_islands/index.tsx": $76,
+-    "./routes/no_islands/injected.tsx": $77,
+-    "./routes/no_islands/update.tsx": $78,
+-    "./routes/no_partial_response/index.tsx": $79,
+-    "./routes/no_partial_response/injected.tsx": $80,
+-    "./routes/no_partial_response/update.tsx": $81,
+-    "./routes/partial_slot_inside_island.tsx": $82,
+-    "./routes/relative_link/index.tsx": $83,
+-    "./routes/scroll_restoration/index.tsx": $84,
+-    "./routes/scroll_restoration/injected.tsx": $85,
+-    "./routes/scroll_restoration/update.tsx": $86,
++    "./routes/fragment_nav_scroll.tsx": $31,
++    "./routes/head_merge/duplicate.tsx": $32,
++    "./routes/head_merge/index.tsx": $33,
++    "./routes/head_merge/injected.tsx": $34,
++    "./routes/head_merge/update.tsx": $35,
++    "./routes/index.tsx": $36,
++    "./routes/island_instance/index.tsx": $37,
++    "./routes/island_instance/injected.tsx": $38,
++    "./routes/island_instance/partial.tsx": $39,
++    "./routes/island_instance/partial_remove.tsx": $40,
++    "./routes/island_instance/partial_replace.tsx": $41,
++    "./routes/island_instance_multiple/index.tsx": $42,
++    "./routes/island_instance_multiple/injected.tsx": $43,
++    "./routes/island_instance_multiple/partial.tsx": $44,
++    "./routes/island_instance_multiple/partial_both.tsx": $45,
++    "./routes/island_instance_nested/index.tsx": $46,
++    "./routes/island_instance_nested/injected.tsx": $47,
++    "./routes/island_instance_nested/partial.tsx": $48,
++    "./routes/island_instance_nested/replace.tsx": $49,
++    "./routes/island_props/index.tsx": $50,
++    "./routes/island_props/injected.tsx": $51,
++    "./routes/island_props/partial.tsx": $52,
++    "./routes/island_props_signals/index.tsx": $53,
++    "./routes/island_props_signals/injected.tsx": $54,
++    "./routes/island_props_signals/partial.tsx": $55,
++    "./routes/keys/index.tsx": $56,
++    "./routes/keys/injected.tsx": $57,
++    "./routes/keys/swap.tsx": $58,
++    "./routes/keys_components/index.tsx": $59,
++    "./routes/keys_components/injected.tsx": $60,
++    "./routes/keys_components/swap.tsx": $61,
++    "./routes/keys_dom/index.tsx": $62,
++    "./routes/keys_dom/injected.tsx": $63,
++    "./routes/keys_dom/swap.tsx": $64,
++    "./routes/keys_outside/index.tsx": $65,
++    "./routes/loading/index.tsx": $66,
++    "./routes/loading/injected.tsx": $67,
++    "./routes/loading/update.tsx": $68,
++    "./routes/missing_partial/index.tsx": $69,
++    "./routes/missing_partial/injected.tsx": $70,
++    "./routes/missing_partial/update.tsx": $71,
++    "./routes/mode/append.tsx": $72,
++    "./routes/mode/index.tsx": $73,
++    "./routes/mode/injected.tsx": $74,
++    "./routes/mode/prepend.tsx": $75,
++    "./routes/mode/replace.tsx": $76,
++    "./routes/no_islands/index.tsx": $77,
++    "./routes/no_islands/injected.tsx": $78,
++    "./routes/no_islands/update.tsx": $79,
++    "./routes/no_partial_response/index.tsx": $80,
++    "./routes/no_partial_response/injected.tsx": $81,
++    "./routes/no_partial_response/update.tsx": $82,
++    "./routes/partial_slot_inside_island.tsx": $83,
++    "./routes/relative_link/index.tsx": $84,
++    "./routes/scroll_restoration/index.tsx": $85,
++    "./routes/scroll_restoration/injected.tsx": $86,
++    "./routes/scroll_restoration/update.tsx": $87,
+   },
+   islands: {
+     "./islands/Counter.tsx": $$0,
+diff --git a/tests/fixture_partials/routes/fragment_nav_scroll.tsx b/tests/fixture_partials/routes/fragment_nav_scroll.tsx
+new file mode 100644
+index 00000000000..02c1ada52e4
+--- /dev/null
++++ b/tests/fixture_partials/routes/fragment_nav_scroll.tsx
+@@ -0,0 +1,77 @@
++import { Partial } from "$fresh/runtime.ts";
++
++export default function SlotDemo() {
++  return (
++    <div>
++      <p>asdf</p>
++      <p>asdf</p>
++      <p>asdf</p>
++      <p>asdf</p>
++      <p>asdf</p>
++      <p>asdf</p>
++      <p>asdf</p>
++      <p>asdf</p>
++      <p>asdf</p>
++      <p>asdf</p>
++      <p>asdf</p>
++      <p>asdf</p>
++      <p>asdf</p>
++      <p>asdf</p>
++      <p>asdf</p>
++      <p>asdf</p>
++      <p>asdf</p>
++      <p>asdf</p>
++      <p>asdf</p>
++      <p>asdf</p>
++      <p>asdf</p>
++      <p>asdf</p>
++      <p>asdf</p>
++      <p>asdf</p>
++      <p>asdf</p>
++      <p>asdf</p>
++      <p>asdf</p>
++      <p>asdf</p>
++      <p>asdf</p>
++      <p>asdf</p>
++      <p>asdf</p>
++      <p>asdf</p>
++      <p>asdf</p>
++      <p>asdf</p>
++      <p>asdf</p>
++      <p>asdf</p>
++      <p>asdf</p>
++      <p>asdf</p>
++      <p>asdf</p>
++      <p>asdf</p>
++      <p>asdf</p>
++      <p>asdf</p>
++      <p>asdf</p>
++      <p>asdf</p>
++      <p>asdf</p>
++      <p>asdf</p>
++      <p>asdf</p>
++      <p>asdf</p>
++      <p>asdf</p>
++      <p>asdf</p>
++      <p>asdf</p>
++      <p>asdf</p>
++      <p>asdf</p>
++      <p>asdf</p>
++      <p>asdf</p>
++      <p>asdf</p>
++      <p>asdf</p>
++      <p>asdf</p>
++      <p>asdf</p>
++      <p>asdf</p>
++      <p>asdf</p>
++      <p>asdf</p>
++      <h1 id="foo">Same nav</h1>
++      <a href="#foo">#foo</a>
++      <Partial name="foo">
++        <p class="partial-text">
++          foo partial
++        </p>
++      </Partial>
++    </div>
++  );
++}
+diff --git a/tests/fixture_plugin/options.ts b/tests/fixture_plugin/fresh.config.ts
+similarity index 88%
+rename from tests/fixture_plugin/options.ts
+rename to tests/fixture_plugin/fresh.config.ts
+index 2996f04d540..b1d9701e3b8 100644
+--- a/tests/fixture_plugin/options.ts
++++ b/tests/fixture_plugin/fresh.config.ts
+@@ -1,4 +1,4 @@
+-import { FreshOptions } from "$fresh/server.ts";
++import { FreshConfig } from "$fresh/server.ts";
+ import cssInjectPlugin from "./utils/css-inject-plugin.ts";
+ import jsInjectPlugin from "./utils/js-inject-plugin.ts";
+ import cssInjectPluginAsync from "./utils/css-inject-plugin-async.ts";
+@@ -13,4 +13,4 @@ export default {
+     routePlugin({ title: "Title Set From Plugin Config" }),
+     secondMiddlewarePlugin(),
+   ],
+-} as FreshOptions;
++} as FreshConfig;
+diff --git a/tests/fixture_plugin/main.ts b/tests/fixture_plugin/main.ts
+index 1d83e08bff6..fc9359215e3 100644
+--- a/tests/fixture_plugin/main.ts
++++ b/tests/fixture_plugin/main.ts
+@@ -6,5 +6,6 @@
+ 
+ import { start } from "$fresh/server.ts";
+ import manifest from "./fresh.gen.ts";
+-import options from "./options.ts";
+-await start(manifest, options);
++import config from "./fresh.config.ts";
++
++await start(manifest, config);
+diff --git a/tests/fixture/options.ts b/tests/fixture_preact_rts_v5/fresh.config.ts
+similarity index 75%
+rename from tests/fixture/options.ts
+rename to tests/fixture_preact_rts_v5/fresh.config.ts
+index 8d1b39864d3..252cb21333c 100644
+--- a/tests/fixture/options.ts
++++ b/tests/fixture_preact_rts_v5/fresh.config.ts
+@@ -1,4 +1,4 @@
+-import { FreshOptions } from "$fresh/server.ts";
++import { FreshConfig } from "$fresh/server.ts";
+ 
+ export default {
+   async render(_ctx, render) {
+@@ -8,4 +8,4 @@ export default {
+       throw new Error("body is missing");
+     }
+   },
+-} as FreshOptions;
++} as FreshConfig;
+diff --git a/tests/fixture_preact_rts_v5/main.ts b/tests/fixture_preact_rts_v5/main.ts
+index 1409a21d698..fc9359215e3 100644
+--- a/tests/fixture_preact_rts_v5/main.ts
++++ b/tests/fixture_preact_rts_v5/main.ts
+@@ -5,7 +5,7 @@
+ /// <reference lib="deno.ns" />
+ 
+ import { start } from "$fresh/server.ts";
+-import routes from "./fresh.gen.ts";
+-import options from "./options.ts";
++import manifest from "./fresh.gen.ts";
++import config from "./fresh.config.ts";
+ 
+-await start(routes, options);
++await start(manifest, config);
+diff --git a/tests/fixture_preact_rts_v5/main_wasm.ts b/tests/fixture_preact_rts_v5/main_wasm.ts
+index 946b1edee78..2068d2dcdf3 100644
+--- a/tests/fixture_preact_rts_v5/main_wasm.ts
++++ b/tests/fixture_preact_rts_v5/main_wasm.ts
+@@ -8,7 +8,7 @@
+ 
+ import "./polyfill_deno_deploy.ts";
+ import { start } from "$fresh/server.ts";
+-import routes from "./fresh.gen.ts";
+-import options from "./options.ts";
++import manifest from "./fresh.gen.ts";
++import config from "./fresh.config.ts";
+ 
+-await start(routes, options);
++await start(manifest, config);
+diff --git a/tests/fixture_router_ignore_files/dev.ts b/tests/fixture_router_ignore_files/dev.ts
+index 3908da70ce0..1fe3e340282 100755
+--- a/tests/fixture_router_ignore_files/dev.ts
++++ b/tests/fixture_router_ignore_files/dev.ts
+@@ -1,6 +1,6 @@
+ #!/usr/bin/env -S deno run -A --watch=static/,routes/
+ 
+ import dev from "$fresh/dev.ts";
+-import options from "./options.ts";
++import config from "./fresh.config.ts";
+ 
+-await dev(import.meta.url, "./main.ts", options);
++await dev(import.meta.url, "./main.ts", config);
+diff --git a/tests/fixture_router_ignore_files/options.ts b/tests/fixture_router_ignore_files/fresh.config.ts
+similarity index 54%
+rename from tests/fixture_router_ignore_files/options.ts
+rename to tests/fixture_router_ignore_files/fresh.config.ts
+index 3bba27a2a57..473657f55cd 100644
+--- a/tests/fixture_router_ignore_files/options.ts
++++ b/tests/fixture_router_ignore_files/fresh.config.ts
+@@ -1,7 +1,7 @@
+-import { FreshOptions } from "$fresh/server.ts";
++import { FreshConfig } from "$fresh/server.ts";
+ 
+ export default {
+   router: {
+     ignoreFilePattern: /[\.|_]cy\.[t|j]s(x)?$/,
+   },
+-} as FreshOptions;
++} as FreshConfig;
+diff --git a/tests/fixture_router_ignore_files/main.ts b/tests/fixture_router_ignore_files/main.ts
+index 1409a21d698..fc9359215e3 100644
+--- a/tests/fixture_router_ignore_files/main.ts
++++ b/tests/fixture_router_ignore_files/main.ts
+@@ -5,7 +5,7 @@
+ /// <reference lib="deno.ns" />
+ 
+ import { start } from "$fresh/server.ts";
+-import routes from "./fresh.gen.ts";
+-import options from "./options.ts";
++import manifest from "./fresh.gen.ts";
++import config from "./fresh.config.ts";
+ 
+-await start(routes, options);
++await start(manifest, config);
+diff --git a/tests/fixture_twind_hydrate/fresh.config.ts b/tests/fixture_twind_hydrate/fresh.config.ts
+new file mode 100644
+index 00000000000..8d2c1635d61
+--- /dev/null
++++ b/tests/fixture_twind_hydrate/fresh.config.ts
+@@ -0,0 +1,5 @@
++import { FreshConfig } from "$fresh/server.ts";
++import twindPlugin from "../../plugins/twindv1.ts";
++import twindConfig from "./twind.config.ts";
++
++export default { plugins: [twindPlugin(twindConfig)] } as FreshConfig;
+diff --git a/tests/fixture_twind_hydrate/main.ts b/tests/fixture_twind_hydrate/main.ts
+index 1895b320788..fc9359215e3 100644
+--- a/tests/fixture_twind_hydrate/main.ts
++++ b/tests/fixture_twind_hydrate/main.ts
+@@ -6,6 +6,6 @@
+ 
+ import { start } from "$fresh/server.ts";
+ import manifest from "./fresh.gen.ts";
+-import options from "./options.ts";
++import config from "./fresh.config.ts";
+ 
+-await start(manifest, options);
++await start(manifest, config);
+diff --git a/tests/fixture_twind_hydrate/options.ts b/tests/fixture_twind_hydrate/options.ts
+deleted file mode 100644
+index d3975809ba4..00000000000
+--- a/tests/fixture_twind_hydrate/options.ts
++++ /dev/null
+@@ -1,5 +0,0 @@
+-import { FreshOptions } from "$fresh/server.ts";
+-import twindPlugin from "../../plugins/twindv1.ts";
+-import twindConfig from "./twind.config.ts";
+-
+-export default { plugins: [twindPlugin(twindConfig)] } as FreshOptions;
+diff --git a/tests/main_test.ts b/tests/main_test.ts
+index 21fc8464ff9..9f355e905b5 100644
+--- a/tests/main_test.ts
++++ b/tests/main_test.ts
+@@ -10,7 +10,7 @@ import {
+   retry,
+ } from "./deps.ts";
+ import manifest from "./fixture/fresh.gen.ts";
+-import options from "./fixture/options.ts";
++import config from "./fixture/fresh.config.ts";
+ import { BUILD_ID } from "../src/server/build_id.ts";
+ import {
+   assertSelector,
+@@ -22,7 +22,7 @@ import {
+   withPageName,
+ } from "./test_utils.ts";
+ 
+-const ctx = await ServerContext.fromManifest(manifest, options);
++const ctx = await ServerContext.fromManifest(manifest, config);
+ const handler = ctx.handler();
+ 
+ Deno.test("/ page prerender", async () => {
+@@ -303,7 +303,7 @@ Deno.test("/foo/:path*", async () => {
+ 
+ Deno.test("static files in custom directory", async () => {
+   const newCtx = await ServerContext.fromManifest(manifest, {
+-    ...options,
++    ...config,
+     staticDir: "./custom_static",
+   });
+   const newRouter = (req: Request) => {
+diff --git a/tests/partials_test.ts b/tests/partials_test.ts
+index d42d3d5129d..c0e0f14c5c0 100644
+--- a/tests/partials_test.ts
++++ b/tests/partials_test.ts
+@@ -939,8 +939,7 @@ Deno.test("fragment navigation should not cause loop", async () => {
+       const logs: string[] = [];
+       page.on("console", (msg) => logs.push(msg.text()));
+ 
+-      const initialUrl = `${address}/fragment_nav`;
+-      await page.goto(initialUrl);
++      await page.goto(`${address}/fragment_nav`);
+       await page.waitForSelector(".partial-text");
+ 
+       await page.click("a");
+@@ -951,6 +950,22 @@ Deno.test("fragment navigation should not cause loop", async () => {
+   );
+ });
+ 
++Deno.test("fragment navigation should not scroll to top", async () => {
++  await withPageName(
++    "./tests/fixture_partials/main.ts",
++    async (page, address) => {
++      await page.goto(`${address}/fragment_nav_scroll`);
++      await page.waitForSelector(".partial-text");
++
++      await page.click("a");
++      await page.waitForFunction(() => location.hash === "#foo");
++
++      const scroll = await page.evaluate(() => window.scrollY);
++      assert(scroll > 0, `Did not scroll to fragment`);
++    },
++  );
++});
++
+ Deno.test("active links without client nav", async () => {
+   await withFakeServe(
+     "./tests/fixture_partials/main.ts",
+diff --git a/tests/plugin_test.ts b/tests/plugin_test.ts
+index 300ec70d39e..74a3040af12 100644
+--- a/tests/plugin_test.ts
++++ b/tests/plugin_test.ts
+@@ -8,7 +8,7 @@ import {
+   puppeteer,
+ } from "./deps.ts";
+ import manifest from "./fixture_plugin/fresh.gen.ts";
+-import options from "./fixture_plugin/options.ts";
++import config from "./fixture_plugin/fresh.config.ts";
+ import {
+   clickWhenListenerReady,
+   runBuild,
+@@ -16,7 +16,7 @@ import {
+   withPageName,
+ } from "./test_utils.ts";
+ 
+-const ctx = await ServerContext.fromManifest(manifest, options);
++const ctx = await ServerContext.fromManifest(manifest, config);
+ const handler = ctx.handler();
+ const router = (req: Request) => {
+   return handler(req, {
+diff --git a/tests/render_test.ts b/tests/render_test.ts
+index 9b143fd8f6a..a0ed7e8d425 100644
+--- a/tests/render_test.ts
++++ b/tests/render_test.ts
+@@ -1,28 +1,28 @@
+-import {
+-  assertSelector,
+-  fetchHtml,
+-  withFresh,
+-} from "$fresh/tests/test_utils.ts";
++import { assertSelector, parseHtml } from "$fresh/tests/test_utils.ts";
+ import { assertEquals } from "$std/testing/asserts.ts";
++import { createHandler } from "$fresh/server.ts";
++import manifest from "./fixture/fresh.gen.ts";
++import config from "./fixture/fresh.config.ts";
+ 
++const handler = await createHandler(manifest, config);
++
++// Issue: https://github.com/denoland/fresh/issues/1636
+ Deno.test("doesn't leak data across renderers", async () => {
+-  // Issue: https://github.com/denoland/fresh/issues/1636
+-  await withFresh("./tests/fixture/main.ts", async (address) => {
+-    function load(name: string) {
+-      return fetchHtml(`${address}/admin/${name}`).then((doc) => {
+-        assertSelector(doc, "#__FRSH_STATE");
+-        const text = doc.querySelector("#__FRSH_STATE")?.textContent!;
+-        const json = JSON.parse(text);
+-        assertEquals(json, { "v": [[{ "site": name }], []] });
+-      });
+-    }
++  async function load(name: string) {
++    const req = new Request(`http://localhost/admin/${name}`);
++    const resp = await handler(req);
++    const doc = parseHtml(await resp.text());
+ 
+-    const promises: Promise<void>[] = [];
+-    for (let i = 0; i < 100; i++) {
+-      promises.push(load("foo"));
+-      promises.push(load("bar"));
+-    }
++    assertSelector(doc, "#__FRSH_STATE");
++    const text = doc.querySelector("#__FRSH_STATE")?.textContent!;
++    const json = JSON.parse(text);
++    assertEquals(json, { "v": [[{ "site": name }], []] });
++  }
+ 
+-    await Promise.all(promises);
+-  });
++  const promises = [];
++  for (let i = 0; i < 100; i++) {
++    promises.push(load("foo"));
++    promises.push(load("bar"));
++  }
++  await Promise.all(promises);
+ });
+diff --git a/tests/test_utils.ts b/tests/test_utils.ts
+index 62f14b893d5..ba5e64c7559 100644
+--- a/tests/test_utils.ts
++++ b/tests/test_utils.ts
+@@ -2,7 +2,7 @@ import { colors, toFileUrl } from "$fresh/src/server/deps.ts";
+ import { assert } from "$std/_util/asserts.ts";
+ import * as path from "$std/path/mod.ts";
+ import {
+-  FromManifestOptions,
++  FromManifestConfig,
+   Manifest,
+   ServeHandlerInfo,
+   ServerContext,
+@@ -252,9 +252,9 @@ async function handleRequest(
+ 
+ export async function fakeServe(
+   manifest: Manifest,
+-  options: FromManifestOptions,
++  config: FromManifestConfig,
+ ): Promise<FakeServer> {
+-  const ctx = await ServerContext.fromManifest(manifest, options);
++  const ctx = await ServerContext.fromManifest(manifest, config);
+   const handler = ctx.handler();
+ 
+   const conn: ServeHandlerInfo = {
+diff --git a/versions.json b/versions.json
+index a54152b88b7..fa79ed5a3de 100644
+--- a/versions.json
++++ b/versions.json
+@@ -1,4 +1,5 @@
+ [
++  "1.5.1",
+   "1.5.0",
+   "1.4.3",
+   "1.4.2",
+diff --git a/www/data/showcase.json b/www/data/showcase.json
+index a2443f77d96..cf17dcc3e07 100644
+--- a/www/data/showcase.json
++++ b/www/data/showcase.json
+@@ -374,6 +374,12 @@
+     "github": "jasonjgardner/deno-artwork",
+     "image": "deno-artwork"
+   },
++  {
++    "title": "Text2Audio",
++    "link": "https://text2audio.cc/",
++    "github": "dunkbing/text2audio",
++    "image": "text2audio"
++  },
+   {
+     "title": "FilterHN",
+     "link": "https://filterhn.com/",
+diff --git a/www/routes/docs/[...slug].tsx b/www/routes/docs/[...slug].tsx
+index 9432618b4c6..9d860de23af 100644
+--- a/www/routes/docs/[...slug].tsx
++++ b/www/routes/docs/[...slug].tsx
+@@ -155,7 +155,7 @@ export default function DocsPage(props: PageProps<Data>) {
+         <meta property="og:image" content={ogImageUrl} />
+         <meta name="view-transition" content="same-origin" />
+       </Head>
+-      <div class="flex flex-col min-h-screen" f-client-nav>
++      <div class="flex flex-col min-h-screen">
+         <Header title="docs" active="/docs" />
+         <Main page={props.data.page} />
+         <Footer />
+@@ -166,7 +166,7 @@ export default function DocsPage(props: PageProps<Data>) {
+ 
+ function Main(props: { page: Page }) {
+   return (
+-    <div class="flex-1">
++    <div class="flex-1" f-client-nav>
+       <MobileSidebar page={props.page} />
+       <div class="flex mx-auto max-w-screen-xl px-4 md:px-0 md:py-0 justify-end bg-gray-100">
+         <label
+diff --git a/www/routes/index.tsx b/www/routes/index.tsx
+index 45c7b3e3e17..d76c260ba69 100644
+--- a/www/routes/index.tsx
++++ b/www/routes/index.tsx
+@@ -77,10 +77,10 @@ function HelloBar() {
+   return (
+     <a
+       class="bg-green-400 text-black border(b green-500) p-3 text-center group"
+-      href="https://deno.com/blog/fresh-1.4"
++      href="https://deno.com/blog/fresh-1.5"
+     >
+-      <b>Fresh v1.4</b> has been released with <b>faster page loads</b>,{" "}
+-      <b>layouts</b>, and more!{"  "}
++      <b>Fresh v1.5</b> has been released with <b>Partials</b>,{" "}
++      <b>client side navigation</b> and more{" "}
+       <span class="group-hover:underline">→</span>
+     </a>
+   );
+diff --git a/www/static/showcase/text2audio1x.jpg b/www/static/showcase/text2audio1x.jpg
+new file mode 100644
+index 00000000000..ebd4cce7327
+Binary files /dev/null and b/www/static/showcase/text2audio1x.jpg differ
+diff --git a/www/static/showcase/text2audio2x.jpg b/www/static/showcase/text2audio2x.jpg
+new file mode 100644
+index 00000000000..511e93ff4ba
+Binary files /dev/null and b/www/static/showcase/text2audio2x.jpg differ

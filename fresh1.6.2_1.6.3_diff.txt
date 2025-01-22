@@ -1,0 +1,505 @@
+diff --git a/src/runtime/deserializer.ts b/src/runtime/deserializer.ts
+index f82444b58b5..26b04890ed3 100644
+--- a/src/runtime/deserializer.ts
++++ b/src/runtime/deserializer.ts
+@@ -1,6 +1,3 @@
+-// Run `deno run -A npm:esbuild --minify src/runtime/deserializer.ts` to minify
+-// this file. It is embedded into src/server/deserializer_code.ts.
+-
+ export const KEY = "_f";
+ 
+ interface Signal<T> {
+@@ -18,6 +15,20 @@ function b64decode(b64: string): Uint8Array {
+   return bytes;
+ }
+ 
++const INVALID_REFERENCE_ERROR = "Invalid reference";
++
++function getPropertyFromPath(o: object, path: string[]): object {
++  for (const key of path) {
++    if (key === null) continue;
++    if (key !== "value" && !Object.hasOwn(o, key)) {
++      throw new Error(INVALID_REFERENCE_ERROR);
++    }
++    // deno-lint-ignore no-explicit-any
++    o = (o as any)[key];
++  }
++  return o;
++}
++
+ export function deserialize(
+   str: string,
+   signal?: <T>(a: T) => Signal<T>,
+@@ -44,19 +55,20 @@ export function deserialize(
+     }
+     return value;
+   }
+-
+   const { v, r } = JSON.parse(str, reviver);
+   const references = (r ?? []) as [string[], ...string[][]][];
+   for (const [targetPath, ...refPaths] of references) {
+-    const target = targetPath.reduce((o, k) => k === null ? o : o[k], v);
++    const target = getPropertyFromPath(v, targetPath);
+     for (const refPath of refPaths) {
+-      if (refPath.length === 0) throw new Error("Invalid reference");
++      if (refPath.length === 0) throw new Error(INVALID_REFERENCE_ERROR);
+       // set the reference to the target object
+-      const parent = refPath.slice(0, -1).reduce(
+-        (o, k) => k === null ? o : o[k],
+-        v,
+-      );
+-      parent[refPath[refPath.length - 1]!] = target;
++      const parent = getPropertyFromPath(v, refPath.slice(0, -1));
++      const key = refPath[refPath.length - 1]!;
++      if (key !== "value" && !Object.hasOwn(parent, key)) {
++        throw new Error(INVALID_REFERENCE_ERROR);
++      }
++      // deno-lint-ignore no-explicit-any
++      (parent as any)[key] = target;
+     }
+   }
+   return v;
+diff --git a/src/runtime/entrypoints/main.ts b/src/runtime/entrypoints/main.ts
+index de401bfb905..8cf9e4119cb 100644
+--- a/src/runtime/entrypoints/main.ts
++++ b/src/runtime/entrypoints/main.ts
+@@ -640,6 +640,7 @@ class NoPartialsError extends Error {}
+  */
+ export async function applyPartials(res: Response): Promise<void> {
+   const contentType = res.headers.get("Content-Type");
++  const uuid = res.headers.get("X-Fresh-UUID");
+   if (contentType !== "text/html; charset=utf-8") {
+     throw new Error(partialErrorMessage);
+   }
+@@ -652,7 +653,7 @@ export async function applyPartials(res: Response): Promise<void> {
+   // Preload all islands because they need to be available synchronously
+   // for rendering later
+   const islands: IslandRegistry = {};
+-  const dataRaw = doc.getElementById("__FRSH_PARTIAL_DATA")!;
++  const dataRaw = doc.getElementById(`__FRSH_PARTIAL_DATA_${uuid}`)!;
+   let data: {
+     islands: Record<string, { export: string; url: string }>;
+     signals: string | null;
+@@ -669,7 +670,7 @@ export async function applyPartials(res: Response): Promise<void> {
+     );
+   }
+ 
+-  const stateDom = doc.getElementById("__FRSH_STATE")?.textContent;
++  const stateDom = doc.getElementById(`__FRSH_STATE_${uuid}`)?.textContent;
+   let state: SerializedState = [[], []];
+ 
+   // Load all dependencies
+diff --git a/src/server/context.ts b/src/server/context.ts
+index aafdc355d04..f76fc97ab4a 100644
+--- a/src/server/context.ts
++++ b/src/server/context.ts
+@@ -669,7 +669,7 @@ const createRenderNotFound = (
+   return async (req, ctx) => {
+     const notFound = extractResult.notFound;
+     if (!notFound.component) {
+-      return sendResponse(["Not found.", undefined], {
++      return sendResponse(["Not found.", "", undefined], {
+         status: STATUS_CODE.NotFound,
+         isDev: dev,
+         statusText: undefined,
+@@ -771,7 +771,7 @@ function collectEntrypoints(
+ }
+ 
+ function sendResponse(
+-  resp: [string, ContentSecurityPolicy | undefined],
++  resp: [string, string, ContentSecurityPolicy | undefined],
+   options: {
+     status: number;
+     statusText: string | undefined;
+@@ -779,11 +779,12 @@ function sendResponse(
+     isDev: boolean;
+   },
+ ) {
++  const [body, uuid, csp] = resp;
+   const headers: Record<string, string> = {
+     "content-type": "text/html; charset=utf-8",
++    "x-fresh-uuid": uuid,
+   };
+ 
+-  const [body, csp] = resp;
+   if (csp) {
+     if (options.isDev) {
+       csp.directives.connectSrc = [
+diff --git a/src/server/render.ts b/src/server/render.ts
+index 71d8d77868d..86a269c47a3 100644
+--- a/src/server/render.ts
++++ b/src/server/render.ts
+@@ -122,7 +122,7 @@ export function checkAsyncComponent<T>(
+  */
+ export async function render<Data>(
+   opts: RenderOptions<Data>,
+-): Promise<[string, ContentSecurityPolicy | undefined] | Response> {
++): Promise<[string, string, ContentSecurityPolicy | undefined] | Response> {
+   const component = opts.route.component;
+ 
+   // Only inherit layouts up to the nearest root layout.
+@@ -242,6 +242,7 @@ export async function render<Data>(
+   // ensures that each render request is associated with the same
+   // data.
+   const renderState = new RenderState(
++    crypto.randomUUID(),
+     {
+       url,
+       route: opts.route.pattern,
+@@ -393,5 +394,5 @@ export async function render<Data>(
+     moduleScripts: result.moduleScripts,
+     lang: ctx.lang,
+   });
+-  return [html, csp];
++  return [html, renderState.renderUuid, csp];
+ }
+diff --git a/src/server/rendering/fresh_tags.tsx b/src/server/rendering/fresh_tags.tsx
+index bf0f41cf4e4..baad2a7d36d 100644
+--- a/src/server/rendering/fresh_tags.tsx
++++ b/src/server/rendering/fresh_tags.tsx
+@@ -72,16 +72,20 @@ export function renderFreshTags(
+   // The inline script that will hydrate the page.
+   let script = "";
+ 
+-  // Serialize the state into the <script id=__FRSH_STATE> tag and generate the
++  // Serialize the state into the <script id="__FRSH_STATE-<uuid>"> tag and generate the
+   // inline script to deserialize it. This script starts by deserializing the
+   // state in the tag. This potentially requires importing @preact/signals.
+   let hasSignals = false;
+   let requiresDeserializer = false;
+   if (state[0].length > 0 || state[1].length > 0) {
++    // Careful: This must be unique per render to avoid injected content
++    // via `dangerouslySetInnerHTML` being able to overwrite our state.
++    const stateId = `__FRSH_STATE_${renderState.renderUuid}`;
++
+     const res = serialize(state);
+     const escapedState = htmlEscapeJsonString(res.serialized);
+     opts.bodyHtml +=
+-      `<script id="__FRSH_STATE" type="application/json" nonce="${renderState.getNonce()}">${escapedState}</script>`;
++      `<script id="${stateId}" type="application/json" nonce="${renderState.getNonce()}">${escapedState}</script>`;
+ 
+     hasSignals = res.hasSignals;
+     requiresDeserializer = res.requiresDeserializer;
+@@ -94,7 +98,7 @@ export function renderFreshTags(
+       const url = addImport("signals.js");
+       script += `import { signal } from "${url}";`;
+     }
+-    script += `const ST = document.getElementById("__FRSH_STATE").textContent;`;
++    script += `const ST = document.getElementById("${stateId}").textContent;`;
+     script += `const STATE = `;
+     if (res.requiresDeserializer) {
+       if (res.hasSignals) {
+@@ -166,7 +170,7 @@ export function renderFreshTags(
+     );
+     const nonce = renderState.csp ? ` nonce="${renderState.getNonce()}` : "";
+     opts.bodyHtml +=
+-      `<script id="__FRSH_PARTIAL_DATA" type="application/json"${nonce}">${escapedData}</script>`;
++      `<script id="__FRSH_PARTIAL_DATA_${renderState.renderUuid}" type="application/json"${nonce}">${escapedData}</script>`;
+   }
+   if (script !== "") {
+     opts.bodyHtml +=
+diff --git a/src/server/rendering/state.ts b/src/server/rendering/state.ts
+index 2143c66e636..82e3a9225ec 100644
+--- a/src/server/rendering/state.ts
++++ b/src/server/rendering/state.ts
+@@ -16,6 +16,7 @@ export interface RenderStateRouteOptions {
+ }
+ 
+ export class RenderState {
++  readonly renderUuid: string;
+   // deno-lint-ignore no-explicit-any
+   componentStack: any[];
+   renderingUserTemplate = false;
+@@ -48,12 +49,14 @@ export class RenderState {
+   basePath: string;
+ 
+   constructor(
++    renderUuid: string,
+     routeOptions: RenderStateRouteOptions,
+     // deno-lint-ignore no-explicit-any
+     componentStack: any[],
+     csp?: ContentSecurityPolicy,
+     error?: unknown,
+   ) {
++    this.renderUuid = renderUuid;
+     this.routeOptions = routeOptions;
+     this.csp = csp;
+     this.componentStack = componentStack;
+diff --git a/src/server/serializer_test.ts b/src/server/serializer_test.ts
+index eca080a4865..6469e036a96 100644
+--- a/src/server/serializer_test.ts
++++ b/src/server/serializer_test.ts
+@@ -1,7 +1,12 @@
+ // deno-lint-ignore-file no-explicit-any
+ 
+ import { serialize } from "./serializer.ts";
+-import { assert, assertEquals, assertSnapshot } from "../../tests/deps.ts";
++import {
++  assert,
++  assertEquals,
++  assertSnapshot,
++  assertThrows,
++} from "../../tests/deps.ts";
+ import { deserialize, KEY } from "../runtime/deserializer.ts";
+ import { signal } from "@preact/signals-core";
+ import { signal as signal130 } from "@preact/signals-core@1.3.0";
+@@ -213,3 +218,16 @@ Deno.test("serializer - multiple reference in signal", async (t) => {
+   assertEquals(deserialized.s.peek(), inner);
+   assertEquals(deserialized.inner, inner);
+ });
++
++Deno.test("deserializer - no prototype pollution with manual input", () => {
++  const serialized = String.raw`{
++    "v": {
++      "*": ["onerror"]
++    },
++    "r": [
++      [["*"], ["constructor", "prototype", "*"]]
++    ]
++  }`;
++  assertThrows(() => deserialize(serialized, signal));
++  assertEquals({}.constructor.prototype["*"], undefined);
++});
+diff --git a/tests/deps.ts b/tests/deps.ts
+index a7dce31de62..9d7199350cf 100644
+--- a/tests/deps.ts
++++ b/tests/deps.ts
+@@ -14,6 +14,7 @@ export {
+   assertNotMatch,
+   assertRejects,
+   assertStringIncludes,
++  assertThrows,
+ } from "https://deno.land/std@0.211.0/assert/mod.ts";
+ export { assertSnapshot } from "https://deno.land/std@0.211.0/testing/snapshot.ts";
+ export {
+diff --git a/tests/fixture/fresh.gen.ts b/tests/fixture/fresh.gen.ts
+index bc2a68049d4..e60cd48d357 100644
+--- a/tests/fixture/fresh.gen.ts
++++ b/tests/fixture/fresh.gen.ts
+@@ -74,6 +74,7 @@ import * as $route_groups_bar_boof_index from "./routes/route-groups/(bar)/boof/
+ import * as $route_groups_foo_layout from "./routes/route-groups/(foo)/_layout.tsx";
+ import * as $route_groups_foo_index from "./routes/route-groups/(foo)/index.tsx";
+ import * as $signal_shared from "./routes/signal_shared.tsx";
++import * as $spoof_state from "./routes/spoof_state.tsx";
+ import * as $state_in_props_middleware from "./routes/state-in-props/_middleware.ts";
+ import * as $state_in_props_index from "./routes/state-in-props/index.tsx";
+ import * as $state_middleware_middleware from "./routes/state-middleware/_middleware.ts";
+@@ -85,6 +86,7 @@ import * as $std from "./routes/std.tsx";
+ import * as $umlaut_äöüß from "./routes/umlaut-äöüß.tsx";
+ import * as $wildcard from "./routes/wildcard.tsx";
+ import * as $Counter from "./islands/Counter.tsx";
++import * as $DangerousIsland from "./islands/DangerousIsland.tsx";
+ import * as $Foo_Bar from "./islands/Foo.Bar.tsx";
+ import * as $FormIsland from "./islands/FormIsland.tsx";
+ import * as $Greeter from "./islands/Greeter.tsx";
+@@ -194,6 +196,7 @@ const manifest = {
+     "./routes/route-groups/(foo)/_layout.tsx": $route_groups_foo_layout,
+     "./routes/route-groups/(foo)/index.tsx": $route_groups_foo_index,
+     "./routes/signal_shared.tsx": $signal_shared,
++    "./routes/spoof_state.tsx": $spoof_state,
+     "./routes/state-in-props/_middleware.ts": $state_in_props_middleware,
+     "./routes/state-in-props/index.tsx": $state_in_props_index,
+     "./routes/state-middleware/_middleware.ts": $state_middleware_middleware,
+@@ -208,6 +211,7 @@ const manifest = {
+   },
+   islands: {
+     "./islands/Counter.tsx": $Counter,
++    "./islands/DangerousIsland.tsx": $DangerousIsland,
+     "./islands/Foo.Bar.tsx": $Foo_Bar,
+     "./islands/FormIsland.tsx": $FormIsland,
+     "./islands/Greeter.tsx": $Greeter,
+diff --git a/tests/fixture/islands/DangerousIsland.tsx b/tests/fixture/islands/DangerousIsland.tsx
+new file mode 100644
+index 00000000000..287c481e0a6
+--- /dev/null
++++ b/tests/fixture/islands/DangerousIsland.tsx
+@@ -0,0 +1,10 @@
++import { useEffect, useState } from "preact/hooks";
++
++export default function RawIsland(props: { raw: string }) {
++  const [css, set] = useState("");
++  useEffect(() => {
++    set("raw_ready");
++  }, []);
++
++  return <div class={css} dangerouslySetInnerHTML={{ __html: props.raw }} />;
++}
+diff --git a/tests/fixture/routes/spoof_state.tsx b/tests/fixture/routes/spoof_state.tsx
+new file mode 100644
+index 00000000000..0399ca217c4
+--- /dev/null
++++ b/tests/fixture/routes/spoof_state.tsx
+@@ -0,0 +1,5 @@
++import DangerousIsland from "../islands/DangerousIsland.tsx";
++
++export default function SerializePrototype() {
++  return <DangerousIsland raw={`<h1 id="__FRSH_STATE">{.invalid.json}</h1>`} />;
++}
+diff --git a/tests/fixture_partials/fresh.gen.ts b/tests/fixture_partials/fresh.gen.ts
+index d97abc562e9..ec5922e4450 100644
+--- a/tests/fixture_partials/fresh.gen.ts
++++ b/tests/fixture_partials/fresh.gen.ts
+@@ -117,9 +117,12 @@ import * as $relative_link_index from "./routes/relative_link/index.tsx";
+ import * as $scroll_restoration_index from "./routes/scroll_restoration/index.tsx";
+ import * as $scroll_restoration_injected from "./routes/scroll_restoration/injected.tsx";
+ import * as $scroll_restoration_update from "./routes/scroll_restoration/update.tsx";
++import * as $spoof_state_index from "./routes/spoof_state/index.tsx";
++import * as $spoof_state_partial from "./routes/spoof_state/partial.tsx";
+ import * as $Counter from "./islands/Counter.tsx";
+ import * as $CounterA from "./islands/CounterA.tsx";
+ import * as $CounterB from "./islands/CounterB.tsx";
++import * as $DangerousIsland from "./islands/DangerousIsland.tsx";
+ import * as $Fader from "./islands/Fader.tsx";
+ import * as $InvalidSlot from "./islands/InvalidSlot.tsx";
+ import * as $KeyExplorer from "./islands/KeyExplorer.tsx";
+@@ -262,11 +265,14 @@ const manifest = {
+     "./routes/scroll_restoration/index.tsx": $scroll_restoration_index,
+     "./routes/scroll_restoration/injected.tsx": $scroll_restoration_injected,
+     "./routes/scroll_restoration/update.tsx": $scroll_restoration_update,
++    "./routes/spoof_state/index.tsx": $spoof_state_index,
++    "./routes/spoof_state/partial.tsx": $spoof_state_partial,
+   },
+   islands: {
+     "./islands/Counter.tsx": $Counter,
+     "./islands/CounterA.tsx": $CounterA,
+     "./islands/CounterB.tsx": $CounterB,
++    "./islands/DangerousIsland.tsx": $DangerousIsland,
+     "./islands/Fader.tsx": $Fader,
+     "./islands/InvalidSlot.tsx": $InvalidSlot,
+     "./islands/KeyExplorer.tsx": $KeyExplorer,
+diff --git a/tests/fixture_partials/islands/DangerousIsland.tsx b/tests/fixture_partials/islands/DangerousIsland.tsx
+new file mode 100644
+index 00000000000..d2fd6cc6828
+--- /dev/null
++++ b/tests/fixture_partials/islands/DangerousIsland.tsx
+@@ -0,0 +1,10 @@
++import { useEffect, useState } from "preact/hooks";
++
++export default function DangerousIsland(props: { raw: string }) {
++  const [css, set] = useState("");
++  useEffect(() => {
++    set("raw_ready");
++  }, []);
++
++  return <div class={css} dangerouslySetInnerHTML={{ __html: props.raw }} />;
++}
+diff --git a/tests/fixture_partials/routes/spoof_state/index.tsx b/tests/fixture_partials/routes/spoof_state/index.tsx
+new file mode 100644
+index 00000000000..0ee8e71bce9
+--- /dev/null
++++ b/tests/fixture_partials/routes/spoof_state/index.tsx
+@@ -0,0 +1,12 @@
++import { Partial } from "$fresh/runtime.ts";
++
++export default function SerializePrototype() {
++  return (
++    <div>
++      <Partial name="content">
++        <p>initial</p>
++      </Partial>
++      <a href="/spoof_state/partial">Update</a>
++    </div>
++  );
++}
+diff --git a/tests/fixture_partials/routes/spoof_state/partial.tsx b/tests/fixture_partials/routes/spoof_state/partial.tsx
+new file mode 100644
+index 00000000000..8884e759a85
+--- /dev/null
++++ b/tests/fixture_partials/routes/spoof_state/partial.tsx
+@@ -0,0 +1,11 @@
++import { Partial } from "$fresh/runtime.ts";
++import DangerousIsland from "../../islands/DangerousIsland.tsx";
++
++export default function Res() {
++  return (
++    <Partial name="content">
++      <DangerousIsland raw={`<h1 id="__FRSH_STATE">{.invalid.json}</h1>`} />
++      <p class="done">partial</p>
++    </Partial>
++  );
++}
+diff --git a/tests/main_test.ts b/tests/main_test.ts
+index 6be9bdf5a78..252ac46b25f 100644
+--- a/tests/main_test.ts
++++ b/tests/main_test.ts
+@@ -949,7 +949,7 @@ Deno.test("Adds nonce to inline scripts", async () => {
+   await withFakeServe("./tests/fixture/main.ts", async (server) => {
+     const doc = await server.getHtml(`/nonce_inline`);
+ 
+-    const stateScript = doc.querySelector("#__FRSH_STATE")!;
++    const stateScript = doc.querySelector("[id^=__FRSH_STATE]")!;
+     const nonce = stateScript.getAttribute("nonce")!;
+ 
+     const el = doc.querySelector("#inline-script")!;
+@@ -1220,3 +1220,18 @@ Deno.test("empty string fallback for optional params", async () => {
+     assertEquals(data, { path: "foo", version: "" });
+   });
+ });
++
++// See https://github.com/denoland/fresh/issues/2254
++Deno.test("should not be able to override __FRSH_STATE", async () => {
++  await withPageName("./tests/fixture/main.ts", async (page, address) => {
++    let didError = false;
++    page.on("pageerror", (ev) => {
++      didError = true;
++      console.log(ev);
++    });
++    await page.goto(`${address}/spoof_state`);
++    await page.waitForSelector(".raw_ready");
++
++    assert(!didError);
++  });
++});
+diff --git a/tests/partials_test.ts b/tests/partials_test.ts
+index 8d6f03f0d4f..d1d34d09496 100644
+--- a/tests/partials_test.ts
++++ b/tests/partials_test.ts
+@@ -1569,3 +1569,23 @@ Deno.test("render partial without title", async () => {
+     },
+   );
+ });
++
++// See https://github.com/denoland/fresh/issues/2254
++Deno.test("should not be able to override __FRSH_STATE", async () => {
++  await withPageName(
++    "./tests/fixture_partials/main.ts",
++    async (page, address) => {
++      let didError = false;
++      page.on("pageerror", (ev) => {
++        didError = true;
++        console.log(ev);
++      });
++      await page.goto(`${address}/spoof_state`);
++
++      await page.click("a");
++      await page.waitForSelector(".raw_ready");
++
++      assert(!didError);
++    },
++  );
++});
+diff --git a/tests/render_test.ts b/tests/render_test.ts
+index 067a745973f..66356b65aa2 100644
+--- a/tests/render_test.ts
++++ b/tests/render_test.ts
+@@ -18,8 +18,8 @@ Deno.test("doesn't leak data across renderers", async () => {
+     const resp = await handler(req);
+     const doc = parseHtml(await resp.text());
+ 
+-    assertSelector(doc, "#__FRSH_STATE");
+-    const text = doc.querySelector("#__FRSH_STATE")?.textContent!;
++    assertSelector(doc, "[id^=__FRSH_STATE]");
++    const text = doc.querySelector("[id^=__FRSH_STATE]")?.textContent!;
+     const json = JSON.parse(text);
+     assertEquals(json, { "v": [[{ "site": name }], []] });
+   }
+diff --git a/versions.json b/versions.json
+index 500653e006e..31e1adb3f8f 100644
+--- a/versions.json
++++ b/versions.json
+@@ -1,4 +1,5 @@
+ [
++  "1.6.3",
+   "1.6.2",
+   "1.6.1",
+   "1.6.0",

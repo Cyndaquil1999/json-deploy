@@ -1,0 +1,279 @@
+diff --git a/docs/concepts/updating.md b/docs/concepts/updating.md
+index 53c8fc09f78..d6f9d050ff6 100644
+--- a/docs/concepts/updating.md
++++ b/docs/concepts/updating.md
+@@ -21,7 +21,7 @@ below.
+ | Fresh version | Preact           | preact-render-to-string | Deno      |
+ | ------------- | ---------------- | ----------------------- | --------- |
+ | 1.0.0-1.0.2   | >=10.8.1 <11.0.0 | >=5.2.0 <6.0.0          | >= 1.23.0 |
+-| 1.1.0-1.1.1   | >=10.8.1 <11.0.0 | >=5.2.0 <6.0.0          | >= 1.25.0 |
++| 1.1.0-1.1.2   | >=10.8.1 <11.0.0 | >=5.2.0 <6.0.0          | >= 1.25.0 |
+ 
+ ## Updating dependencies
+ 
+@@ -51,14 +51,14 @@ You will be prompted to confirm the changes that will be made to your project.
+ To manually update your project's dependencies, you can edit the
+ `import_map.json` file in the root of your projects directory. Dependency
+ versions are encoded into the URLs in this file. For example, here is how to
+-update a project from Fresh 1.0.2 to 1.1.1, and update Preact to the latest
++update a project from Fresh 1.0.2 to 1.1.2, and update Preact to the latest
+ version:
+ 
+ ```diff
+   {
+     "imports": {
+ -     "$fresh/": "https://deno.land/x/fresh@1.0.2/",
+-+     "$fresh/": "https://deno.land/x/fresh@1.1.1/",
+++     "$fresh/": "https://deno.land/x/fresh@1.1.2/",
+ 
+ -     "preact": "https://esm.sh/preact@10.8.1",
+ -     "preact/": "https://esm.sh/preact@10.8.1/",
+diff --git a/init.ts b/init.ts
+index 9ed5f252b9a..78e1475384b 100644
+--- a/init.ts
++++ b/init.ts
+@@ -93,22 +93,30 @@ await Deno.writeTextFile(
+   IMPORT_MAP_JSON,
+ );
+ 
+-const ROUTES_INDEX_TSX = `import Counter from "../islands/Counter.tsx";
++const ROUTES_INDEX_TSX = `import { Head } from "$fresh/runtime.ts";
++import Counter from "../islands/Counter.tsx";
+ 
+ export default function Home() {
+   return (
+-    <div${useTwind ? ` class="p-4 mx-auto max-w-screen-md"` : ""}>
+-      <img
+-        src="/logo.svg"
+-        ${useTwind ? `class="w-32 h-32"` : `width="128"\n        height="128"`}
+-        alt="the fresh logo: a sliced lemon dripping with juice"
+-      />
+-      <p${useTwind ? ` class="my-6"` : ""}>
+-        Welcome to \`fresh\`. Try updating this message in the ./routes/index.tsx
+-        file, and refresh.
+-      </p>
+-      <Counter start={3} />
+-    </div>
++    <>
++      <Head>
++        <title>Fresh App</title>
++      </Head>
++      <div${useTwind ? ` class="p-4 mx-auto max-w-screen-md"` : ""}>
++        <img
++          src="/logo.svg"
++          ${
++  useTwind ? `class="w-32 h-32"` : `width="128"\n          height="128"`
++}
++          alt="the fresh logo: a sliced lemon dripping with juice"
++        />
++        <p${useTwind ? ` class="my-6"` : ""}>
++          Welcome to \`fresh\`. Try updating this message in the ./routes/index.tsx
++          file, and refresh.
++        </p>
++        <Counter start={3} />
++      </div>
++    </>
+   );
+ }
+ `;
+diff --git a/plugins/twind.ts b/plugins/twind.ts
+index 4966213e281..da11ee8f897 100644
+--- a/plugins/twind.ts
++++ b/plugins/twind.ts
+@@ -18,11 +18,15 @@ export default function(state) { hydrate(options, state); }`;
+     render(ctx) {
+       sheet.reset(undefined);
+       const res = ctx.render();
+-      const cssText = [...sheet.target].join("\n");
++      const cssTexts = [...sheet.target];
+       const snapshot = sheet.reset();
+       const scripts = [];
++      let cssText: string;
+       if (res.requiresHydration) {
+-        const precedences = snapshot[1];
++        const precedences = snapshot[1] as number[];
++        cssText = cssTexts.map((cssText, i) =>
++          `${cssText}/*${precedences[i].toString(36)}*/`
++        ).join("\n");
+         const mappings: (string | [string, string])[] = [];
+         for (
+           const [key, value] of (snapshot[3] as Map<string, string>).entries()
+@@ -33,8 +37,9 @@ export default function(state) { hydrate(options, state); }`;
+             mappings.push([key, value]);
+           }
+         }
+-        const state = [precedences, mappings];
+-        scripts.push({ entrypoint: "main", state });
++        scripts.push({ entrypoint: "main", state: mappings });
++      } else {
++        cssText = cssTexts.join("\n");
+       }
+       return {
+         scripts,
+diff --git a/plugins/twind/main.ts b/plugins/twind/main.ts
+index cc9b5ff1b45..8943564f073 100644
+--- a/plugins/twind/main.ts
++++ b/plugins/twind/main.ts
+@@ -1,17 +1,26 @@
+ import { Sheet } from "twind";
+ import { Options, setup, STYLE_ELEMENT_ID } from "./shared.ts";
+ 
+-type State = [string[], [string, string][]];
++type State = [string, string][];
+ 
+ export default function hydrate(options: Options, state: State) {
+   const el = document.getElementById(STYLE_ELEMENT_ID) as HTMLStyleElement;
+-  const rules = new Set(el.innerText.split("\n"));
+-  const precedences = state[0];
+-  const mappings = new Map(state[1]
+-    .map((v) => typeof v === "string" ? [v, v] : v));
++  const rules = new Set<string>();
++  const precedences: number[] = [];
++  const mappings = new Map(
++    state.map((v) => typeof v === "string" ? [v, v] : v),
++  );
+   // deno-lint-ignore no-explicit-any
+   const sheetState: any[] = [precedences, rules, mappings, true];
+   const target = el.sheet!;
++  const ruleText = Array.from(target.cssRules).map((r) => r.cssText);
++  for (const r of ruleText) {
++    const m = r.lastIndexOf("/*");
++    const precedence = parseInt(r.slice(m + 2, -2), 36);
++    const rule = r.slice(0, m);
++    rules.add(rule);
++    precedences.push(precedence);
++  }
+   const sheet: Sheet = {
+     target,
+     insert: (rule, index) => target.insertRule(rule, index),
+diff --git a/versions.json b/versions.json
+index 42bbe76d00e..66afac8db0a 100644
+--- a/versions.json
++++ b/versions.json
+@@ -1,4 +1,5 @@
+ [
++  "1.1.2",
+   "1.1.1",
+   "1.1.0",
+   "1.0.2",
+diff --git a/www/data/showcase.json b/www/data/showcase.json
+index ada4849488d..9d5f8b5211d 100644
+--- a/www/data/showcase.json
++++ b/www/data/showcase.json
+@@ -35,6 +35,12 @@
+     "github": "hyprtxt/fresh-strapi.deno.dev",
+     "image": "fresh-strapi"
+   },
++  {
++    "title": "Video Poker Academy",
++    "link": "https://videopoker.academy/",
++    "github": "hyprtxt/videopoker.academy",
++    "image": "videopoker-academy"
++  },
+   {
+     "title": "ANDBOUNDS Inc.",
+     "link": "https://andbounds.com/",
+@@ -50,5 +56,39 @@
+     "title": "YCRM",
+     "link": "https://ycrm.xyz/",
+     "image": "ycrm"
++  },
++  {
++    "title": "Optimem app",
++    "link": "https://optimem.org/",
++    "image": "optimem"
++  },
++  {
++    "title": "Fresh Blog",
++    "link": "https://fresh-blog.littlesticks.dev/",
++    "github": "littlesticks/fresh-blog",
++    "image": "fresh-blog"
++  },
++  {
++    "title": "Balello",
++    "link": "https://balello.com",
++    "image": "balello"
++  },
++  {
++    "title": "Developer Portfolio",
++    "link": "https://hazn.me",
++    "github": "haznai/fresh-test",
++    "image": "hazn"
++  },
++  {
++    "title": "Fresh Project Manager",
++    "link": "https://xyntechx-project-manager.deno.dev/",
++    "github": "xyntechx/NexLiber-Projects/tree/main/Fresh%20Project%20Manager",
++    "image": "fresh-project-manager"
++  },
++  {
++    "title": "Portfolio Page",
++    "link": "http://adamsobotka.deno.dev/",
++    "github": "vorcigernix/adamsobotka",
++    "image": "adam-portfolio"
+   }
+ ]
+diff --git a/www/static/google40caa9e535ae39e9.html b/www/static/google40caa9e535ae39e9.html
+new file mode 100644
+index 00000000000..bf11e12b5f4
+--- /dev/null
++++ b/www/static/google40caa9e535ae39e9.html
+@@ -0,0 +1 @@
++google-site-verification: google40caa9e535ae39e9.html
+\ No newline at end of file
+diff --git a/www/static/showcase/adam-portfolio1x.jpg b/www/static/showcase/adam-portfolio1x.jpg
+new file mode 100644
+index 00000000000..4ab0c1e245c
+Binary files /dev/null and b/www/static/showcase/adam-portfolio1x.jpg differ
+diff --git a/www/static/showcase/adam-portfolio2x.jpg b/www/static/showcase/adam-portfolio2x.jpg
+new file mode 100644
+index 00000000000..377759e1c58
+Binary files /dev/null and b/www/static/showcase/adam-portfolio2x.jpg differ
+diff --git a/www/static/showcase/balello1x.jpg b/www/static/showcase/balello1x.jpg
+new file mode 100644
+index 00000000000..fcb73c3c235
+Binary files /dev/null and b/www/static/showcase/balello1x.jpg differ
+diff --git a/www/static/showcase/balello2x.jpg b/www/static/showcase/balello2x.jpg
+new file mode 100644
+index 00000000000..92614aca07f
+Binary files /dev/null and b/www/static/showcase/balello2x.jpg differ
+diff --git a/www/static/showcase/fresh-blog1x.jpg b/www/static/showcase/fresh-blog1x.jpg
+new file mode 100644
+index 00000000000..b09dcada1a4
+Binary files /dev/null and b/www/static/showcase/fresh-blog1x.jpg differ
+diff --git a/www/static/showcase/fresh-blog2x.jpg b/www/static/showcase/fresh-blog2x.jpg
+new file mode 100644
+index 00000000000..7d6e0638c8e
+Binary files /dev/null and b/www/static/showcase/fresh-blog2x.jpg differ
+diff --git a/www/static/showcase/fresh-project-manager1x.jpg b/www/static/showcase/fresh-project-manager1x.jpg
+new file mode 100644
+index 00000000000..2cfb22cd012
+Binary files /dev/null and b/www/static/showcase/fresh-project-manager1x.jpg differ
+diff --git a/www/static/showcase/fresh-project-manager2x.jpg b/www/static/showcase/fresh-project-manager2x.jpg
+new file mode 100644
+index 00000000000..bc641ca44de
+Binary files /dev/null and b/www/static/showcase/fresh-project-manager2x.jpg differ
+diff --git a/www/static/showcase/hazn1x.jpg b/www/static/showcase/hazn1x.jpg
+new file mode 100644
+index 00000000000..0889efb9c64
+Binary files /dev/null and b/www/static/showcase/hazn1x.jpg differ
+diff --git a/www/static/showcase/hazn2x.jpg b/www/static/showcase/hazn2x.jpg
+new file mode 100644
+index 00000000000..3b27904acdb
+Binary files /dev/null and b/www/static/showcase/hazn2x.jpg differ
+diff --git a/www/static/showcase/optimem1x.jpg b/www/static/showcase/optimem1x.jpg
+new file mode 100644
+index 00000000000..57ce5ec39ee
+Binary files /dev/null and b/www/static/showcase/optimem1x.jpg differ
+diff --git a/www/static/showcase/optimem2x.jpg b/www/static/showcase/optimem2x.jpg
+new file mode 100644
+index 00000000000..25871e42da1
+Binary files /dev/null and b/www/static/showcase/optimem2x.jpg differ
+diff --git a/www/static/showcase/videopoker-academy1x.jpg b/www/static/showcase/videopoker-academy1x.jpg
+new file mode 100644
+index 00000000000..f9883fabc16
+Binary files /dev/null and b/www/static/showcase/videopoker-academy1x.jpg differ
+diff --git a/www/static/showcase/videopoker-academy2x.jpg b/www/static/showcase/videopoker-academy2x.jpg
+new file mode 100644
+index 00000000000..55b2c8fe5da
+Binary files /dev/null and b/www/static/showcase/videopoker-academy2x.jpg differ

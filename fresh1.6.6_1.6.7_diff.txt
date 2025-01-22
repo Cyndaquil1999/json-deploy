@@ -1,0 +1,212 @@
+diff --git a/src/server/rendering/fresh_tags.tsx b/src/server/rendering/fresh_tags.tsx
+index 07b3612c59e..40b2fd0034d 100644
+--- a/src/server/rendering/fresh_tags.tsx
++++ b/src/server/rendering/fresh_tags.tsx
+@@ -169,7 +169,7 @@ export function renderFreshTags(
+           : null,
+       }),
+     );
+-    const nonce = renderState.csp ? ` nonce="${renderState.getNonce()}` : "";
++    const nonce = renderState.csp ? ` nonce="${renderState.getNonce()}"` : "";
+     opts.bodyHtml +=
+       `<script id="__FRSH_PARTIAL_DATA_${renderState.renderUuid}" type="application/json"${nonce}>${escapedData}</script>`;
+   }
+diff --git a/versions.json b/versions.json
+index 7f51b3fc72f..069af9f8b68 100644
+--- a/versions.json
++++ b/versions.json
+@@ -1,4 +1,5 @@
+ [
++  "1.6.7",
+   "1.6.6",
+   "1.6.5",
+   "1.6.4",
+diff --git a/www/data/showcase.json b/www/data/showcase.json
+index 80d2b9252d6..fac7c85ce43 100644
+--- a/www/data/showcase.json
++++ b/www/data/showcase.json
+@@ -17,12 +17,6 @@
+     "github": "denoland/merch",
+     "image": "merch"
+   },
+-  {
+-    "title": "Deno Chat",
+-    "link": "https://showcase-chat.deno.dev/",
+-    "github": "denoland/showcase_chat",
+-    "image": "chat"
+-  },
+   {
+     "title": "Fresh Website",
+     "link": "https://fresh.deno.dev/",
+@@ -47,12 +41,6 @@
+     "github": "D3nosaurs/d3nodata-website",
+     "image": "d3nodata"
+   },
+-  {
+-    "title": "Fresh Blog",
+-    "link": "https://fresh-blog.littlesticks.dev/",
+-    "github": "littlesticks/fresh-blog",
+-    "image": "fresh-blog"
+-  },
+   {
+     "title": "Fresh Hacker News",
+     "link": "https://fresh-hacker-news.deno.dev/",
+@@ -77,12 +65,6 @@
+     "github": "xyntechx/diKnow",
+     "image": "diKnow"
+   },
+-  {
+-    "title": "Saleor + Deno Merch",
+-    "link": "https://saleor-deno-merch.deno.dev/",
+-    "github": "saleor/deno-merch",
+-    "image": "saleor-deno"
+-  },
+   {
+     "title": "Fresh Strapi",
+     "link": "https://fresh-strapi.deno.dev/",
+@@ -107,11 +89,6 @@
+     "github": "guigui64/www",
+     "image": "guigui64"
+   },
+-  {
+-    "title": "Joe Salinas Site",
+-    "link": "https://joesalinas.dev",
+-    "image": "joesalinasdev"
+-  },
+   {
+     "title": "Fresh Project Manager",
+     "link": "https://xyntechx-project-manager.deno.dev/",
+@@ -177,12 +154,6 @@
+     "github": "not-ivy/melon",
+     "image": "melon"
+   },
+-  {
+-    "title": "Game Orb",
+-    "link": "https://fabimc-game-orb.deno.dev/",
+-    "github": "fabimc/game-orb",
+-    "image": "game-orb"
+-  },
+   {
+     "title": "Webhook Manager",
+     "link": "https://webhook-demo.deno.dev/",
+@@ -306,12 +277,6 @@
+     "github": "silvercrow/mandarin",
+     "image": "learn-mandarin"
+   },
+-  {
+-    "title": "Deno Place",
+-    "link": "https://deno-place.arruda.dev/",
+-    "github": "arrudaricardo/deno_place",
+-    "image": "deno-place"
+-  },
+   {
+     "title": "Url shorter and Pastebin",
+     "link": "https://uspb.deno.dev/",
+@@ -334,11 +299,6 @@
+     "link": "https://liberchat.deno.dev",
+     "image": "liberchat"
+   },
+-  {
+-    "title": "over-ip",
+-    "link": "https://over-ip.dragon-vi.be",
+-    "image": "over-ip"
+-  },
+   {
+     "title": "Miguel Rangel Site",
+     "link": "https://crawford.ml",
+@@ -385,23 +345,11 @@
+     "github": "rebstorm/jacks.se",
+     "image": "rebstorm"
+   },
+-  {
+-    "title": "Streamdal",
+-    "link": "https://streamdal.com",
+-    "github": "streamdal/streamdal",
+-    "image": "streamdal"
+-  },
+   {
+     "title": "MergePanic",
+     "link": "https://mergepanic.com",
+     "image": "MergePanic"
+   },
+-  {
+-    "title": "pyros.sh",
+-    "link": "https://pyros.sh",
+-    "github": "pyrossh/pyros.sh",
+-    "image": "pyrossh"
+-  },
+   {
+     "title": "Living Pixel Solutions",
+     "link": "https://livingpixel.io",
+diff --git a/www/static/showcase/chat1x.jpg b/www/static/showcase/chat1x.jpg
+deleted file mode 100644
+index 13e9d07b974..00000000000
+Binary files a/www/static/showcase/chat1x.jpg and /dev/null differ
+diff --git a/www/static/showcase/chat2x.jpg b/www/static/showcase/chat2x.jpg
+deleted file mode 100644
+index e06bb4da0bb..00000000000
+Binary files a/www/static/showcase/chat2x.jpg and /dev/null differ
+diff --git a/www/static/showcase/deno-place1x.jpg b/www/static/showcase/deno-place1x.jpg
+deleted file mode 100644
+index 7fe05851d59..00000000000
+Binary files a/www/static/showcase/deno-place1x.jpg and /dev/null differ
+diff --git a/www/static/showcase/deno-place2x.jpg b/www/static/showcase/deno-place2x.jpg
+deleted file mode 100644
+index 8ef954e9605..00000000000
+Binary files a/www/static/showcase/deno-place2x.jpg and /dev/null differ
+diff --git a/www/static/showcase/fresh-blog1x.jpg b/www/static/showcase/fresh-blog1x.jpg
+deleted file mode 100644
+index b09dcada1a4..00000000000
+Binary files a/www/static/showcase/fresh-blog1x.jpg and /dev/null differ
+diff --git a/www/static/showcase/fresh-blog2x.jpg b/www/static/showcase/fresh-blog2x.jpg
+deleted file mode 100644
+index 7d6e0638c8e..00000000000
+Binary files a/www/static/showcase/fresh-blog2x.jpg and /dev/null differ
+diff --git a/www/static/showcase/game-orb1x.jpg b/www/static/showcase/game-orb1x.jpg
+deleted file mode 100644
+index 05e8d964c7f..00000000000
+Binary files a/www/static/showcase/game-orb1x.jpg and /dev/null differ
+diff --git a/www/static/showcase/game-orb2x.jpg b/www/static/showcase/game-orb2x.jpg
+deleted file mode 100644
+index 05e8d964c7f..00000000000
+Binary files a/www/static/showcase/game-orb2x.jpg and /dev/null differ
+diff --git a/www/static/showcase/joesalinasdev1x.jpg b/www/static/showcase/joesalinasdev1x.jpg
+deleted file mode 100644
+index e9e9bbead69..00000000000
+Binary files a/www/static/showcase/joesalinasdev1x.jpg and /dev/null differ
+diff --git a/www/static/showcase/joesalinasdev2x.jpg b/www/static/showcase/joesalinasdev2x.jpg
+deleted file mode 100644
+index ecf6a45c5f4..00000000000
+Binary files a/www/static/showcase/joesalinasdev2x.jpg and /dev/null differ
+diff --git a/www/static/showcase/over-ip1x.jpg b/www/static/showcase/over-ip1x.jpg
+deleted file mode 100644
+index 62d5a148bbf..00000000000
+Binary files a/www/static/showcase/over-ip1x.jpg and /dev/null differ
+diff --git a/www/static/showcase/over-ip2x.jpg b/www/static/showcase/over-ip2x.jpg
+deleted file mode 100644
+index b484febbf1d..00000000000
+Binary files a/www/static/showcase/over-ip2x.jpg and /dev/null differ
+diff --git a/www/static/showcase/pyrossh1x.jpg b/www/static/showcase/pyrossh1x.jpg
+deleted file mode 100644
+index e288aed4cf5..00000000000
+Binary files a/www/static/showcase/pyrossh1x.jpg and /dev/null differ
+diff --git a/www/static/showcase/pyrossh2x.jpg b/www/static/showcase/pyrossh2x.jpg
+deleted file mode 100644
+index 5efcd93eef1..00000000000
+Binary files a/www/static/showcase/pyrossh2x.jpg and /dev/null differ
+diff --git a/www/static/showcase/saleor-deno1x.jpg b/www/static/showcase/saleor-deno1x.jpg
+deleted file mode 100644
+index 094477a7922..00000000000
+Binary files a/www/static/showcase/saleor-deno1x.jpg and /dev/null differ
+diff --git a/www/static/showcase/saleor-deno2x.jpg b/www/static/showcase/saleor-deno2x.jpg
+deleted file mode 100644
+index 3f52d0b682e..00000000000
+Binary files a/www/static/showcase/saleor-deno2x.jpg and /dev/null differ
+diff --git a/www/static/showcase/streamdal1x.jpg b/www/static/showcase/streamdal1x.jpg
+deleted file mode 100644
+index ac18b73afa6..00000000000
+Binary files a/www/static/showcase/streamdal1x.jpg and /dev/null differ
+diff --git a/www/static/showcase/streamdal2x.jpg b/www/static/showcase/streamdal2x.jpg
+deleted file mode 100644
+index 84fa858b67f..00000000000
+Binary files a/www/static/showcase/streamdal2x.jpg and /dev/null differ

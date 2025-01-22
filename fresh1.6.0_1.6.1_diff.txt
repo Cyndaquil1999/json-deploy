@@ -1,0 +1,3970 @@
+diff --git a/.github/workflows/post_publish.yml b/.github/workflows/post_publish.yml
+index 1e6fb2f5a1c..db1d81e700d 100644
+--- a/.github/workflows/post_publish.yml
++++ b/.github/workflows/post_publish.yml
+@@ -14,7 +14,7 @@ jobs:
+         uses: actions/checkout@v4
+ 
+       - name: Authenticate with Google Cloud
+-        uses: google-github-actions/auth@v1
++        uses: google-github-actions/auth@v2
+         with:
+           project_id: denoland
+           credentials_json: ${{ secrets.GCP_SA_KEY }}
+diff --git a/.vscode/settings.json b/.vscode/settings.json
+index 71c61549bc3..ac698eaf0f8 100644
+--- a/.vscode/settings.json
++++ b/.vscode/settings.json
+@@ -20,5 +20,6 @@
+   },
+   "[markdown]": {
+     "editor.defaultFormatter": "denoland.vscode-deno"
+-  }
++  },
++  "css.customData": [".vscode/tailwind.json"]
+ }
+diff --git a/.vscode/tailwind.json b/.vscode/tailwind.json
+new file mode 100644
+index 00000000000..96a1f579705
+--- /dev/null
++++ b/.vscode/tailwind.json
+@@ -0,0 +1,55 @@
++{
++  "version": 1.1,
++  "atDirectives": [
++    {
++      "name": "@tailwind",
++      "description": "Use the `@tailwind` directive to insert Tailwind's `base`, `components`, `utilities` and `screens` styles into your CSS.",
++      "references": [
++        {
++          "name": "Tailwind Documentation",
++          "url": "https://tailwindcss.com/docs/functions-and-directives#tailwind"
++        }
++      ]
++    },
++    {
++      "name": "@apply",
++      "description": "Use the `@apply` directive to inline any existing utility classes into your own custom CSS. This is useful when you find a common utility pattern in your HTML that you’d like to extract to a new component.",
++      "references": [
++        {
++          "name": "Tailwind Documentation",
++          "url": "https://tailwindcss.com/docs/functions-and-directives#apply"
++        }
++      ]
++    },
++    {
++      "name": "@responsive",
++      "description": "You can generate responsive variants of your own classes by wrapping their definitions in the `@responsive` directive:\n```css\n@responsive {\n  .alert {\n    background-color: #E53E3E;\n  }\n}\n```\n",
++      "references": [
++        {
++          "name": "Tailwind Documentation",
++          "url": "https://tailwindcss.com/docs/functions-and-directives#responsive"
++        }
++      ]
++    },
++    {
++      "name": "@screen",
++      "description": "The `@screen` directive allows you to create media queries that reference your breakpoints by **name** instead of duplicating their values in your own CSS:\n```css\n@screen sm {\n  /* ... */\n}\n```\n…gets transformed into this:\n```css\n@media (min-width: 640px) {\n  /* ... */\n}\n```\n",
++      "references": [
++        {
++          "name": "Tailwind Documentation",
++          "url": "https://tailwindcss.com/docs/functions-and-directives#screen"
++        }
++      ]
++    },
++    {
++      "name": "@variants",
++      "description": "Generate `hover`, `focus`, `active` and other **variants** of your own utilities by wrapping their definitions in the `@variants` directive:\n```css\n@variants hover, focus {\n   .btn-brand {\n    background-color: #3182CE;\n  }\n}\n```\n",
++      "references": [
++        {
++          "name": "Tailwind Documentation",
++          "url": "https://tailwindcss.com/docs/functions-and-directives#variants"
++        }
++      ]
++    }
++  ]
++}
+diff --git a/docs/latest/concepts/app-wrapper.md b/docs/latest/concepts/app-wrapper.md
+index 13b51ff3e21..8c187684105 100644
+--- a/docs/latest/concepts/app-wrapper.md
++++ b/docs/latest/concepts/app-wrapper.md
+@@ -14,9 +14,9 @@ template which can be conditioned based on state and params. Note that any state
+ set by middleware is available via `props.state`.
+ 
+ ```tsx routes/_app.tsx
+-import { AppProps } from "$fresh/server.ts";
++import { PageProps } from "$fresh/server.ts";
+ 
+-export default function App({ Component, state }: AppProps) {
++export default function App({ Component, state }: PageProps) {
+   // do something with state here
+   return (
+     <html>
+@@ -37,12 +37,12 @@ export default function App({ Component, state }: AppProps) {
+ 
+ Similar to routes and layouts, the app wrapper can be made asynchronous. This
+ changes the function signature so that the first argument is the `Request`
+-instance and the second one is the `AppContext`.
++instance and the second one is the `FreshContext`.
+ 
+ ```tsx routes/_app.tsx
+-import { AppContext } from "$fresh/server.ts";
++import { FreshContext } from "$fresh/server.ts";
+ 
+-export default async function App(req: Request, ctx: AppContext) {
++export default async function App(req: Request, ctx: FreshContext) {
+   const data = await loadData();
+ 
+   return (
+diff --git a/docs/latest/concepts/data-fetching.md b/docs/latest/concepts/data-fetching.md
+index 2504b597847..6ebf243e39a 100644
+--- a/docs/latest/concepts/data-fetching.md
++++ b/docs/latest/concepts/data-fetching.md
+@@ -20,7 +20,9 @@ export const handler: Handlers<Project> = {
+   async GET(_req, ctx) {
+     const project = await db.projects.findOne({ id: ctx.params.id });
+     if (!project) {
+-      return new Response("Project not found", { status: 404 });
++      return ctx.renderNotFound({
++        message: "Project does not exist",
++      });
+     }
+     return ctx.render(project);
+   },
+@@ -36,7 +38,38 @@ export default function ProjectPage(props: PageProps<Project>) {
+ }
+ ```
+ 
+-The type parameter on the `PageProps`, `Handlers`, `Handler`, and
+-`HandlerContext` can be used to enforce a TypeScript type to use for the render
+-data. Fresh enforces during type checking that the types in all of these fields
+-are compatible within a single page.
++The type parameter on the `PageProps`, `Handlers`, `Handler`, and `FreshContext`
++can be used to enforce a TypeScript type to use for the render data. Fresh
++enforces during type checking that the types in all of these fields are
++compatible within a single page.
++
++## Asynchronous routes
++
++As a shortcut for combining a `GET` handler with a route, you can define your
++route as `async`. An `async` route (a route that returns a promise) will be
++called with the `Request` and a `RouteContext` (similar to a `HandlerContext`).
++Here is the above example rewritten using this shortcut:
++
++```tsx routes/projects/[id].tsx
++interface Project {
++  name: string;
++  stars: number;
++}
++
++export default async function ProjectPage(_req, ctx: FreshContext) {
++  const project: Project | null = await db.projects.findOne({
++    id: ctx.params.id,
++  });
++
++  if (!project) {
++    return <h1>Project not found</h1>;
++  }
++
++  return (
++    <div>
++      <h1>{project.name}</h1>
++      <p>{project.stars} stars</p>
++    </div>
++  );
++}
++```
+diff --git a/docs/latest/concepts/error-pages.md b/docs/latest/concepts/error-pages.md
+index e657d7df535..20852b044c3 100644
+--- a/docs/latest/concepts/error-pages.md
++++ b/docs/latest/concepts/error-pages.md
+@@ -12,12 +12,12 @@ throws an error respectively.
+ 
+ The 404 page can be customized by creating a `_404.tsx` file in the `routes/`
+ folder. The file must have a default export that is a regular Preact component.
+-A props object of type `UnknownPageProps` is passed in as an argument.
++A props object of type `PageProps` is passed in as an argument.
+ 
+ ```tsx routes/_404.tsx
+-import { UnknownPageProps } from "$fresh/server.ts";
++import { PageProps } from "$fresh/server.ts";
+ 
+-export default function NotFoundPage({ url }: UnknownPageProps) {
++export default function NotFoundPage({ url }: PageProps) {
+   return <p>404 not found: {url.pathname}</p>;
+ }
+ ```
+@@ -71,12 +71,12 @@ export const handler: Handlers = {
+ 
+ The 500 page can be customized by creating a `_500.tsx` file in the `routes/`
+ folder. The file must have a default export that is a regular Preact component.
+-A props object of type `ErrorPageProps` is passed in as an argument.
++A props object of type `PageProps` is passed in as an argument.
+ 
+ ```tsx routes/_500.tsx
+-import { ErrorPageProps } from "$fresh/server.ts";
++import { PageProps } from "$fresh/server.ts";
+ 
+-export default function Error500Page({ error }: ErrorPageProps) {
++export default function Error500Page({ error }: PageProps) {
+   return <p>500 internal error: {(error as Error).message}</p>;
+ }
+ ```
+diff --git a/docs/latest/concepts/layouts.md b/docs/latest/concepts/layouts.md
+index e407e7e249c..df4617a3e2a 100644
+--- a/docs/latest/concepts/layouts.md
++++ b/docs/latest/concepts/layouts.md
+@@ -25,9 +25,9 @@ template which can be conditioned based on state and params. Note that any state
+ set by middleware is available via `props.state`.
+ 
+ ```tsx routes/sub/_layout.tsx
+-import { LayoutProps } from "$fresh/server.ts";
++import { PageProps } from "$fresh/server.ts";
+ 
+-export default function Layout({ Component, state }: LayoutProps) {
++export default function Layout({ Component, state }: PageProps) {
+   // do something with state here
+   return (
+     <div class="layout">
+@@ -43,9 +43,9 @@ In case you need to fetch data asynchronously before rendering the layout, you
+ can use an async layout to do so.
+ 
+ ```tsx routes/sub/_layout.tsx
+-import { LayoutProps } from "$fresh/server.ts";
++import { FreshContext } from "$fresh/server.ts";
+ 
+-export default async function Layout(req: Request, ctx: LayoutContext) {
++export default async function Layout(req: Request, ctx: FreshContext) {
+   // do something with state here
+   const data = await loadData();
+ 
+diff --git a/docs/latest/concepts/middleware.md b/docs/latest/concepts/middleware.md
+index 6191678abaf..050a5837448 100644
+--- a/docs/latest/concepts/middleware.md
++++ b/docs/latest/concepts/middleware.md
+@@ -18,7 +18,7 @@ properties, e.g. `ctx.state.loggedIn = true`, but you can also replace the
+ entire object like `ctx.state = { loggedIn: true }`.
+ 
+ ```ts routes/_middleware.ts
+-import { MiddlewareHandlerContext } from "$fresh/server.ts";
++import { FreshContext } from "$fresh/server.ts";
+ 
+ interface State {
+   data: string;
+@@ -26,7 +26,7 @@ interface State {
+ 
+ export async function handler(
+   req: Request,
+-  ctx: MiddlewareHandlerContext<State>,
++  ctx: FreshContext<State>,
+ ) {
+   ctx.state.data = "myData";
+   const resp = await ctx.next();
+@@ -100,9 +100,9 @@ It should be noted that `middleware` has access to route parameters. If you're
+ running a fictitious `routes/[tenant]/admin/_middleware.ts` like this:
+ 
+ ```ts routes/[tenant]/admin/_middleware.ts
+-import { MiddlewareHandlerContext } from "$fresh/server.ts";
++import { FreshContext } from "$fresh/server.ts";
+ 
+-export async function handler(_req: Request, ctx: MiddlewareHandlerContext) {
++export async function handler(_req: Request, ctx: FreshContext) {
+   const currentTenant = ctx.params.tenant;
+   //do something with the tenant
+   const resp = await ctx.next();
+@@ -115,10 +115,12 @@ the value of `acme` in your middleware.
+ 
+ ## Middleware Destination
+ 
+-To set the stage for this section, `MiddlewareHandlerContext` looks like this:
++To set the stage for this section, let's focus on the part of `FreshContext`
++that looks like this:
+ 
+ ```ts
+-export interface MiddlewareHandlerContext<State = Record<string, unknown>> {
++export interface FreshContext<State = Record<string, unknown>> {
++  ...
+   next: () => Promise<Response>;
+   state: State;
+   destination: router.DestinationKind;
+@@ -127,6 +129,7 @@ export interface MiddlewareHandlerContext<State = Record<string, unknown>> {
+     hostname: string;
+     port: number;
+   };
++  ...
+ }
+ ```
+ 
+@@ -145,9 +148,9 @@ Initiate a new Fresh project (`deno run -A -r https://fresh.deno.dev/`) and then
+ create a `_middleware.ts` file in the `routes` folder like this:
+ 
+ ```ts routes/_middleware.ts
+-import { MiddlewareHandlerContext } from "$fresh/server.ts";
++import { FreshContext } from "$fresh/server.ts";
+ 
+-export async function handler(req: Request, ctx: MiddlewareHandlerContext) {
++export async function handler(req: Request, ctx: FreshContext) {
+   console.log(ctx.destination);
+   console.log(req.url);
+   const resp = await ctx.next();
+diff --git a/docs/latest/concepts/partials.md b/docs/latest/concepts/partials.md
+index 96077e62845..bfe7a93ec39 100644
+--- a/docs/latest/concepts/partials.md
++++ b/docs/latest/concepts/partials.md
+@@ -18,10 +18,10 @@ The quickest way to get started is to enable partials for every page in
+ `routes/_app.tsx` by making the following changes.
+ 
+ ```diff routes/_app.tsx
+-  import { AppProps } from "$fresh/server.ts";
++  import { PageProps } from "$fresh/server.ts";
+ + import { Partial } from "$fresh/runtime.ts";
+ 
+-  export default function App({ Component }: AppProps) {
++  export default function App({ Component }: PageProps) {
+     return (
+       <html>
+         <head>
+diff --git a/docs/latest/examples/dealing-with-cors.md b/docs/latest/examples/dealing-with-cors.md
+index 0f9061a7cd4..4fec6ce6b95 100644
+--- a/docs/latest/examples/dealing-with-cors.md
++++ b/docs/latest/examples/dealing-with-cors.md
+@@ -16,9 +16,9 @@ requests. You can CORS enable all the routes affected by some `middleware` by
+ doing the following:
+ 
+ ```ts routes/_middleware.ts
+-import { MiddlewareHandlerContext } from "$fresh/server.ts";
++import { FreshContext } from "$fresh/server.ts";
+ 
+-export async function handler(req: Request, ctx: MiddlewareHandlerContext) {
++export async function handler(req: Request, ctx: FreshContext) {
+   const origin = req.headers.get("Origin") || "*";
+   const resp = await ctx.next();
+   const headers = resp.headers;
+@@ -45,9 +45,9 @@ deal with "preflight requests". Let's imagine you're trying to support a
+ `DELETE` route. Then you'd need to do something like this:
+ 
+ ```ts routes/_middleware.ts
+-import { MiddlewareHandlerContext } from "$fresh/server.ts";
++import { FreshContext } from "$fresh/server.ts";
+ 
+-export async function handler(_req: Request, ctx: MiddlewareHandlerContext) {
++export async function handler(_req: Request, ctx: FreshContext) {
+   if (_req.method == "OPTIONS") {
+     const resp = new Response(null, {
+       status: 204,
+diff --git a/docs/latest/examples/handling-complex-routes.md b/docs/latest/examples/handling-complex-routes.md
+index ccd975ba9a4..757c5ded190 100644
+--- a/docs/latest/examples/handling-complex-routes.md
++++ b/docs/latest/examples/handling-complex-routes.md
+@@ -17,10 +17,10 @@ Let's look at the example from the routing page more closely. We'll flesh out
+ the handler so that we end up with something like the following:
+ 
+ ```ts routes/x.tsx
+-import { HandlerContext, RouteConfig } from "$fresh/server.ts";
++import { FreshContext, RouteConfig } from "$fresh/server.ts";
+ 
+ export const handler = {
+-  GET(_req: Request, { params }: HandlerContext) {
++  GET(_req: Request, { params }: FreshContext) {
+     console.log(params);
+     return new Response(params.path);
+   },
+@@ -48,10 +48,10 @@ show the following:
+ Let's look at something a bit more complex:
+ 
+ ```ts routes/api.tsx
+-import { HandlerContext, RouteConfig } from "$fresh/server.ts";
++import { FreshContext, RouteConfig } from "$fresh/server.ts";
+ 
+ export const handler = {
+-  GET(_req: Request, { params }: HandlerContext) {
++  GET(_req: Request, { params }: FreshContext) {
+     console.log(params);
+     return new Response(params.path);
+   },
+diff --git a/docs/latest/examples/init-the-server.md b/docs/latest/examples/init-the-server.md
+index ef37047ef5c..f7fc7e5852a 100644
+--- a/docs/latest/examples/init-the-server.md
++++ b/docs/latest/examples/init-the-server.md
+@@ -35,7 +35,7 @@ export default defineConfig({
+ But what's going on in this new `_middleware.ts` we've created?
+ 
+ ```ts routes/_middleware.ts
+-import { MiddlewareHandlerContext } from "$fresh/server.ts";
++import { FreshContext } from "$fresh/server.ts";
+ 
+ export interface State {
+   context: Context;
+@@ -64,7 +64,7 @@ export class Context {
+ 
+ export async function handler(
+   _req: Request,
+-  ctx: MiddlewareHandlerContext<State>,
++  ctx: FreshContext<State>,
+ ) {
+   ctx.state.context = Context.instance();
+   if (ctx.destination === "route") {
+diff --git a/docs/latest/examples/migrating-to-tailwind.md b/docs/latest/examples/migrating-to-tailwind.md
+index 3eb598a663d..b0779e3387d 100644
+--- a/docs/latest/examples/migrating-to-tailwind.md
++++ b/docs/latest/examples/migrating-to-tailwind.md
+@@ -18,7 +18,7 @@ export default {
+   content: [
+     "{routes,islands,components}/**/*.{ts,tsx}",
+   ],
+-} as Config;
++} satisfies Config;
+ ```
+ 
+ 2. Create a css file in your static directory `<project>/static/styles.css`:
+@@ -105,7 +105,13 @@ That's it! Now you can use Tailwind CSS in your project.
+ 
+ > [warn]: Tailwind CSS doesn't support the grouping syntax from twind:
+ > `text(lg uppercase gray-100)`. These need to be rewritten to their expanded
+-> values like `text-lg uppercase text-gray-100`.
++> values like `text-lg uppercase text-gray-100`. Selecting `data-*` or `aria-*`
++> attributes works a little different with Tailwind CSS as well.
++>
++> | Twind                       | Tailwind CSS                |
++> | --------------------------- | --------------------------- |
++> | `[data-current]:bg-red-600` | `data-[current]:bg-red-300` |
++> | `[aria-current]:bg-red-600` | `aria-[current]:bg-red-300` |
+ 
+ ## Frequently Asked Questions (FAQ)
+ 
+diff --git a/docs/latest/examples/using-csp.md b/docs/latest/examples/using-csp.md
+index 5e3b5ee6ee5..7393104b41b 100644
+--- a/docs/latest/examples/using-csp.md
++++ b/docs/latest/examples/using-csp.md
+@@ -324,10 +324,10 @@ export const config: RouteConfig = {
+ ```
+ 
+ ```ts routes/reportHandler.ts
+-import { HandlerContext } from "$fresh/server.ts";
++import { FreshContext } from "$fresh/server.ts";
+ 
+ export const handler = {
+-  async POST(req: Request, _ctx: HandlerContext) {
++  async POST(req: Request, _ctx: FreshContext) {
+     const body = await req.json();
+     const report = JSON.stringify(body, null, 2);
+ 
+diff --git a/docs/latest/getting-started/custom-handlers.md b/docs/latest/getting-started/custom-handlers.md
+index e0255505a81..d20cd1eea29 100644
+--- a/docs/latest/getting-started/custom-handlers.md
++++ b/docs/latest/getting-started/custom-handlers.md
+@@ -64,3 +64,7 @@ export const handler: Handlers = {
+   },
+ };
+ ```
++
++Handlers can do much more, including fetching data from a database or external
++API and passing it to their route. See [Data fetching](/docs/concepts/) for more
++details.
+diff --git a/docs/latest/getting-started/fetching-data.md b/docs/latest/getting-started/fetching-data.md
+deleted file mode 100644
+index 998c591e66e..00000000000
+--- a/docs/latest/getting-started/fetching-data.md
++++ /dev/null
+@@ -1,55 +0,0 @@
+----
+-description: |
+-  Fetch data for routes dynamically by creating a custom handler and passing
+-  data to the render function.
+----
+-
+-All of the pages in the demo project so far have not used any dynamic data
+-during rendering. In real projects, this is often different. In many cases you
+-may need to read a file from disk (e.g. markdown for a blog post), or fetch some
+-user data from an API or database.
+-
+-In order to fetch data, the route component must be asynchronous. The first
+-parameter contains the client's
+-[`Request`](https://developer.mozilla.org/en-US/docs/Web/API/Request) object.
+-The second `ctx` parameter is used to get the route parameters.
+-
+-Here is an example of a route that fetches user data from the GitHub API and
+-renders it in a page component.
+-
+-```tsx routes/github/[username].tsx
+-import { RouteContext } from "$fresh/server.ts";
+-
+-interface GitHubResponse {
+-  login: string;
+-  name: string;
+-  avatar_url: string;
+-}
+-
+-export default async function Page(_req: Request, ctx: RouteContext) {
+-  const resp = await fetch(
+-    `https://api.github.com/users/${ctx.params.username}`,
+-  );
+-
+-  if (!resp.ok) {
+-    return <h1>An Error occurred</h1>;
+-  }
+-
+-  const { login, name, avatar_url } = (await resp.json()) as GitHubResponse;
+-
+-  return (
+-    <div>
+-      <img src={avatar_url} width={64} height={64} />
+-      <h1>{name}</h1>
+-      <p>{login}</p>
+-    </div>
+-  );
+-}
+-```
+-
+-The data is first fetched inside our page component. We check that the response
+-is returned successfully, by checking whether the
+-[`ok`](https://developer.mozilla.org/en-US/docs/Web/API/Response/ok) property is
+-true. If the API call was successful, we will see our div with the user's GitHub
+-image, name, and username. Otherwise, we should see a heading saying: "An Error
+-occurred."
+diff --git a/docs/toc.ts b/docs/toc.ts
+index e25cc233a6a..b143f012666 100644
+--- a/docs/toc.ts
++++ b/docs/toc.ts
+@@ -34,7 +34,6 @@ const toc: RawTableOfContents = {
+           ["create-a-route", "Create a route", "link:latest"],
+           ["dynamic-routes", "Dynamic routes", "link:latest"],
+           ["custom-handlers", "Custom handlers", "link:latest"],
+-          ["fetching-data", "Fetching data", "link:latest"],
+           ["form-submissions", "Form submissions", "link:latest"],
+           ["adding-interactivity", "Adding interactivity", "link:latest"],
+           ["deploy-to-production", "Deploy to production", "link:latest"],
+@@ -116,7 +115,6 @@ const toc: RawTableOfContents = {
+           ["create-a-route", "Create a route"],
+           ["dynamic-routes", "Dynamic routes"],
+           ["custom-handlers", "Custom handlers"],
+-          ["fetching-data", "Fetching data"],
+           ["form-submissions", "Form submissions"],
+           ["adding-interactivity", "Adding interactivity"],
+           ["deploy-to-production", "Deploy to production"],
+diff --git a/init.ts b/init.ts
+index 64eec5a6487..7ece9aeb9bc 100644
+--- a/init.ts
++++ b/init.ts
+@@ -204,7 +204,7 @@ export default function Counter(props: CounterProps) {
+   return (
+     <div class="flex gap-8 py-6">
+       <Button onClick={() => props.count.value -= 1}>-1</Button>
+-      <p class="text-3xl">{props.count}</p>
++      <p class="text-3xl tabular-nums">{props.count}</p>
+       <Button onClick={() => props.count.value += 1}>+1</Button>
+     </div>
+   );
+@@ -273,7 +273,7 @@ await Deno.writeTextFile(
+   ROUTES_GREET_TSX,
+ );
+ 
+-const ROUTES_API_JOKE_TS = `import { HandlerContext } from "$fresh/server.ts";
++const ROUTES_API_JOKE_TS = `import { FreshContext } from "$fresh/server.ts";
+ 
+ // Jokes courtesy of https://punsandoneliners.com/randomness/programmer-jokes/
+ const JOKES = [
+@@ -289,7 +289,7 @@ const JOKES = [
+   "An SEO expert walked into a bar, pub, inn, tavern, hostelry, public house.",
+ ];
+ 
+-export const handler = (_req: Request, _ctx: HandlerContext): Response => {
++export const handler = (_req: Request, _ctx: FreshContext): Response => {
+   const randomIndex = Math.floor(Math.random() * JOKES.length);
+   const body = JOKES[randomIndex];
+   return new Response(body);
+@@ -306,7 +306,7 @@ export default {
+   content: [
+     "{routes,islands,components}/**/*.{ts,tsx}",
+   ],
+-} as Config;
++} satisfies Config;
+ `;
+ if (useTailwind) {
+   await Deno.writeTextFile(
+@@ -441,10 +441,13 @@ html {
+ .hover\\:bg-gray-200:hover {
+   background-color: #e5e7eb;
+ }
++.tabular-nums {
++  font-variant-numeric: tabular-nums;
++}
+ `;
+ 
+-const APP_WRAPPER = `import { type AppProps } from "$fresh/server.ts";
+-export default function App({ Component }: AppProps) {
++const APP_WRAPPER = `import { type PageProps } from "$fresh/server.ts";
++export default function App({ Component }: PageProps) {
+   return (
+     <html>
+       <head>
+@@ -554,6 +557,8 @@ const config = {
+   tasks: {
+     check:
+       "deno fmt --check && deno lint && deno check **/*.ts && deno check **/*.tsx",
++    cli: "echo \"import '\\$fresh/src/dev/cli.ts'\" | deno run --unstable -A -",
++    manifest: "deno task cli manifest $(pwd)",
+     start: "deno run -A --watch=static/,routes/ dev.ts",
+     build: "deno run -A dev.ts build",
+     preview: "deno run -A main.ts",
+@@ -624,6 +629,7 @@ const vscodeSettings = {
+   "[javascript]": {
+     "editor.defaultFormatter": "denoland.vscode-deno",
+   },
++  "css.customData": useTailwind ? [".vscode/tailwind.json"] : undefined,
+ };
+ 
+ const VSCODE_SETTINGS = JSON.stringify(vscodeSettings, null, 2) + "\n";
+@@ -652,6 +658,70 @@ if (useVSCode) {
+   );
+ }
+ 
++const TAILWIND_CUSTOMDATA = `{
++  "version": 1.1,
++  "atDirectives": [
++    {
++      "name": "@tailwind",
++      "description": "Use the \`@tailwind\` directive to insert Tailwind's \`base\`, \`components\`, \`utilities\` and \`screens\` styles into your CSS.",
++      "references": [
++        {
++          "name": "Tailwind Documentation",
++          "url": "https://tailwindcss.com/docs/functions-and-directives#tailwind"
++        }
++      ]
++    },
++    {
++      "name": "@apply",
++      "description": "Use the \`@apply\` directive to inline any existing utility classes into your own custom CSS. This is useful when you find a common utility pattern in your HTML that you’d like to extract to a new component.",
++      "references": [
++        {
++          "name": "Tailwind Documentation",
++          "url": "https://tailwindcss.com/docs/functions-and-directives#apply"
++        }
++      ]
++    },
++    {
++      "name": "@responsive",
++      "description": "You can generate responsive variants of your own classes by wrapping their definitions in the \`@responsive\` directive:\\n\`\`\`css\n@responsive {\\n  .alert {\n    background-color: #E53E3E;\\n  }\\n}\\n\`\`\`\\n",
++      "references": [
++        {
++          "name": "Tailwind Documentation",
++          "url": "https://tailwindcss.com/docs/functions-and-directives#responsive"
++        }
++      ]
++    },
++    {
++      "name": "@screen",
++      "description": "The \`@screen\` directive allows you to create media queries that reference your breakpoints by **name** instead of duplicating their values in your own CSS:\\n\`\`\`css\n@screen sm {\\n  /* ... */\\n}\\n\`\`\`\\n…gets transformed into this:\\n\`\`\`css\n@media (min-width: 640px) {\\n  /* ... */\\n}\\n\`\`\`\\n",
++      "references": [
++        {
++          "name": "Tailwind Documentation",
++          "url": "https://tailwindcss.com/docs/functions-and-directives#screen"
++        }
++      ]
++    },
++    {
++      "name": "@variants",
++      "description": "Generate \`hover\`, \`focus\`, \`active\` and other **variants** of your own utilities by wrapping their definitions in the \`@variants\` directive:\\n\`\`\`css\n@variants hover, focus {\\n   .btn-brand {\\n    background-color: #3182CE;\\n  }\\n}\\n\`\`\`\\n",
++      "references": [
++        {
++          "name": "Tailwind Documentation",
++          "url": "https://tailwindcss.com/docs/functions-and-directives#variants"
++        }
++      ]
++    }
++  ]
++}
++`;
++
++if (useVSCode && useTailwind) {
++  await Deno.writeTextFile(
++    join(resolvedDirectory, ".vscode", "tailwind.json"),
++    TAILWIND_CUSTOMDATA,
++  );
++}
++
+ const manifest = await collect(resolvedDirectory);
+ await generate(resolvedDirectory, manifest);
+ 
+diff --git a/plugins/tailwind.ts b/plugins/tailwind.ts
+index 0c432666a7e..c0aaca417d1 100644
+--- a/plugins/tailwind.ts
++++ b/plugins/tailwind.ts
+@@ -1,79 +1,22 @@
+ import { Plugin, PluginMiddleware, ResolvedFreshConfig } from "../server.ts";
+-import tailwindCss, { Config } from "tailwindcss";
+-import postcss from "npm:postcss@8.4.31";
+-import cssnano from "npm:cssnano@6.0.1";
++import type postcss from "npm:postcss@8.4.31";
+ import * as path from "https://deno.land/std@0.207.0/path/mod.ts";
+ import { walk } from "https://deno.land/std@0.207.0/fs/walk.ts";
+-
+-const CONFIG_EXTENSIONS = ["ts", "js", "mjs"];
+-
+-async function findTailwindConfigFile(directory: string): Promise<string> {
+-  let dir = directory;
+-  while (true) {
+-    for (let i = 0; i < CONFIG_EXTENSIONS.length; i++) {
+-      const ext = CONFIG_EXTENSIONS[i];
+-      const filePath = path.join(dir, `tailwind.config.${ext}`);
+-      try {
+-        const stat = await Deno.stat(filePath);
+-        if (stat.isFile) {
+-          return filePath;
+-        }
+-      } catch (err) {
+-        if (!(err instanceof Deno.errors.NotFound)) {
+-          throw err;
+-        }
+-      }
+-    }
+-
+-    const parent = path.dirname(dir);
+-    if (parent === dir) {
+-      throw new Error(
+-        `Could not find a tailwind config file in the current directory or any parent directory.`,
+-      );
+-    }
+-
+-    dir = parent;
+-  }
+-}
++import { TailwindPluginOptions } from "./tailwind/types.ts";
+ 
+ async function initTailwind(
+   config: ResolvedFreshConfig,
+-): Promise<postcss.Processor> {
+-  const root = path.dirname(config.staticDir);
+-
+-  const configPath = await findTailwindConfigFile(root);
+-  const url = path.toFileUrl(configPath).href;
+-  const tailwindConfig = (await import(url)).default as Config;
+-
+-  if (!Array.isArray(tailwindConfig.content)) {
+-    throw new Error(`Expected tailwind "content" option to be an array`);
+-  }
+-
+-  tailwindConfig.content = tailwindConfig.content.map((pattern) => {
+-    if (typeof pattern === "string") {
+-      const relative = path.relative(Deno.cwd(), path.dirname(configPath));
+-
+-      if (!relative.startsWith("..")) {
+-        return path.join(relative, pattern);
+-      }
+-    }
+-    return pattern;
+-  });
+-
+-  // PostCSS types cause deep recursion
+-  // deno-lint-ignore no-explicit-any
+-  const plugins: any[] = [
+-    tailwindCss(tailwindConfig),
+-  ];
+-
+-  if (!config.dev) {
+-    plugins.push(cssnano());
+-  }
+-
+-  return postcss(plugins);
++  options: TailwindPluginOptions,
++) {
++  return await (await import("./tailwind/compiler.ts")).initTailwind(
++    config,
++    options,
++  );
+ }
+ 
+-export default function tailwind(): Plugin {
++export default function tailwind(
++  options: TailwindPluginOptions = {},
++): Plugin {
+   let staticDir = path.join(Deno.cwd(), "static");
+   let processor: postcss.Processor | null = null;
+ 
+@@ -82,8 +25,8 @@ export default function tailwind(): Plugin {
+   const tailwindMiddleware: PluginMiddleware = {
+     path: "/",
+     middleware: {
+-      handler: async (req, ctx) => {
+-        const pathname = new URL(req.url).pathname;
++      handler: async (_req, ctx) => {
++        const pathname = ctx.url.pathname;
+ 
+         if (pathname.endsWith(".css.map")) {
+           const cached = cache.get(pathname);
+@@ -96,7 +39,10 @@ export default function tailwind(): Plugin {
+ 
+         let cached = cache.get(pathname);
+         if (!cached) {
+-          const filePath = path.join(staticDir, pathname);
++          const filePath = path.join(
++            staticDir,
++            pathname.replace(ctx.config.basePath, ""),
++          );
+           let text = "";
+           try {
+             text = await Deno.readTextFile(filePath);
+@@ -110,6 +56,12 @@ export default function tailwind(): Plugin {
+             };
+             cache.set(pathname, cached);
+           } catch (err) {
++            // If the file is not found than it's likely a virtual file
++            // by the user that they respond to via a middleware.
++            if (err instanceof Deno.errors.NotFound) {
++              return ctx.next();
++            }
++
+             cached = {
+               content: text,
+               map: "",
+@@ -136,7 +88,7 @@ export default function tailwind(): Plugin {
+     async configResolved(config) {
+       if (config.dev) {
+         staticDir = config.staticDir;
+-        processor = await initTailwind(config);
++        processor = await initTailwind(config, options);
+         middlewares.push(tailwindMiddleware);
+       }
+     },
+@@ -144,7 +96,8 @@ export default function tailwind(): Plugin {
+     async buildStart(config) {
+       staticDir = config.staticDir;
+       const outDir = path.join(config.build.outDir, "static");
+-      processor = await initTailwind(config);
++
++      processor = await initTailwind(config, options);
+ 
+       const files = walk(config.staticDir, {
+         exts: ["css"],
+@@ -160,6 +113,15 @@ export default function tailwind(): Plugin {
+ 
+         const relFilePath = path.relative(staticDir, file.path);
+         const outPath = path.join(outDir, relFilePath);
++
++        try {
++          await Deno.mkdir(path.dirname(outPath), { recursive: true });
++        } catch (err) {
++          if (!(err instanceof Deno.errors.AlreadyExists)) {
++            throw err;
++          }
++        }
++
+         await Deno.writeTextFile(outPath, result.content);
+       }
+     },
+diff --git a/plugins/tailwind/compiler.ts b/plugins/tailwind/compiler.ts
+new file mode 100644
+index 00000000000..62af242edce
+--- /dev/null
++++ b/plugins/tailwind/compiler.ts
+@@ -0,0 +1,78 @@
++import { ResolvedFreshConfig } from "../../server.ts";
++import tailwindCss, { Config } from "tailwindcss";
++import postcss from "npm:postcss@8.4.31";
++import cssnano from "npm:cssnano@6.0.1";
++import autoprefixer from "npm:autoprefixer@10.4.16";
++import * as path from "https://deno.land/std@0.207.0/path/mod.ts";
++import { TailwindPluginOptions } from "./types.ts";
++
++const CONFIG_EXTENSIONS = ["ts", "js", "mjs"];
++
++async function findTailwindConfigFile(directory: string): Promise<string> {
++  let dir = directory;
++  while (true) {
++    for (let i = 0; i < CONFIG_EXTENSIONS.length; i++) {
++      const ext = CONFIG_EXTENSIONS[i];
++      const filePath = path.join(dir, `tailwind.config.${ext}`);
++      try {
++        const stat = await Deno.stat(filePath);
++        if (stat.isFile) {
++          return filePath;
++        }
++      } catch (err) {
++        if (!(err instanceof Deno.errors.NotFound)) {
++          throw err;
++        }
++      }
++    }
++
++    const parent = path.dirname(dir);
++    if (parent === dir) {
++      throw new Error(
++        `Could not find a tailwind config file in the current directory or any parent directory.`,
++      );
++    }
++
++    dir = parent;
++  }
++}
++
++export async function initTailwind(
++  config: ResolvedFreshConfig,
++  options: TailwindPluginOptions,
++): Promise<postcss.Processor> {
++  const root = path.dirname(config.staticDir);
++
++  const configPath = await findTailwindConfigFile(root);
++  const url = path.toFileUrl(configPath).href;
++  const tailwindConfig = (await import(url)).default as Config;
++
++  if (!Array.isArray(tailwindConfig.content)) {
++    throw new Error(`Expected tailwind "content" option to be an array`);
++  }
++
++  tailwindConfig.content = tailwindConfig.content.map((pattern) => {
++    if (typeof pattern === "string") {
++      const relative = path.relative(Deno.cwd(), path.dirname(configPath));
++
++      if (!relative.startsWith("..")) {
++        return path.join(relative, pattern);
++      }
++    }
++    return pattern;
++  });
++
++  // PostCSS types cause deep recursion
++  const plugins = [
++    // deno-lint-ignore no-explicit-any
++    tailwindCss(tailwindConfig) as any,
++    // deno-lint-ignore no-explicit-any
++    autoprefixer(options.autoprefixer) as any,
++  ];
++
++  if (!config.dev) {
++    plugins.push(cssnano());
++  }
++
++  return postcss(plugins);
++}
+diff --git a/plugins/tailwind/types.ts b/plugins/tailwind/types.ts
+new file mode 100644
+index 00000000000..c82e3eadb3f
+--- /dev/null
++++ b/plugins/tailwind/types.ts
+@@ -0,0 +1,44 @@
++export interface AutoprefixerOptions {
++  /** environment for `Browserslist` */
++  env?: string;
++
++  /** should Autoprefixer use Visual Cascade, if CSS is uncompressed */
++  cascade?: boolean;
++
++  /** should Autoprefixer add prefixes. */
++  add?: boolean;
++
++  /** should Autoprefixer [remove outdated] prefixes */
++  remove?: boolean;
++
++  /** should Autoprefixer add prefixes for @supports parameters. */
++  supports?: boolean;
++
++  /** should Autoprefixer add prefixes for flexbox properties */
++  flexbox?: boolean | "no-2009";
++
++  /** should Autoprefixer add IE 10-11 prefixes for Grid Layout properties */
++  grid?: boolean | "autoplace" | "no-autoplace";
++
++  /** custom usage statistics for > 10% in my stats browsers query */
++  stats?: {
++    [browser: string]: {
++      [version: string]: number;
++    };
++  };
++
++  /**
++   * list of queries for target browsers.
++   * Try to not use it.
++   * The best practice is to use `.browserslistrc` config or `browserslist` key in `package.json`
++   * to share target browsers with Babel, ESLint and Stylelint
++   */
++  overrideBrowserslist?: string | string[];
++
++  /** do not raise error on unknown browser version in `Browserslist` config. */
++  ignoreUnknownVersions?: boolean;
++}
++
++export interface TailwindPluginOptions {
++  autoprefixer?: AutoprefixerOptions;
++}
+diff --git a/src/dev/cli.ts b/src/dev/cli.ts
+new file mode 100644
+index 00000000000..e00352deca0
+--- /dev/null
++++ b/src/dev/cli.ts
+@@ -0,0 +1,24 @@
++import { join, toFileUrl } from "./deps.ts";
++import { manifest } from "./mod.ts";
++import { type FreshConfig } from "../server/mod.ts";
++
++const args = Deno.args;
++
++switch (args[0]) {
++  case "manifest": {
++    if (args[1]) {
++      const CONFIG_TS_PATH = join(args[1], "fresh.config.ts");
++      const url = toFileUrl(CONFIG_TS_PATH).toString();
++      const config: FreshConfig = (await import(url)).default;
++      await manifest(args[1], config?.router?.ignoreFilePattern);
++    } else {
++      console.error("Missing input for manifest command");
++      Deno.exit(1);
++    }
++    break;
++  }
++  default: {
++    console.error("Invalid command");
++    Deno.exit(1);
++  }
++}
+diff --git a/src/runtime/entrypoints/client.ts b/src/runtime/entrypoints/client.ts
+index 87d3721819d..909eeeab787 100644
+--- a/src/runtime/entrypoints/client.ts
++++ b/src/runtime/entrypoints/client.ts
+@@ -46,38 +46,53 @@ function reconnect() {
+   }, backoff[Math.min(backoffIdx, backoff.length - 1)]);
+ }
+ 
++function onOpenWs() {
++  backoffIdx = 0;
++}
++
++function onCloseWs() {
++  disconnect();
++  reconnect();
++}
++
+ function connect() {
+   const url = new URL("/_frsh/alive", location.origin.replace("http", "ws"));
+   ws = new WebSocket(
+     url,
+   );
+ 
+-  ws.addEventListener("open", () => {
+-    backoffIdx = 0;
+-    console.log(
+-      `%c Fresh %c Connected to development server.`,
+-      "background-color: #86efac; color: black",
+-      "color: inherit",
+-    );
+-  });
+-
+-  ws.addEventListener("close", () => {
+-    reconnect();
+-  });
+-
++  ws.addEventListener("open", onOpenWs);
++  ws.addEventListener("close", onCloseWs);
+   ws.addEventListener("message", handleMessage);
+   ws.addEventListener("error", handleError);
+ }
+ 
+ connect();
+ 
++function disconnect() {
++  ws.removeEventListener("open", onOpenWs);
++  ws.removeEventListener("close", onCloseWs);
++  ws.removeEventListener("message", handleMessage);
++  ws.removeEventListener("error", handleError);
++  ws.close();
++}
++
+ function handleMessage(e: MessageEvent) {
+   const data = JSON.parse(e.data);
+   switch (data.type) {
+     case "initial-state": {
++      if (revision === 0) {
++        console.log(
++          `%c Fresh %c Connected to development server.`,
++          "background-color: #86efac; color: black",
++          "color: inherit",
++        );
++      }
++
+       if (revision === 0) {
+         revision = data.revision;
+       } else if (revision < data.revision) {
++        disconnect();
+         // Needs reload
+         location.reload();
+       }
+@@ -101,3 +116,13 @@ addEventListener("message", (ev) => {
+ 
+   document.querySelector("#fresh-error-overlay")?.remove();
+ });
++
++// Disconnect when the tab becomes inactive and re-connect when it
++// becomes active again
++addEventListener("visibilitychange", () => {
++  if (document.hidden) {
++    disconnect();
++  } else {
++    connect();
++  }
++});
+diff --git a/src/server/compose.ts b/src/server/compose.ts
+index dee8c307d70..cdf4ab5e0b9 100644
+--- a/src/server/compose.ts
++++ b/src/server/compose.ts
+@@ -1,5 +1,5 @@
+ import { SEP } from "./deps.ts";
+-import { ErrorHandler, FinalHandler, RouteResult } from "./router.ts";
++import { ErrorHandler, FinalHandler, RouteResult, withBase } from "./router.ts";
+ import {
+   BaseRoute,
+   FreshContext,
+@@ -56,9 +56,10 @@ export function composeMiddlewares(
+   middlewares: MiddlewareRoute[],
+   errorHandler: ErrorHandler,
+   paramsAndRoute: (
+-    url: string,
++    url: URL,
+   ) => RouteResult,
+   renderNotFound: UnknownRenderFunction,
++  basePath: string,
+ ) {
+   return (
+     req: Request,
+@@ -66,13 +67,14 @@ export function composeMiddlewares(
+     inner: FinalHandler,
+   ) => {
+     const handlers: (() => Response | Promise<Response>)[] = [];
+-    const paramsAndRouteResult = paramsAndRoute(req.url);
++    const paramsAndRouteResult = paramsAndRoute(ctx.url);
+     ctx.params = paramsAndRouteResult.params;
+ 
+     // identify middlewares to apply, if any.
+     // middlewares should be already sorted from deepest to shallow layer
+     const mws = selectSharedRoutes(
+-      paramsAndRouteResult.route?.baseRoute ?? ROOT_BASE_ROUTE,
++      paramsAndRouteResult.route?.baseRoute ??
++        toBaseRoute(withBase(ROOT_BASE_ROUTE, basePath)),
+       middlewares,
+     );
+ 
+diff --git a/src/server/config.ts b/src/server/config.ts
+index 2ad7f3164b2..803a538bd79 100644
+--- a/src/server/config.ts
++++ b/src/server/config.ts
+@@ -124,7 +124,7 @@ export async function getInternalFreshState(
+   return {
+     config: internalConfig,
+     manifest,
+-    loadSnapshot: !isLegacyDev,
++    loadSnapshot: !isLegacyDev && !config.dev,
+     denoJsonPath,
+     denoJson,
+     build: false,
+diff --git a/src/server/context.ts b/src/server/context.ts
+index 39311e93ede..dcce8c3bcf8 100644
+--- a/src/server/context.ts
++++ b/src/server/context.ts
+@@ -166,6 +166,7 @@ export class ServerContext {
+       handlers.errorHandler,
+       router.getParamsAndRoute(handlers),
+       renderNotFound,
++      basePath,
+     );
+     const trailingSlashEnabled = this.#state.config.router?.trailingSlash;
+     const isDev = this.#dev;
+diff --git a/src/server/fs_extract.ts b/src/server/fs_extract.ts
+index 1953a2a8e8a..ef32620a327 100644
+--- a/src/server/fs_extract.ts
++++ b/src/server/fs_extract.ts
+@@ -226,21 +226,7 @@ export async function extractRoutes(
+         url,
+         name,
+         component,
+-        handler: (req, ctx) => {
+-          if (config.dev) {
+-            const prevComp = error.component;
+-            error.component = DefaultErrorHandler;
+-            try {
+-              return ctx.render();
+-            } finally {
+-              error.component = prevComp;
+-            }
+-          }
+-
+-          return handler
+-            ? handler(req, ctx)
+-            : router.defaultErrorHandler(req, ctx, ctx.error);
+-        },
++        handler: handler ?? router.defaultErrorHandler,
+         csp: Boolean(routeConfig?.csp ?? false),
+         appWrapper: !routeConfig?.skipAppWrapper,
+         inheritLayouts: !routeConfig?.skipInheritedLayouts,
+@@ -310,8 +296,15 @@ export async function extractRoutes(
+ 
+   const staticFiles: StaticFile[] = [];
+   try {
+-    const outDirStatic = join(config.build.outDir, "static");
+-    for (const staticDir of [config.staticDir, outDirStatic]) {
++    const staticDirs = [config.staticDir];
++
++    // Only fall through to files in /_fresh/static when not in dev
++    if (state.loadSnapshot) {
++      const outDirStatic = join(config.build.outDir, "static");
++      staticDirs.push(outDirStatic);
++    }
++
++    for (const staticDir of staticDirs) {
+       const staticDirUrl = toFileUrl(staticDir);
+       const entries = walk(staticDir, {
+         includeFiles: true,
+diff --git a/src/server/render.ts b/src/server/render.ts
+index ec9c887802d..71d8d77868d 100644
+--- a/src/server/render.ts
++++ b/src/server/render.ts
+@@ -359,29 +359,31 @@ export async function render<Data>(
+     pluginRenderResults: renderResults,
+   });
+ 
+-  // Append error overlay
+-  const devErrorUrl = withBase(DEV_ERROR_OVERLAY_URL, basePath);
+-  if (error !== undefined && url.pathname !== devErrorUrl) {
+-    const url = new URL(devErrorUrl, "https://localhost/");
+-    if (error instanceof Error) {
+-      let message = error.message;
+-      const idx = message.indexOf("\n");
+-      if (idx > -1) message = message.slice(0, idx);
+-      url.searchParams.append("message", message);
+-      if (error.stack) {
+-        const stack = colors.stripAnsiCode(error.stack);
+-        url.searchParams.append("stack", stack);
++  // Append error overlay in dev mode
++  if (opts.context.config.dev) {
++    const devErrorUrl = withBase(DEV_ERROR_OVERLAY_URL, basePath);
++    if (error !== undefined && url.pathname !== devErrorUrl) {
++      const url = new URL(devErrorUrl, "https://localhost/");
++      if (error instanceof Error) {
++        let message = error.message;
++        const idx = message.indexOf("\n");
++        if (idx > -1) message = message.slice(0, idx);
++        url.searchParams.append("message", message);
++        if (error.stack) {
++          const stack = colors.stripAnsiCode(error.stack);
++          url.searchParams.append("stack", stack);
++        }
++      } else {
++        url.searchParams.append("message", String(error));
++      }
++      if (opts.codeFrame) {
++        const codeFrame = colors.stripAnsiCode(opts.codeFrame);
++        url.searchParams.append("code-frame", codeFrame);
+       }
+-    } else {
+-      url.searchParams.append("message", String(error));
+-    }
+-    if (opts.codeFrame) {
+-      const codeFrame = colors.stripAnsiCode(opts.codeFrame);
+-      url.searchParams.append("code-frame", codeFrame);
+-    }
+ 
+-    result.bodyHtml +=
+-      `<iframe id="fresh-error-overlay" src="${url.pathname}?${url.searchParams.toString()}" style="unset: all; position: fixed; top: 0; left: 0; z-index: 99999; width: 100%; height: 100%; border: none;"></iframe>`;
++      result.bodyHtml +=
++        `<iframe id="fresh-error-overlay" src="${url.pathname}?${url.searchParams.toString()}" style="unset: all; position: fixed; top: 0; left: 0; z-index: 99999; width: 100%; height: 100%; border: none;"></iframe>`;
++    }
+   }
+ 
+   // Render outer document up to `<body>`
+diff --git a/src/server/router.ts b/src/server/router.ts
+index 81394c48f5e..ae0a17a72b1 100644
+--- a/src/server/router.ts
++++ b/src/server/router.ts
+@@ -1,15 +1,5 @@
+ import { PARTIAL_SEARCH_PARAM } from "../constants.ts";
+-import {
+-  BaseRoute,
+-  ErrorHandlerContext,
+-  FreshContext,
+-  ServeHandlerInfo,
+-} from "./types.ts";
+-import { isIdentifierChar, isIdentifierStart } from "./init_safe_deps.ts";
+-
+-type HandlerContext<T = unknown> = T & ServeHandlerInfo & {
+-  isPartial: boolean;
+-};
++import { BaseRoute, FreshContext } from "./types.ts";
+ 
+ export type Handler<T = Record<string, unknown>> = (
+   req: Request,
+@@ -56,7 +46,7 @@ export type DestinationKind = "internal" | "static" | "route" | "notFound";
+ export type InternalRoute = {
+   baseRoute: BaseRoute;
+   originalPattern: string;
+-  pattern: RegExp | string;
++  pattern: URLPattern | string;
+   methods: { [K in KnownMethod]?: MatchHandler };
+   default?: MatchHandler;
+   destination: DestinationKind;
+@@ -91,10 +81,9 @@ export function defaultOtherHandler(_req: Request): Response {
+ 
+ export function defaultErrorHandler(
+   _req: Request,
+-  _ctx: ErrorHandlerContext,
+-  err: unknown,
++  ctx: FreshContext,
+ ): Response {
+-  console.error(err);
++  console.error(ctx.error);
+ 
+   return new Response(null, {
+     status: 500,
+@@ -103,7 +92,7 @@ export function defaultErrorHandler(
+ 
+ export function defaultUnknownMethodHandler(
+   _req: Request,
+-  _ctx: HandlerContext,
++  _ctx: FreshContext,
+   knownMethods: KnownMethod[],
+ ): Response {
+   return new Response(null, {
+@@ -114,106 +103,6 @@ export function defaultUnknownMethodHandler(
+   });
+ }
+ 
+-function skipRegex(input: string, idx: number): number {
+-  let open = 0;
+-
+-  for (let i = idx; i < input.length; i++) {
+-    const char = input[i];
+-    if (char === "(" || char === "[") {
+-      open++;
+-    } else if (char === ")" || char === "]") {
+-      if (open-- === 0) {
+-        return i;
+-      }
+-    } else if (char === "\\") {
+-      i++;
+-    }
+-
+-    idx = i;
+-  }
+-
+-  return idx;
+-}
+-
+-const enum Char {
+-  "(" = 40,
+-  ")" = 41,
+-  "*" = 42,
+-  "/" = 47,
+-  ":" = 58,
+-  "\\" = 92,
+-  "{" = 123,
+-  "}" = 125,
+-}
+-
+-// URLPattern is slow because it always parses the URL first and then matches
+-// the pattern. Converting it to a regex is faster, see:
+-// https://github.com/denoland/deno/issues/19861
+-export function patternToRegExp(input: string): RegExp {
+-  let tmpPattern = "";
+-  let pattern = "^";
+-
+-  let groupIdx = -1;
+-
+-  for (let i = 0; i < input.length; i++) {
+-    let ch = input.charCodeAt(i);
+-
+-    if (groupIdx !== -1) {
+-      if (ch === Char["{"]) {
+-        throw new SyntaxError(`Unexpected token "{"`);
+-      }
+-      if (ch === Char["}"]) {
+-        pattern = tmpPattern + "(?:" + pattern + ")";
+-        groupIdx = -1;
+-        continue;
+-      }
+-    }
+-
+-    if (ch === Char["/"]) {
+-      if (pattern === "^") {
+-        pattern += "\\/?";
+-      } else {
+-        pattern += "\\/";
+-      }
+-    } else if (ch === Char[":"]) {
+-      const start = i + 1;
+-      ch = input.charCodeAt(++i);
+-      if (!isIdentifierStart(ch)) {
+-        throw new SyntaxError(`Invalid URL pattern: ${input}`);
+-      }
+-      ch = input.charCodeAt(++i);
+-      while (isIdentifierChar(ch)) {
+-        ch = input.charCodeAt(++i);
+-      }
+-
+-      const name = input.slice(start, i);
+-
+-      if (ch === Char["("]) {
+-        const end = skipRegex(input, i);
+-        pattern += `(?<${name}>${input.slice(i + 1, end)})`;
+-        i = end;
+-        continue;
+-      } else if (ch === Char["*"]) {
+-        pattern += `(?<${name}>.*?)`;
+-        continue;
+-      } else {
+-        pattern += `(?<${name}>[^/]+)`;
+-        i--;
+-      }
+-    } else if (ch === Char["*"]) {
+-      pattern += ".*?";
+-    } else if (ch === Char["{"]) {
+-      tmpPattern = pattern;
+-      pattern = "";
+-      groupIdx = i;
+-    } else {
+-      pattern += input[i];
+-    }
+-  }
+-
+-  return new RegExp(pattern + "$", "u");
+-}
+-
+ export const IS_PATTERN = /[*:{}+?()]/;
+ 
+ function processRoutes(
+@@ -224,7 +113,7 @@ function processRoutes(
+   for (const [path, def] of Object.entries(routes)) {
+     const pattern = destination === "static" || !IS_PATTERN.test(path)
+       ? path
+-      : patternToRegExp(path);
++      : new URLPattern({ pathname: path });
+ 
+     const entry: InternalRoute = {
+       baseRoute: def.baseRoute,
+@@ -260,7 +149,7 @@ export function getParamsAndRoute(
+     routes,
+   }: RouterOptions,
+ ): (
+-  url: string,
++  url: URL,
+ ) => RouteResult {
+   const processedRoutes: Array<InternalRoute | null> = [];
+   processRoutes(processedRoutes, internalRoutes, "internal");
+@@ -269,10 +158,9 @@ export function getParamsAndRoute(
+ 
+   const statics = new Map<string, RouteResult>();
+ 
+-  return (url: string) => {
+-    const urlObject = new URL(url);
+-    const isPartial = urlObject.searchParams.has(PARTIAL_SEARCH_PARAM);
+-    const pathname = urlObject.pathname;
++  return (url: URL) => {
++    const isPartial = url.searchParams.has(PARTIAL_SEARCH_PARAM);
++    const pathname = url.pathname;
+ 
+     const cached = statics.get(pathname);
+     if (cached !== undefined) {
+@@ -298,22 +186,12 @@ export function getParamsAndRoute(
+         continue;
+       }
+ 
+-      const res = route.pattern.exec(pathname);
++      const res = route.pattern.exec(url);
+ 
+       if (res !== null) {
+-        const groups: Record<string, string> = {};
+-        const matched = res?.groups;
+-
+-        for (const key in matched) {
+-          const value = matched[key];
+-
+-          if (value !== undefined) {
+-            groups[key] = decodeURIComponent(value);
+-          }
+-        }
+         return {
+           route: route,
+-          params: groups,
++          params: res.pathname.groups,
+           isPartial,
+         };
+       }
+diff --git a/src/server/router_test.ts b/src/server/router_test.ts
+index ac77ab0d96c..384ca6567ca 100644
+--- a/src/server/router_test.ts
++++ b/src/server/router_test.ts
+@@ -1,32 +1,5 @@
+ import { assertEquals } from "./deps.ts";
+-import { IS_PATTERN, patternToRegExp } from "./router.ts";
+-
+-function testPattern(input: string, test: string) {
+-  const regex = patternToRegExp(input);
+-  const match = test.match(regex);
+-  return (match !== null) ? match.groups ?? {} : null;
+-}
+-
+-Deno.test("pathToRegexp", () => {
+-  assertEquals(testPattern("/:path", "/foo"), { path: "foo" });
+-  assertEquals(testPattern("/:path", "/foo/bar"), null);
+-  assertEquals(testPattern("/:path/bar", "/foo/bar"), { path: "foo" });
+-  assertEquals(testPattern("/foo/:path", "/foo/bar"), { path: "bar" });
+-  assertEquals(testPattern("/foo/:path", "/foo"), null);
+-  assertEquals(testPattern("/foo/*", "/foo/asd/asdh/"), {});
+-  assertEquals(testPattern("/foo{/bar}?", "/foo"), {});
+-  assertEquals(testPattern("/foo/(\\d+)", "/foo"), null);
+-  assertEquals(testPattern("/foo/(\\d+)", "/foo/1"), {});
+-  assertEquals(testPattern("/foo/(\\d+)", "/foo/11231"), {});
+-  assertEquals(testPattern("/foo/(bar)", "/foo/bar"), {});
+-  assertEquals(testPattern("/foo/:path*", "/foo/bar/asdf"), {
+-    path: "bar/asdf",
+-  });
+-  assertEquals(testPattern("/movies/:foo@:bar", "/movies/asdf@hehe"), {
+-    foo: "asdf",
+-    bar: "hehe",
+-  });
+-});
++import { IS_PATTERN } from "./router.ts";
+ 
+ Deno.test("IS_PATTERN", () => {
+   assertEquals(IS_PATTERN.test("/foo"), false);
+diff --git a/src/server/types.ts b/src/server/types.ts
+index 7e49671ed79..c760fddffe3 100644
+--- a/src/server/types.ts
++++ b/src/server/types.ts
+@@ -191,7 +191,6 @@ export interface FreshContext<
+   isPartial: boolean;
+   state: State;
+   config: ResolvedFreshConfig;
+-  /** @deprecated Pass values to state instead */
+   data: Data;
+   /** The error that caused the error page to be loaded. */
+   error?: unknown;
+@@ -572,7 +571,11 @@ export interface PluginRoute {
+   /** A path in the format of a filename path without filetype */
+   path: string;
+ 
+-  component?: ComponentType<PageProps> | ComponentType<AppProps>;
++  component?:
++    | ComponentType<PageProps>
++    | ComponentType<AppProps>
++    | AsyncRoute
++    | AsyncLayout;
+ 
+   // deno-lint-ignore no-explicit-any
+   handler?: Handler<any, any> | Handlers<any, any>;
+diff --git a/tests/base_path_test.ts b/tests/base_path_test.ts
+index 0e97e5ba560..8cc93f1ca0e 100644
+--- a/tests/base_path_test.ts
++++ b/tests/base_path_test.ts
+@@ -2,6 +2,7 @@ import {
+   assert,
+   assertEquals,
+   assertMatch,
++  assertStringIncludes,
+   delay,
+   puppeteer,
+   STATUS_CODE,
+@@ -9,6 +10,7 @@ import {
+ import {
+   clickWhenListenerReady,
+   getErrorOverlay,
++  runBuild,
+   waitForText,
+   withFakeServe,
+   withFresh,
+@@ -42,7 +44,7 @@ Deno.test("rewrites middleware request", async () => {
+   await withFresh("./tests/fixture_base_path/main.ts", async (address) => {
+     const res = await fetch(`${address}/api`);
+     const body = await res.text();
+-    assertEquals(body, "it works");
++    assertEquals(body, "middleware is working");
+   });
+ });
+ 
+@@ -168,3 +170,80 @@ Deno.test("dev_command config: shows codeframe", async () => {
+     },
+   );
+ });
++
++Deno.test("TailwindCSS - dev mode", async () => {
++  await withFakeServe("./tests/fixture_base_path/dev.ts", async (server) => {
++    const res = await server.get("/styles.css");
++    const content = await res.text();
++    assertStringIncludes(content, ".text-red-600");
++
++    const res2 = await server.get("/styles.css?foo=bar");
++    const content2 = await res2.text();
++    assert(!content2.includes("@tailwind"));
++  }, { loadConfig: true });
++});
++
++Deno.test("middleware test", async (t) => {
++  await withFakeServe(
++    "./tests/fixture_base_path/dev.ts",
++    async (server) => {
++      await t.step("expected root", async () => {
++        const res = await server.get("/foo/bar");
++        const content = await res.text();
++        assertEquals(res.headers.get("server"), "fresh server");
++        assertStringIncludes(content, "middleware is working");
++      });
++
++      await t.step("redirect root", async () => {
++        const res = await server.get("");
++        const content = await res.text();
++        assertEquals(res.headers.get("server"), "fresh server");
++        assertStringIncludes(content, "middleware is working");
++      });
++
++      await t.step("miiddleware before an invalid route", async () => {
++        const res = await server.get("/asdfasdfasdfasdfasdfasdf");
++        assertEquals(res.headers.get("server"), "fresh server");
++        await res.body?.cancel();
++      });
++    },
++    { loadConfig: true },
++  );
++});
++
++Deno.test("TailwindCSS - build mode", async () => {
++  await runBuild("./tests/fixture_base_path_build/dev.ts");
++  await withFakeServe(
++    "./tests/fixture_base_path_build/main.ts",
++    async (server) => {
++      const res = await server.get("/styles.css");
++      const content = await res.text();
++      assertStringIncludes(content, ".text-red-600{");
++    },
++    { loadConfig: true },
++  );
++});
++
++Deno.test("TailwindCSS - config", async () => {
++  await withFakeServe(
++    "./tests/fixture_base_path_config/dev.ts",
++    async (server) => {
++      const res = await server.get("/styles.css");
++      const content = await res.text();
++      assertStringIncludes(content, ".text-pp");
++    },
++    { loadConfig: true },
++  );
++});
++
++Deno.test("TailwindCSS - middleware only css", async () => {
++  await withFakeServe(
++    "./tests/fixture_base_path/dev.ts",
++    async (server) => {
++      const res = await server.get("/middleware-only.css");
++      const content = await res.text();
++      assertStringIncludes(content, ".foo-bar");
++    },
++    { loadConfig: true },
++  );
++});
+diff --git a/tests/deps.ts b/tests/deps.ts
+index 212e2e3ecb5..83c5f62049c 100644
+--- a/tests/deps.ts
++++ b/tests/deps.ts
+@@ -8,6 +8,7 @@ export {
+   assert,
+   assertEquals,
+   assertExists,
++  AssertionError,
+   assertMatch,
+   assertNotEquals,
+   assertNotMatch,
+diff --git a/tests/dev_command_test.ts b/tests/dev_command_test.ts
+index 640e87ac305..fcd7eb65770 100644
+--- a/tests/dev_command_test.ts
++++ b/tests/dev_command_test.ts
+@@ -2,7 +2,6 @@ import { assert, assertEquals, assertStringIncludes } from "./deps.ts";
+ import { STATUS_CODE } from "../server.ts";
+ import {
+   assertNotSelector,
+-  assertSelector,
+   assertTextMany,
+   assertTextMatch,
+   fetchHtml,
+@@ -118,17 +117,16 @@ Deno.test("show codeframe in dev mode even with custom 500", async () => {
+   await withFakeServe(
+     "./tests/fixture_dev_codeframe/dev.ts",
+     async (server) => {
+-      const doc = await server.getHtml(`/`);
+-      assertSelector(doc, ".frsh-error-page");
++      const { title } = await getErrorOverlay(server, "/");
++      assertEquals(title, "fail");
+     },
+   );
+ 
+   await withFakeServe(
+     "./tests/fixture_dev_codeframe/main.ts",
+     async (server) => {
+-      const doc = await server.getHtml(`/`);
+-      assertNotSelector(doc, ".frsh-error-page");
+-      assertSelector(doc, "h1");
++      const doc = await server.getHtml("/");
++      assertNotSelector(doc, "#fresh-error-overlay");
+     },
+   );
+ });
+diff --git a/tests/error_test.ts b/tests/error_test.ts
+index 2a6af30c3ce..3b716fa804e 100644
+--- a/tests/error_test.ts
++++ b/tests/error_test.ts
+@@ -1,5 +1,10 @@
+ import { STATUS_CODE } from "../server.ts";
+-import { assertEquals, assertStringIncludes } from "./deps.ts";
++import {
++  assertEquals,
++  AssertionError,
++  assertRejects,
++  assertStringIncludes,
++} from "./deps.ts";
+ import { getErrorOverlay, withFakeServe } from "./test_utils.ts";
+ 
+ Deno.test("error page rendered", async () => {
+@@ -7,10 +12,28 @@ Deno.test("error page rendered", async () => {
+     const resp = await server.get("/");
+     assertEquals(resp.status, STATUS_CODE.InternalServerError);
+     assertEquals(resp.headers.get("content-type"), "text/html; charset=utf-8");
+-    await resp.text(); // Consume
++    const body = await resp.text();
++    assertStringIncludes(body, "<p>500 page</p>");
+ 
+     const { title, stack } = await getErrorOverlay(server, "/");
+     assertStringIncludes(title, `boom!`);
+     assertStringIncludes(stack, `at render`);
+   });
+ });
++
++Deno.test("error page rendered without error overlay", async () => {
++  await withFakeServe("./tests/fixture_error/main.ts", async (server) => {
++    const resp = await server.get("/");
++    assertEquals(resp.status, STATUS_CODE.InternalServerError);
++    assertEquals(resp.headers.get("content-type"), "text/html; charset=utf-8");
++    const body = await resp.text();
++    assertStringIncludes(body, "<p>500 page</p>");
++
++    await assertRejects(
++      () => getErrorOverlay(server, "/"),
++      AssertionError,
++      undefined,
++      "Missing fresh error overlay",
++    );
++  });
++});
+diff --git a/tests/fixture/fresh.gen.ts b/tests/fixture/fresh.gen.ts
+index 75aec47ebeb..feaf1c2e19e 100644
+--- a/tests/fixture/fresh.gen.ts
++++ b/tests/fixture/fresh.gen.ts
+@@ -80,6 +80,7 @@ import * as $state_middleware_foo_middleware from "./routes/state-middleware/foo
+ import * as $state_middleware_foo_index from "./routes/state-middleware/foo/index.tsx";
+ import * as $static from "./routes/static.tsx";
+ import * as $status_overwrite from "./routes/status_overwrite.tsx";
++import * as $std from "./routes/std.tsx";
+ import * as $umlaut_äöüß from "./routes/umlaut-äöüß.tsx";
+ import * as $wildcard from "./routes/wildcard.tsx";
+ import * as $Counter from "./islands/Counter.tsx";
+@@ -198,6 +199,7 @@ const manifest = {
+     "./routes/state-middleware/foo/index.tsx": $state_middleware_foo_index,
+     "./routes/static.tsx": $static,
+     "./routes/status_overwrite.tsx": $status_overwrite,
++    "./routes/std.tsx": $std,
+     "./routes/umlaut-äöüß.tsx": $umlaut_äöüß,
+     "./routes/wildcard.tsx": $wildcard,
+   },
+diff --git a/tests/fixture/routes/404-from-middleware-throw/_middleware.ts b/tests/fixture/routes/404-from-middleware-throw/_middleware.ts
+index 0190216aec0..4d833981681 100644
+--- a/tests/fixture/routes/404-from-middleware-throw/_middleware.ts
++++ b/tests/fixture/routes/404-from-middleware-throw/_middleware.ts
+@@ -1,9 +1,9 @@
+-import { MiddlewareHandlerContext } from "$fresh/server.ts";
++import { FreshContext } from "$fresh/server.ts";
+ 
+ // handlers are supposed to return something, so in order to make type checker on the manifest happy, we'll use any to escape it
+ export function handler(
+   _req: Request,
+-  _ctx: MiddlewareHandlerContext,
++  _ctx: FreshContext,
+   // deno-lint-ignore no-explicit-any
+ ): any {
+   throw new Deno.errors.NotFound();
+diff --git a/tests/fixture/routes/_404.tsx b/tests/fixture/routes/_404.tsx
+index ded1266894c..3553d4dcfdb 100644
+--- a/tests/fixture/routes/_404.tsx
++++ b/tests/fixture/routes/_404.tsx
+@@ -1,10 +1,10 @@
+-import { UnknownPageProps } from "$fresh/server.ts";
++import { PageProps } from "$fresh/server.ts";
+ 
+ type Data = { hello: string };
+ type State = { root: string };
+ 
+ export default function NotFoundPage(
+-  { data, state, url }: UnknownPageProps<Data | undefined, State>,
++  { data, state, url }: PageProps<Data | undefined, State>,
+ ) {
+   // Checks that we have the correct type for state
+   state.root satisfies string;
+diff --git a/tests/fixture/routes/_500.tsx b/tests/fixture/routes/_500.tsx
+index 0f5e6c37f64..544455cc91c 100644
+--- a/tests/fixture/routes/_500.tsx
++++ b/tests/fixture/routes/_500.tsx
+@@ -1,5 +1,5 @@
+-import { ErrorPageProps } from "$fresh/server.ts";
++import { PageProps } from "$fresh/server.ts";
+ 
+-export default function Error500Page({ error }: ErrorPageProps) {
++export default function Error500Page({ error }: PageProps) {
+   return <p>500 internal error: {(error as Error).message}</p>;
+ }
+diff --git a/tests/fixture/routes/_app.tsx b/tests/fixture/routes/_app.tsx
+index 3ab42b21d0e..cf48c3927f0 100644
+--- a/tests/fixture/routes/_app.tsx
++++ b/tests/fixture/routes/_app.tsx
+@@ -1,12 +1,12 @@
+ import { Head } from "$fresh/runtime.ts";
+-import { AppProps } from "$fresh/server.ts";
++import { PageProps } from "$fresh/server.ts";
+ 
+ export type TestState = {
+   root: string;
+   stateInProps: string;
+ };
+ 
+-export default function App(props: AppProps<unknown, TestState>) {
++export default function App(props: PageProps<unknown, TestState>) {
+   const statefulValue = props.state?.root === "root_mw"
+     ? "The freshest framework!"
+     : "";
+diff --git a/tests/fixture/routes/intercept.tsx b/tests/fixture/routes/intercept.tsx
+index aa6b2ba8cb3..956fbe24d5d 100644
+--- a/tests/fixture/routes/intercept.tsx
++++ b/tests/fixture/routes/intercept.tsx
+@@ -1,11 +1,11 @@
+-import { HandlerContext } from "$fresh/server.ts";
++import { FreshContext } from "$fresh/server.ts";
+ 
+ export default function Page() {
+   return <div>This is HTML</div>;
+ }
+ 
+ export const handler = {
+-  GET(req: Request, { render }: HandlerContext) {
++  GET(req: Request, { render }: FreshContext) {
+     if (req.headers.get("accept")?.includes("text/html")) {
+       return render();
+     } else {
+diff --git a/tests/fixture/routes/layeredMdw/_middleware.ts b/tests/fixture/routes/layeredMdw/_middleware.ts
+index 709093e3d59..7831c5d6677 100644
+--- a/tests/fixture/routes/layeredMdw/_middleware.ts
++++ b/tests/fixture/routes/layeredMdw/_middleware.ts
+@@ -1,6 +1,6 @@
+-import { MiddlewareHandlerContext } from "$fresh/server.ts";
++import { FreshContext } from "$fresh/server.ts";
+ 
+-export async function handler(_req: Request, ctx: MiddlewareHandlerContext) {
++export async function handler(_req: Request, ctx: FreshContext) {
+   ctx.state.layer1 = "layer1_mw";
+   const resp = await ctx.next();
+   resp.headers.set("server", "fresh test server layer1");
+diff --git a/tests/fixture/routes/layeredMdw/layer2-with-params/[tenantId]/_middleware.ts b/tests/fixture/routes/layeredMdw/layer2-with-params/[tenantId]/_middleware.ts
+index a56fb70f5f5..7590bdef06a 100644
+--- a/tests/fixture/routes/layeredMdw/layer2-with-params/[tenantId]/_middleware.ts
++++ b/tests/fixture/routes/layeredMdw/layer2-with-params/[tenantId]/_middleware.ts
+@@ -1,6 +1,6 @@
+-import { MiddlewareHandlerContext } from "$fresh/server.ts";
++import { FreshContext } from "$fresh/server.ts";
+ 
+-export async function handler(_req: Request, ctx: MiddlewareHandlerContext) {
++export async function handler(_req: Request, ctx: FreshContext) {
+   const resp = await ctx.next();
+   resp.headers.set("middlewareParams_inner", JSON.stringify(ctx.params));
+   return resp;
+diff --git a/tests/fixture/routes/layeredMdw/layer2-with-params/_middleware.ts b/tests/fixture/routes/layeredMdw/layer2-with-params/_middleware.ts
+index 510364790e5..586e8087497 100644
+--- a/tests/fixture/routes/layeredMdw/layer2-with-params/_middleware.ts
++++ b/tests/fixture/routes/layeredMdw/layer2-with-params/_middleware.ts
+@@ -1,6 +1,6 @@
+-import { MiddlewareHandlerContext } from "$fresh/server.ts";
++import { FreshContext } from "$fresh/server.ts";
+ 
+-export async function handler(_req: Request, ctx: MiddlewareHandlerContext) {
++export async function handler(_req: Request, ctx: FreshContext) {
+   const resp = await ctx.next();
+   resp.headers.set("middlewareParams_outer", JSON.stringify(ctx.params));
+   return resp;
+diff --git a/tests/fixture/routes/layeredMdw/layer2/_middleware.ts b/tests/fixture/routes/layeredMdw/layer2/_middleware.ts
+index 15af4050fd5..8cdaa53b58a 100644
+--- a/tests/fixture/routes/layeredMdw/layer2/_middleware.ts
++++ b/tests/fixture/routes/layeredMdw/layer2/_middleware.ts
+@@ -1,4 +1,4 @@
+-import { MiddlewareHandlerContext } from "$fresh/server.ts";
++import { FreshContext } from "$fresh/server.ts";
+ 
+ interface State {
+   root: string;
+@@ -8,7 +8,7 @@ interface State {
+ 
+ export async function handler(
+   _req: Request,
+-  ctx: MiddlewareHandlerContext<State>,
++  ctx: FreshContext<State>,
+ ) {
+   ctx.state.layer2 = "layer2_mw";
+   const resp = await ctx.next();
+diff --git a/tests/fixture/routes/layeredMdw/layer2/layer3/_middleware.ts b/tests/fixture/routes/layeredMdw/layer2/layer3/_middleware.ts
+index 82e58fd3c71..4b025951557 100644
+--- a/tests/fixture/routes/layeredMdw/layer2/layer3/_middleware.ts
++++ b/tests/fixture/routes/layeredMdw/layer2/layer3/_middleware.ts
+@@ -1,6 +1,6 @@
+-import { MiddlewareHandlerContext } from "$fresh/server.ts";
++import { FreshContext } from "$fresh/server.ts";
+ 
+-export async function handler(_req: Request, ctx: MiddlewareHandlerContext) {
++export async function handler(_req: Request, ctx: FreshContext) {
+   ctx.state.layer3 = "layer3_mw";
+   const resp = await ctx.next();
+   resp.headers.set("server", "fresh test server layer3");
+diff --git a/tests/fixture/routes/layeredMdw/nesting/[tenant]/[environment]/_middleware.ts b/tests/fixture/routes/layeredMdw/nesting/[tenant]/[environment]/_middleware.ts
+index ed93dc7fa76..344a21836d5 100644
+--- a/tests/fixture/routes/layeredMdw/nesting/[tenant]/[environment]/_middleware.ts
++++ b/tests/fixture/routes/layeredMdw/nesting/[tenant]/[environment]/_middleware.ts
+@@ -1,6 +1,6 @@
+-import { MiddlewareHandlerContext } from "$fresh/server.ts";
++import { FreshContext } from "$fresh/server.ts";
+ 
+-export async function handler(_req: Request, ctx: MiddlewareHandlerContext) {
++export async function handler(_req: Request, ctx: FreshContext) {
+   ctx.state.middlewareNestingOrder += "3";
+   const resp = await ctx.next();
+   return resp;
+diff --git a/tests/fixture/routes/layeredMdw/nesting/[tenant]/_middleware.ts b/tests/fixture/routes/layeredMdw/nesting/[tenant]/_middleware.ts
+index b44a242763d..f567e137891 100644
+--- a/tests/fixture/routes/layeredMdw/nesting/[tenant]/_middleware.ts
++++ b/tests/fixture/routes/layeredMdw/nesting/[tenant]/_middleware.ts
+@@ -1,6 +1,6 @@
+-import { MiddlewareHandlerContext } from "$fresh/server.ts";
++import { FreshContext } from "$fresh/server.ts";
+ 
+-export async function handler(_req: Request, ctx: MiddlewareHandlerContext) {
++export async function handler(_req: Request, ctx: FreshContext) {
+   ctx.state.middlewareNestingOrder += "2";
+   const resp = await ctx.next();
+   return resp;
+diff --git a/tests/fixture/routes/layeredMdw/nesting/_middleware.ts b/tests/fixture/routes/layeredMdw/nesting/_middleware.ts
+index c5fe5488346..7fea5aaae2c 100644
+--- a/tests/fixture/routes/layeredMdw/nesting/_middleware.ts
++++ b/tests/fixture/routes/layeredMdw/nesting/_middleware.ts
+@@ -1,6 +1,6 @@
+-import { MiddlewareHandlerContext } from "$fresh/server.ts";
++import { FreshContext } from "$fresh/server.ts";
+ 
+-export async function handler(_req: Request, ctx: MiddlewareHandlerContext) {
++export async function handler(_req: Request, ctx: FreshContext) {
+   ctx.state.middlewareNestingOrder = "1";
+   const resp = await ctx.next();
+   return resp;
+diff --git a/tests/fixture/routes/middleware-error-handler/_middleware.ts b/tests/fixture/routes/middleware-error-handler/_middleware.ts
+index 4e93a71332f..805b93f762b 100644
+--- a/tests/fixture/routes/middleware-error-handler/_middleware.ts
++++ b/tests/fixture/routes/middleware-error-handler/_middleware.ts
+@@ -1,8 +1,8 @@
+-import { MiddlewareHandlerContext } from "$fresh/server.ts";
++import { FreshContext } from "$fresh/server.ts";
+ 
+ export async function handler(
+   _req: Request,
+-  ctx: MiddlewareHandlerContext,
++  ctx: FreshContext,
+ ) {
+   try {
+     ctx.state.flag = true;
+diff --git a/tests/fixture/routes/params.tsx b/tests/fixture/routes/params.tsx
+index d86ecac630a..56dceafb845 100644
+--- a/tests/fixture/routes/params.tsx
++++ b/tests/fixture/routes/params.tsx
+@@ -1,7 +1,7 @@
+-import { HandlerContext, RouteConfig } from "$fresh/server.ts";
++import { FreshContext, RouteConfig } from "$fresh/server.ts";
+ 
+ export const handler = {
+-  GET(_req: Request, { params }: HandlerContext) {
++  GET(_req: Request, { params }: FreshContext) {
+     return new Response(params.path);
+   },
+ };
+diff --git a/tests/fixture/routes/route-groups/(bar)/(baz)/_layout.tsx b/tests/fixture/routes/route-groups/(bar)/(baz)/_layout.tsx
+index d408c04ae1e..4cbc38ee920 100644
+--- a/tests/fixture/routes/route-groups/(bar)/(baz)/_layout.tsx
++++ b/tests/fixture/routes/route-groups/(bar)/(baz)/_layout.tsx
+@@ -1,6 +1,6 @@
+-import { LayoutProps } from "$fresh/server.ts";
++import { PageProps } from "$fresh/server.ts";
+ 
+-export default function BarLayout({ Component }: LayoutProps) {
++export default function BarLayout({ Component }: PageProps) {
+   return (
+     <div>
+       <p class="baz-layout">Baz layout</p>
+diff --git a/tests/fixture/routes/route-groups/(bar)/_layout.tsx b/tests/fixture/routes/route-groups/(bar)/_layout.tsx
+index b5bc0417bb2..eed1f89005f 100644
+--- a/tests/fixture/routes/route-groups/(bar)/_layout.tsx
++++ b/tests/fixture/routes/route-groups/(bar)/_layout.tsx
+@@ -1,6 +1,6 @@
+-import { LayoutProps } from "$fresh/server.ts";
++import { PageProps } from "$fresh/server.ts";
+ 
+-export default function BarLayout({ Component }: LayoutProps) {
++export default function BarLayout({ Component }: PageProps) {
+   return (
+     <div>
+       <p class="bar-layout">Bar layout</p>
+diff --git a/tests/fixture/routes/route-groups/(foo)/_layout.tsx b/tests/fixture/routes/route-groups/(foo)/_layout.tsx
+index 13b10bb7aa0..60dab5efb85 100644
+--- a/tests/fixture/routes/route-groups/(foo)/_layout.tsx
++++ b/tests/fixture/routes/route-groups/(foo)/_layout.tsx
+@@ -1,6 +1,6 @@
+-import { LayoutProps } from "$fresh/server.ts";
++import { PageProps } from "$fresh/server.ts";
+ 
+-export default function FooLayout({ Component }: LayoutProps) {
++export default function FooLayout({ Component }: PageProps) {
+   return (
+     <div>
+       <p class="foo-layout">Foo layout</p>
+diff --git a/tests/fixture/routes/state-in-props/_middleware.ts b/tests/fixture/routes/state-in-props/_middleware.ts
+index 2fb9b8f5a47..44df2a3539d 100644
+--- a/tests/fixture/routes/state-in-props/_middleware.ts
++++ b/tests/fixture/routes/state-in-props/_middleware.ts
+@@ -1,9 +1,9 @@
+-import { MiddlewareHandlerContext } from "$fresh/server.ts";
++import { FreshContext } from "$fresh/server.ts";
+ import { TestState } from "../_app.tsx";
+ 
+ export async function handler(
+   _req: Request,
+-  ctx: MiddlewareHandlerContext<TestState>,
++  ctx: FreshContext<TestState>,
+ ) {
+   ctx.state.stateInProps = "look, i am set from middleware";
+   const resp = await ctx.next();
+diff --git a/tests/fixture/routes/state-middleware/_middleware.ts b/tests/fixture/routes/state-middleware/_middleware.ts
+index 48fa7ac2530..57d07cbe693 100644
+--- a/tests/fixture/routes/state-middleware/_middleware.ts
++++ b/tests/fixture/routes/state-middleware/_middleware.ts
+@@ -1,6 +1,6 @@
+-import { MiddlewareHandlerContext } from "$fresh/server.ts";
++import { FreshContext } from "$fresh/server.ts";
+ 
+-export const handler = (_req: Request, ctx: MiddlewareHandlerContext) => {
++export const handler = (_req: Request, ctx: FreshContext) => {
+   ctx.state = { handler1: "it works" };
+   return ctx.next();
+ };
+diff --git a/tests/fixture/routes/state-middleware/foo/_middleware.ts b/tests/fixture/routes/state-middleware/foo/_middleware.ts
+index 65475c28cfb..8f2520dc3f2 100644
+--- a/tests/fixture/routes/state-middleware/foo/_middleware.ts
++++ b/tests/fixture/routes/state-middleware/foo/_middleware.ts
+@@ -1,6 +1,6 @@
+-import { MiddlewareHandlerContext } from "$fresh/server.ts";
++import { FreshContext } from "$fresh/server.ts";
+ 
+-export const handler = (_req: Request, ctx: MiddlewareHandlerContext) => {
++export const handler = (_req: Request, ctx: FreshContext) => {
+   ctx.state.handler2 = "it works";
+   return ctx.next();
+ };
+diff --git a/tests/fixture/routes/state-middleware/foo/index.tsx b/tests/fixture/routes/state-middleware/foo/index.tsx
+index a88734504f3..a55261f4268 100644
+--- a/tests/fixture/routes/state-middleware/foo/index.tsx
++++ b/tests/fixture/routes/state-middleware/foo/index.tsx
+@@ -1,6 +1,6 @@
+-import { HandlerContext, PageProps } from "$fresh/server.ts";
++import { FreshContext, PageProps } from "$fresh/server.ts";
+ 
+-export const handler = (_req: Request, ctx: HandlerContext) => {
++export const handler = (_req: Request, ctx: FreshContext) => {
+   ctx.state.handler3 = "it works";
+   return ctx.render();
+ };
+diff --git a/tests/fixture/routes/status_overwrite.tsx b/tests/fixture/routes/status_overwrite.tsx
+index 83dfe8ecaa5..2afd5391e7c 100644
+--- a/tests/fixture/routes/status_overwrite.tsx
++++ b/tests/fixture/routes/status_overwrite.tsx
+@@ -1,11 +1,11 @@
+-import { HandlerContext } from "$fresh/server.ts";
++import { FreshContext } from "$fresh/server.ts";
+ 
+ export default function Page() {
+   return <div>This is HTML</div>;
+ }
+ 
+ export const handler = {
+-  GET(req: Request, { render }: HandlerContext) {
++  GET(req: Request, { render }: FreshContext) {
+     return render(undefined, {
+       status: 401,
+       headers: { "x-some-header": "foo" },
+diff --git a/tests/fixture/routes/std.tsx b/tests/fixture/routes/std.tsx
+new file mode 100644
+index 00000000000..51d5a102962
+--- /dev/null
++++ b/tests/fixture/routes/std.tsx
+@@ -0,0 +1,9 @@
++import { PageProps, RouteConfig } from "$fresh/server.ts";
++
++export default function Page(props: PageProps) {
++  return <pre>{JSON.stringify(props.params, null, 2)}</pre>;
++}
++
++export const config: RouteConfig = {
++  routeOverride: "/std{@:version}?/:path*",
++};
+diff --git a/tests/fixture_async_app/routes/_app.tsx b/tests/fixture_async_app/routes/_app.tsx
+index 81ae68bd41a..ed1470c3847 100644
+--- a/tests/fixture_async_app/routes/_app.tsx
++++ b/tests/fixture_async_app/routes/_app.tsx
+@@ -1,7 +1,7 @@
+ import { delay } from "$std/async/delay.ts";
+-import { AppContext } from "$fresh/src/server/types.ts";
++import { FreshContext } from "$fresh/src/server/types.ts";
+ 
+-export default async function App(req: Request, ctx: AppContext) {
++export default async function App(req: Request, ctx: FreshContext) {
+   await delay(100);
+ 
+   return (
+diff --git a/tests/fixture_async_app/routes/_layout.tsx b/tests/fixture_async_app/routes/_layout.tsx
+index 54c491e4ac5..1441ca9539e 100644
+--- a/tests/fixture_async_app/routes/_layout.tsx
++++ b/tests/fixture_async_app/routes/_layout.tsx
+@@ -1,9 +1,9 @@
+-import { LayoutContext } from "$fresh/server.ts";
++import { FreshContext } from "$fresh/server.ts";
+ import { delay } from "$std/async/delay.ts";
+ 
+ export default async function AsyncLayout(
+   req: Request,
+-  ctx: LayoutContext,
++  ctx: FreshContext,
+ ) {
+   await delay(10);
+   return (
+diff --git a/tests/fixture_base_path/deno.json b/tests/fixture_base_path/deno.json
+index ad956c3fb7b..7802f6a00ee 100644
+--- a/tests/fixture_base_path/deno.json
++++ b/tests/fixture_base_path/deno.json
+@@ -9,7 +9,10 @@
+     "preact/": "https://esm.sh/preact@10.15.1/",
+     "@preact/signals": "https://esm.sh/*@preact/signals@1.2.2",
+     "@preact/signals-core": "https://esm.sh/@preact/signals-core@1.5.0",
+-    "preact-render-to-string": "https://esm.sh/*preact-render-to-string@6.1.0"
++    "preact-render-to-string": "https://esm.sh/*preact-render-to-string@6.1.0",
++    "tailwindcss": "npm:tailwindcss@3.3.5",
++    "tailwindcss/": "npm:/tailwindcss@3.3.5/",
++    "tailwindcss/plugin": "npm:/tailwindcss@3.3.5/plugin.js"
+   },
+   "compilerOptions": {
+     "jsx": "react-jsx",
+diff --git a/tests/fixture_base_path/fresh.config.ts b/tests/fixture_base_path/fresh.config.ts
+new file mode 100644
+index 00000000000..8668bf3c5e6
+--- /dev/null
++++ b/tests/fixture_base_path/fresh.config.ts
+@@ -0,0 +1,9 @@
++import { defineConfig } from "$fresh/server.ts";
++import tailwind from "$fresh/plugins/tailwind.ts";
++
++export default defineConfig({
++  router: { basePath: "/foo/bar" },
++  plugins: [
++    tailwind(),
++  ],
++});
+diff --git a/tests/fixture_base_path/main.ts b/tests/fixture_base_path/main.ts
+index 7a3bb668dcb..fc9359215e3 100644
+--- a/tests/fixture_base_path/main.ts
++++ b/tests/fixture_base_path/main.ts
+@@ -6,5 +6,6 @@
+ 
+ import { start } from "$fresh/server.ts";
+ import manifest from "./fresh.gen.ts";
++import config from "./fresh.config.ts";
+ 
+-await start(manifest, { router: { basePath: "/foo/bar" } });
++await start(manifest, config);
+diff --git a/tests/fixture_base_path/routes/_middleware.ts b/tests/fixture_base_path/routes/_middleware.ts
+index 358c1c8db31..5870f432fbb 100644
+--- a/tests/fixture_base_path/routes/_middleware.ts
++++ b/tests/fixture_base_path/routes/_middleware.ts
+@@ -1,10 +1,17 @@
+-import { MiddlewareHandlerContext } from "$fresh/server.ts";
++import { FreshContext } from "$fresh/server.ts";
+ 
+ export async function handler(
+   _req: Request,
+-  ctx: MiddlewareHandlerContext<{ data: string }>,
++  ctx: FreshContext<{ data: string }>,
+ ) {
+-  ctx.state.data = "it works";
++  if (ctx.url.pathname === "/foo/bar/middleware-only.css") {
++    return new Response(".foo-bar { color: red }", {
++      headers: {
++        "Content-Type": "text/css",
++      },
++    });
++  }
++  ctx.state.data = "middleware is working";
+   const resp = await ctx.next();
+   resp.headers.set("server", "fresh server");
+   return resp;
+diff --git a/tests/fixture_base_path/routes/index.tsx b/tests/fixture_base_path/routes/index.tsx
+index 2f5f11e9757..ba73acc0eec 100644
+--- a/tests/fixture_base_path/routes/index.tsx
++++ b/tests/fixture_base_path/routes/index.tsx
+@@ -1,3 +1,10 @@
+-export default function Home() {
+-  return <h1>it works</h1>;
+-}
++import { defineRoute } from "$fresh/server.ts";
++
++export default defineRoute<{ data: string }>((req, ctx) => {
++  return (
++    <>
++      <h1 class="text-red-600 block">it works</h1>
++      {ctx.state.data}
++    </>
++  );
++});
+diff --git a/tests/fixture_base_path/static/styles.css b/tests/fixture_base_path/static/styles.css
+new file mode 100644
+index 00000000000..b5c61c95671
+--- /dev/null
++++ b/tests/fixture_base_path/static/styles.css
+@@ -0,0 +1,3 @@
++@tailwind base;
++@tailwind components;
++@tailwind utilities;
+diff --git a/tests/fixture_base_path/tailwind.config.ts b/tests/fixture_base_path/tailwind.config.ts
+new file mode 100644
+index 00000000000..63acf078c6e
+--- /dev/null
++++ b/tests/fixture_base_path/tailwind.config.ts
+@@ -0,0 +1,7 @@
++import { Config } from "tailwindcss";
++
++export default {
++  content: [
++    "{routes,islands,components}/**/*.{ts,tsx}",
++  ],
++} as Config;
+diff --git a/tests/fixture_base_path_build/deno.json b/tests/fixture_base_path_build/deno.json
+new file mode 100644
+index 00000000000..d9ccbefafc5
+--- /dev/null
++++ b/tests/fixture_base_path_build/deno.json
+@@ -0,0 +1,13 @@
++{
++  "lock": false,
++  "imports": {
++    "$fresh/": "../../",
++    "preact": "https://esm.sh/preact@10.15.1",
++    "preact/": "https://esm.sh/preact@10.15.1/",
++    "tailwindcss": "npm:tailwindcss@3.3.5"
++  },
++  "compilerOptions": {
++    "jsx": "react-jsx",
++    "jsxImportSource": "preact"
++  }
++}
+diff --git a/tests/fixture_base_path_build/dev.ts b/tests/fixture_base_path_build/dev.ts
+new file mode 100755
+index 00000000000..1fe3e340282
+--- /dev/null
++++ b/tests/fixture_base_path_build/dev.ts
+@@ -0,0 +1,6 @@
++#!/usr/bin/env -S deno run -A --watch=static/,routes/
++
++import dev from "$fresh/dev.ts";
++import config from "./fresh.config.ts";
++
++await dev(import.meta.url, "./main.ts", config);
+diff --git a/tests/fixture_base_path_build/fresh.config.ts b/tests/fixture_base_path_build/fresh.config.ts
+new file mode 100644
+index 00000000000..8668bf3c5e6
+--- /dev/null
++++ b/tests/fixture_base_path_build/fresh.config.ts
+@@ -0,0 +1,9 @@
++import { defineConfig } from "$fresh/server.ts";
++import tailwind from "$fresh/plugins/tailwind.ts";
++
++export default defineConfig({
++  router: { basePath: "/foo/bar" },
++  plugins: [
++    tailwind(),
++  ],
++});
+diff --git a/tests/fixture_base_path_build/fresh.gen.ts b/tests/fixture_base_path_build/fresh.gen.ts
+new file mode 100644
+index 00000000000..e6643ad216e
+--- /dev/null
++++ b/tests/fixture_base_path_build/fresh.gen.ts
+@@ -0,0 +1,19 @@
++// DO NOT EDIT. This file is generated by Fresh.
++// This file SHOULD be checked into source version control.
++// This file is automatically updated during development when running `dev.ts`.
++
++import * as $_app from "./routes/_app.tsx";
++import * as $index from "./routes/index.tsx";
++
++import { type Manifest } from "$fresh/server.ts";
++
++const manifest = {
++  routes: {
++    "./routes/_app.tsx": $_app,
++    "./routes/index.tsx": $index,
++  },
++  islands: {},
++  baseUrl: import.meta.url,
++} satisfies Manifest;
++
++export default manifest;
+diff --git a/tests/fixture_base_path_build/main.ts b/tests/fixture_base_path_build/main.ts
+new file mode 100644
+index 00000000000..fc9359215e3
+--- /dev/null
++++ b/tests/fixture_base_path_build/main.ts
+@@ -0,0 +1,11 @@
++/// <reference no-default-lib="true" />
++/// <reference lib="dom" />
++/// <reference lib="dom.iterable" />
++/// <reference lib="dom.asynciterable" />
++/// <reference lib="deno.ns" />
++
++import { start } from "$fresh/server.ts";
++import manifest from "./fresh.gen.ts";
++import config from "./fresh.config.ts";
++
++await start(manifest, config);
+diff --git a/tests/fixture_base_path_build/routes/_app.tsx b/tests/fixture_base_path_build/routes/_app.tsx
+new file mode 100644
+index 00000000000..2e225e497f4
+--- /dev/null
++++ b/tests/fixture_base_path_build/routes/_app.tsx
+@@ -0,0 +1,17 @@
++import { PageProps } from "$fresh/server.ts";
++
++export default function App({ Component }: PageProps) {
++  return (
++    <html>
++      <head>
++        <meta charset="utf-8" />
++        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
++        <title>My Fresh app</title>
++        <link rel="stylesheet" href="/styles.css" />
++      </head>
++      <body>
++        <Component />
++      </body>
++    </html>
++  );
++}
+diff --git a/tests/fixture_base_path_build/routes/index.tsx b/tests/fixture_base_path_build/routes/index.tsx
+new file mode 100644
+index 00000000000..ee3f8f3c9bd
+--- /dev/null
++++ b/tests/fixture_base_path_build/routes/index.tsx
+@@ -0,0 +1,3 @@
++export default function Page() {
++  return <h1 class="text-red-600 block">foo</h1>;
++}
+diff --git a/tests/fixture_base_path_build/static/styles.css b/tests/fixture_base_path_build/static/styles.css
+new file mode 100644
+index 00000000000..b5c61c95671
+--- /dev/null
++++ b/tests/fixture_base_path_build/static/styles.css
+@@ -0,0 +1,3 @@
++@tailwind base;
++@tailwind components;
++@tailwind utilities;
+diff --git a/tests/fixture_base_path_build/tailwind.config.ts b/tests/fixture_base_path_build/tailwind.config.ts
+new file mode 100644
+index 00000000000..63acf078c6e
+--- /dev/null
++++ b/tests/fixture_base_path_build/tailwind.config.ts
+@@ -0,0 +1,7 @@
++import { Config } from "tailwindcss";
++
++export default {
++  content: [
++    "{routes,islands,components}/**/*.{ts,tsx}",
++  ],
++} as Config;
+diff --git a/tests/fixture_base_path_config/deno.json b/tests/fixture_base_path_config/deno.json
+new file mode 100644
+index 00000000000..d9ccbefafc5
+--- /dev/null
++++ b/tests/fixture_base_path_config/deno.json
+@@ -0,0 +1,13 @@
++{
++  "lock": false,
++  "imports": {
++    "$fresh/": "../../",
++    "preact": "https://esm.sh/preact@10.15.1",
++    "preact/": "https://esm.sh/preact@10.15.1/",
++    "tailwindcss": "npm:tailwindcss@3.3.5"
++  },
++  "compilerOptions": {
++    "jsx": "react-jsx",
++    "jsxImportSource": "preact"
++  }
++}
+diff --git a/tests/fixture_base_path_config/dev.ts b/tests/fixture_base_path_config/dev.ts
+new file mode 100755
+index 00000000000..1fe3e340282
+--- /dev/null
++++ b/tests/fixture_base_path_config/dev.ts
+@@ -0,0 +1,6 @@
++#!/usr/bin/env -S deno run -A --watch=static/,routes/
++
++import dev from "$fresh/dev.ts";
++import config from "./fresh.config.ts";
++
++await dev(import.meta.url, "./main.ts", config);
+diff --git a/tests/fixture_base_path_config/foo/Foo.tsx b/tests/fixture_base_path_config/foo/Foo.tsx
+new file mode 100644
+index 00000000000..965dddb6b17
+--- /dev/null
++++ b/tests/fixture_base_path_config/foo/Foo.tsx
+@@ -0,0 +1,3 @@
++export function Foo() {
++  return <h1 class="bold text-pp bg-black text-3xl">foo</h1>;
++}
+diff --git a/tests/fixture_base_path_config/fresh.config.ts b/tests/fixture_base_path_config/fresh.config.ts
+new file mode 100644
+index 00000000000..8668bf3c5e6
+--- /dev/null
++++ b/tests/fixture_base_path_config/fresh.config.ts
+@@ -0,0 +1,9 @@
++import { defineConfig } from "$fresh/server.ts";
++import tailwind from "$fresh/plugins/tailwind.ts";
++
++export default defineConfig({
++  router: { basePath: "/foo/bar" },
++  plugins: [
++    tailwind(),
++  ],
++});
+diff --git a/tests/fixture_base_path_config/fresh.gen.ts b/tests/fixture_base_path_config/fresh.gen.ts
+new file mode 100644
+index 00000000000..e6643ad216e
+--- /dev/null
++++ b/tests/fixture_base_path_config/fresh.gen.ts
+@@ -0,0 +1,19 @@
++// DO NOT EDIT. This file is generated by Fresh.
++// This file SHOULD be checked into source version control.
++// This file is automatically updated during development when running `dev.ts`.
++
++import * as $_app from "./routes/_app.tsx";
++import * as $index from "./routes/index.tsx";
++
++import { type Manifest } from "$fresh/server.ts";
++
++const manifest = {
++  routes: {
++    "./routes/_app.tsx": $_app,
++    "./routes/index.tsx": $index,
++  },
++  islands: {},
++  baseUrl: import.meta.url,
++} satisfies Manifest;
++
++export default manifest;
+diff --git a/tests/fixture_base_path_config/main.ts b/tests/fixture_base_path_config/main.ts
+new file mode 100644
+index 00000000000..fc9359215e3
+--- /dev/null
++++ b/tests/fixture_base_path_config/main.ts
+@@ -0,0 +1,11 @@
++/// <reference no-default-lib="true" />
++/// <reference lib="dom" />
++/// <reference lib="dom.iterable" />
++/// <reference lib="dom.asynciterable" />
++/// <reference lib="deno.ns" />
++
++import { start } from "$fresh/server.ts";
++import manifest from "./fresh.gen.ts";
++import config from "./fresh.config.ts";
++
++await start(manifest, config);
+diff --git a/tests/fixture_base_path_config/routes/_app.tsx b/tests/fixture_base_path_config/routes/_app.tsx
+new file mode 100644
+index 00000000000..2e225e497f4
+--- /dev/null
++++ b/tests/fixture_base_path_config/routes/_app.tsx
+@@ -0,0 +1,17 @@
++import { PageProps } from "$fresh/server.ts";
++
++export default function App({ Component }: PageProps) {
++  return (
++    <html>
++      <head>
++        <meta charset="utf-8" />
++        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
++        <title>My Fresh app</title>
++        <link rel="stylesheet" href="/styles.css" />
++      </head>
++      <body>
++        <Component />
++      </body>
++    </html>
++  );
++}
+diff --git a/tests/fixture_base_path_config/routes/index.tsx b/tests/fixture_base_path_config/routes/index.tsx
+new file mode 100644
+index 00000000000..d69dd510528
+--- /dev/null
++++ b/tests/fixture_base_path_config/routes/index.tsx
+@@ -0,0 +1,5 @@
++import { Foo } from "../foo/Foo.tsx";
++
++export default function Page() {
++  return <Foo />;
++}
+diff --git a/tests/fixture_base_path_config/static/styles.css b/tests/fixture_base_path_config/static/styles.css
+new file mode 100644
+index 00000000000..b5c61c95671
+--- /dev/null
++++ b/tests/fixture_base_path_config/static/styles.css
+@@ -0,0 +1,3 @@
++@tailwind base;
++@tailwind components;
++@tailwind utilities;
+diff --git a/tests/fixture_base_path_config/tailwind.config.ts b/tests/fixture_base_path_config/tailwind.config.ts
+new file mode 100644
+index 00000000000..eaef5a3a7c8
+--- /dev/null
++++ b/tests/fixture_base_path_config/tailwind.config.ts
+@@ -0,0 +1,11 @@
++/** @type {import('tailwindcss').Config} */
++export default {
++  content: ["./foo/**/*.{ts,tsx}"],
++  theme: {
++    extend: {
++      colors: {
++        pp: "peachpuff",
++      },
++    },
++  },
++};
+diff --git a/tests/fixture_custom_500/routes/_500.tsx b/tests/fixture_custom_500/routes/_500.tsx
+index fb2fd55b40e..164e8299a30 100644
+--- a/tests/fixture_custom_500/routes/_500.tsx
++++ b/tests/fixture_custom_500/routes/_500.tsx
+@@ -1,9 +1,9 @@
+-import { ErrorHandler, ErrorPageProps } from "../../../server.ts";
++import { ErrorHandler, PageProps } from "../../../server.ts";
+ 
+ export const handler: ErrorHandler = (_req, ctx) => {
+   return ctx.render();
+ };
+ 
+-export default function Error500Page({ error }: ErrorPageProps) {
++export default function Error500Page({ error }: PageProps) {
+   return <p class="custom-500">Custom 500: {(error as Error).message}</p>;
+ }
+diff --git a/tests/fixture_error/fresh.gen.ts b/tests/fixture_error/fresh.gen.ts
+index a30ad6b3721..470ec1ca105 100644
+--- a/tests/fixture_error/fresh.gen.ts
++++ b/tests/fixture_error/fresh.gen.ts
+@@ -3,6 +3,7 @@
+ // This file is automatically updated during development when running `dev.ts`.
+ 
+ import * as $_all_ from "./routes/[...all].ts";
++import * as $_500 from "./routes/_500.tsx";
+ import * as $index from "./routes/index.tsx";
+ 
+ import { type Manifest } from "$fresh/server.ts";
+@@ -10,6 +11,7 @@ import { type Manifest } from "$fresh/server.ts";
+ const manifest = {
+   routes: {
+     "./routes/[...all].ts": $_all_,
++    "./routes/_500.tsx": $_500,
+     "./routes/index.tsx": $index,
+   },
+   islands: {},
+diff --git a/tests/fixture_error/routes/_500.tsx b/tests/fixture_error/routes/_500.tsx
+new file mode 100644
+index 00000000000..39e72fa5bcd
+--- /dev/null
++++ b/tests/fixture_error/routes/_500.tsx
+@@ -0,0 +1,3 @@
++export default function Error500() {
++  return <p>500 page</p>;
++}
+diff --git a/tests/fixture_explicit_app/routes/_app.tsx b/tests/fixture_explicit_app/routes/_app.tsx
+index fc06dc705ca..b366ba0199d 100644
+--- a/tests/fixture_explicit_app/routes/_app.tsx
++++ b/tests/fixture_explicit_app/routes/_app.tsx
+@@ -1,4 +1,4 @@
+-import { AppProps, Handler } from "$fresh/server.ts";
++import { Handler, PageProps } from "$fresh/server.ts";
+ 
+ export const handler: Handler = (_req, ctx) => {
+   ctx.state.lang = "de";
+@@ -6,7 +6,7 @@ export const handler: Handler = (_req, ctx) => {
+ };
+ 
+ export default function App(
+-  { Component, state }: AppProps<unknown, { lang: string }>,
++  { Component, state }: PageProps<unknown, { lang: string }>,
+ ) {
+   return (
+     <html lang={state.lang} class="html">
+diff --git a/tests/fixture_layouts/routes/_app.tsx b/tests/fixture_layouts/routes/_app.tsx
+index ba763d1da82..dfacc1ff903 100644
+--- a/tests/fixture_layouts/routes/_app.tsx
++++ b/tests/fixture_layouts/routes/_app.tsx
+@@ -1,6 +1,6 @@
+-import { AppProps } from "$fresh/server.ts";
++import { PageProps } from "$fresh/server.ts";
+ 
+-export default function App({ Component, state }: AppProps) {
++export default function App({ Component, state }: PageProps) {
+   return (
+     <div class="app">
+       <Component />
+diff --git a/tests/fixture_layouts/routes/_layout.tsx b/tests/fixture_layouts/routes/_layout.tsx
+index 62752ab8c83..6f98ab60120 100644
+--- a/tests/fixture_layouts/routes/_layout.tsx
++++ b/tests/fixture_layouts/routes/_layout.tsx
+@@ -1,8 +1,8 @@
+-import { LayoutProps } from "$fresh/server.ts";
++import { PageProps } from "$fresh/server.ts";
+ import { LayoutState } from "./_middleware.ts";
+ 
+ export default function RootLayout(
+-  { Component, state }: LayoutProps<unknown, LayoutState>,
++  { Component, state }: PageProps<unknown, LayoutState>,
+ ) {
+   return (
+     <div class="root-layout">
+diff --git a/tests/fixture_layouts/routes/_middleware.ts b/tests/fixture_layouts/routes/_middleware.ts
+index e5cffa070f7..7fa35adca90 100644
+--- a/tests/fixture_layouts/routes/_middleware.ts
++++ b/tests/fixture_layouts/routes/_middleware.ts
+@@ -1,4 +1,4 @@
+-import { MiddlewareHandlerContext } from "$fresh/server.ts";
++import { FreshContext } from "$fresh/server.ts";
+ 
+ export type LayoutState = {
+   something: string;
+@@ -6,7 +6,7 @@ export type LayoutState = {
+ 
+ export const handler = (
+   _req: Request,
+-  ctx: MiddlewareHandlerContext<LayoutState>,
++  ctx: FreshContext<LayoutState>,
+ ) => {
+   ctx.state.something = "it works";
+   return ctx.next();
+diff --git a/tests/fixture_layouts/routes/async/_layout.tsx b/tests/fixture_layouts/routes/async/_layout.tsx
+index 070feb74597..3f6a3c0cd16 100644
+--- a/tests/fixture_layouts/routes/async/_layout.tsx
++++ b/tests/fixture_layouts/routes/async/_layout.tsx
+@@ -1,9 +1,9 @@
+-import { LayoutContext } from "$fresh/server.ts";
++import { FreshContext } from "$fresh/server.ts";
+ import { delay } from "$fresh/tests/deps.ts";
+ 
+ export default async function AsyncLayout(
+   req: Request,
+-  ctx: LayoutContext,
++  ctx: FreshContext,
+ ) {
+   await delay(10);
+   return (
+diff --git a/tests/fixture_layouts/routes/async/redirect/_layout.tsx b/tests/fixture_layouts/routes/async/redirect/_layout.tsx
+index 9a8a96e8e1c..20bf91c4c46 100644
+--- a/tests/fixture_layouts/routes/async/redirect/_layout.tsx
++++ b/tests/fixture_layouts/routes/async/redirect/_layout.tsx
+@@ -1,9 +1,9 @@
+-import { LayoutContext } from "$fresh/server.ts";
++import { FreshContext } from "$fresh/server.ts";
+ import { delay } from "$std/async/mod.ts";
+ 
+ export default async function AsyncSubLayout(
+   req: Request,
+-  ctx: LayoutContext,
++  ctx: FreshContext,
+ ) {
+   await delay(10);
+   return new Response(null, {
+diff --git a/tests/fixture_layouts/routes/async/sub/_layout.tsx b/tests/fixture_layouts/routes/async/sub/_layout.tsx
+index 110daa02677..0c55cef87a8 100644
+--- a/tests/fixture_layouts/routes/async/sub/_layout.tsx
++++ b/tests/fixture_layouts/routes/async/sub/_layout.tsx
+@@ -1,8 +1,8 @@
+-import { LayoutContext } from "$fresh/server.ts";
++import { FreshContext } from "$fresh/server.ts";
+ 
+ export default async function AsyncSubLayout(
+   req: Request,
+-  ctx: LayoutContext,
++  ctx: FreshContext,
+ ) {
+   await new Promise((r) => setTimeout(r, 10));
+   return (
+diff --git a/tests/fixture_layouts/routes/files/ts/_layout.ts b/tests/fixture_layouts/routes/files/ts/_layout.ts
+index 33617a71cfb..b3914e440bb 100644
+--- a/tests/fixture_layouts/routes/files/ts/_layout.ts
++++ b/tests/fixture_layouts/routes/files/ts/_layout.ts
+@@ -1,6 +1,6 @@
+ import { h } from "preact";
+-import { LayoutProps } from "$fresh/server.ts";
++import { PageProps } from "$fresh/server.ts";
+ 
+-export default function TsLayout({ Component }: LayoutProps) {
++export default function TsLayout({ Component }: PageProps) {
+   return h("div", { class: "ts-layout" }, h(Component, null));
+ }
+diff --git a/tests/fixture_layouts/routes/files/tsx/_layout.tsx b/tests/fixture_layouts/routes/files/tsx/_layout.tsx
+index c8600dbb865..64aacfb937b 100644
+--- a/tests/fixture_layouts/routes/files/tsx/_layout.tsx
++++ b/tests/fixture_layouts/routes/files/tsx/_layout.tsx
+@@ -1,7 +1,7 @@
+ import { h } from "preact";
+-import { LayoutProps } from "$fresh/server.ts";
++import { PageProps } from "$fresh/server.ts";
+ 
+-export default function TsxLayout({ Component }: LayoutProps) {
++export default function TsxLayout({ Component }: PageProps) {
+   return (
+     <div class="tsx-layout">
+       <Component />
+diff --git a/tests/fixture_layouts/routes/foo/_layout.tsx b/tests/fixture_layouts/routes/foo/_layout.tsx
+index da0f7c8fcaa..cc507685dff 100644
+--- a/tests/fixture_layouts/routes/foo/_layout.tsx
++++ b/tests/fixture_layouts/routes/foo/_layout.tsx
+@@ -1,6 +1,6 @@
+-import { LayoutProps } from "$fresh/server.ts";
++import { PageProps } from "$fresh/server.ts";
+ 
+-export default function FooLayout({ Component }: LayoutProps) {
++export default function FooLayout({ Component }: PageProps) {
+   return (
+     <div class="foo-layout">
+       <Component />
+diff --git a/tests/fixture_layouts/routes/override/_layout.tsx b/tests/fixture_layouts/routes/override/_layout.tsx
+index 9f5cac7bc1c..d18a52a495f 100644
+--- a/tests/fixture_layouts/routes/override/_layout.tsx
++++ b/tests/fixture_layouts/routes/override/_layout.tsx
+@@ -1,10 +1,10 @@
+-import { LayoutConfig, LayoutProps } from "$fresh/server.ts";
++import { LayoutConfig, PageProps } from "$fresh/server.ts";
+ 
+ export const config: LayoutConfig = {
+   skipInheritedLayouts: true,
+ };
+ 
+-export default function OverrideLayout({ Component }: LayoutProps) {
++export default function OverrideLayout({ Component }: PageProps) {
+   return (
+     <div class="override-layout">
+       <Component />
+diff --git a/tests/fixture_layouts/routes/override/layout_no_app/_layout.tsx b/tests/fixture_layouts/routes/override/layout_no_app/_layout.tsx
+index c306c255652..d894f401d5a 100644
+--- a/tests/fixture_layouts/routes/override/layout_no_app/_layout.tsx
++++ b/tests/fixture_layouts/routes/override/layout_no_app/_layout.tsx
+@@ -1,10 +1,10 @@
+-import { LayoutConfig, LayoutProps } from "$fresh/server.ts";
++import { LayoutConfig, PageProps } from "$fresh/server.ts";
+ 
+ export const config: LayoutConfig = {
+   skipAppWrapper: true,
+ };
+ 
+-export default function OverrideLayout({ Component }: LayoutProps) {
++export default function OverrideLayout({ Component }: PageProps) {
+   return (
+     <div class="no-app-layout">
+       <Component />
+diff --git a/tests/fixture_layouts/routes/skip/sub/_layout.tsx b/tests/fixture_layouts/routes/skip/sub/_layout.tsx
+index f237534b816..9f5c6637459 100644
+--- a/tests/fixture_layouts/routes/skip/sub/_layout.tsx
++++ b/tests/fixture_layouts/routes/skip/sub/_layout.tsx
+@@ -1,6 +1,6 @@
+-import { LayoutProps } from "$fresh/server.ts";
++import { PageProps } from "$fresh/server.ts";
+ 
+-export default function SubLayout({ Component }: LayoutProps) {
++export default function SubLayout({ Component }: PageProps) {
+   return (
+     <div class="sub-layout">
+       <Component />
+diff --git a/tests/fixture_layouts_2/routes/_layout.tsx b/tests/fixture_layouts_2/routes/_layout.tsx
+index 3fdf973385c..777702b6f30 100644
+--- a/tests/fixture_layouts_2/routes/_layout.tsx
++++ b/tests/fixture_layouts_2/routes/_layout.tsx
+@@ -1,7 +1,7 @@
+-import { LayoutProps } from "$fresh/server.ts";
++import { PageProps } from "$fresh/server.ts";
+ 
+ export default function RootLayout(
+-  { Component }: LayoutProps<unknown>,
++  { Component }: PageProps<unknown>,
+ ) {
+   return (
+     <div class="root-layout">
+diff --git a/tests/fixture_partials/routes/active_nav_partial/_layout.tsx b/tests/fixture_partials/routes/active_nav_partial/_layout.tsx
+index e31f709eaaf..91321364a38 100644
+--- a/tests/fixture_partials/routes/active_nav_partial/_layout.tsx
++++ b/tests/fixture_partials/routes/active_nav_partial/_layout.tsx
+@@ -1,6 +1,6 @@
+-import { LayoutProps } from "$fresh/server.ts";
++import { PageProps } from "$fresh/server.ts";
+ 
+-export default function Layout({ Component }: LayoutProps) {
++export default function Layout({ Component }: PageProps) {
+   return (
+     <div f-client-nav>
+       <Component />
+diff --git a/tests/fixture_partials/routes/client_nav/_layout.tsx b/tests/fixture_partials/routes/client_nav/_layout.tsx
+index baf923d3cfe..bce976ac8d8 100644
+--- a/tests/fixture_partials/routes/client_nav/_layout.tsx
++++ b/tests/fixture_partials/routes/client_nav/_layout.tsx
+@@ -1,8 +1,8 @@
+-import { AppProps } from "$fresh/server.ts";
++import { PageProps } from "$fresh/server.ts";
+ import { Partial } from "$fresh/runtime.ts";
+ import { Fader } from "../../islands/Fader.tsx";
+ 
+-export default function AppLayout({ Component }: AppProps) {
++export default function AppLayout({ Component }: PageProps) {
+   return (
+     <html>
+       <head>
+diff --git a/tests/fixture_partials/routes/client_nav_both/_layout.tsx b/tests/fixture_partials/routes/client_nav_both/_layout.tsx
+index f614581d95a..4310f99fa8d 100644
+--- a/tests/fixture_partials/routes/client_nav_both/_layout.tsx
++++ b/tests/fixture_partials/routes/client_nav_both/_layout.tsx
+@@ -1,8 +1,8 @@
+-import { AppProps } from "$fresh/server.ts";
++import { PageProps } from "$fresh/server.ts";
+ import { Partial } from "$fresh/runtime.ts";
+ import { Fader } from "../../islands/Fader.tsx";
+ 
+-export default function AppLayout({ Component }: AppProps) {
++export default function AppLayout({ Component }: PageProps) {
+   return (
+     <html>
+       <head>
+diff --git a/tests/fixture_partials/routes/client_nav_opt_out/_layout.tsx b/tests/fixture_partials/routes/client_nav_opt_out/_layout.tsx
+index 550bcab903c..d4194a2d9db 100644
+--- a/tests/fixture_partials/routes/client_nav_opt_out/_layout.tsx
++++ b/tests/fixture_partials/routes/client_nav_opt_out/_layout.tsx
+@@ -1,8 +1,8 @@
+-import { AppProps } from "$fresh/server.ts";
++import { PageProps } from "$fresh/server.ts";
+ import { Partial } from "$fresh/runtime.ts";
+ import { Fader } from "../../islands/Fader.tsx";
+ 
+-export default function AppLayout({ Component }: AppProps) {
++export default function AppLayout({ Component }: PageProps) {
+   return (
+     <html>
+       <head>
+diff --git a/tests/fixture_partials/routes/isPartial/_middleware.ts b/tests/fixture_partials/routes/isPartial/_middleware.ts
+index 3e8a9413d2d..24f04308c4a 100644
+--- a/tests/fixture_partials/routes/isPartial/_middleware.ts
++++ b/tests/fixture_partials/routes/isPartial/_middleware.ts
+@@ -1,4 +1,4 @@
+-import { MiddlewareHandlerContext } from "$fresh/server.ts";
++import { FreshContext } from "$fresh/server.ts";
+ 
+ export type IsPartialInContextState = {
+   setFromMiddleware: boolean;
+@@ -7,7 +7,7 @@ export type IsPartialInContextState = {
+ 
+ export async function handler(
+   _req: Request,
+-  ctx: MiddlewareHandlerContext<IsPartialInContextState>,
++  ctx: FreshContext<IsPartialInContextState>,
+ ) {
+   if (ctx.isPartial) {
+     ctx.state.setFromMiddleware = true;
+diff --git a/tests/fixture_plugin/fresh.config.ts b/tests/fixture_plugin/fresh.config.ts
+index f50e91083d3..fd8baf31efa 100644
+--- a/tests/fixture_plugin/fresh.config.ts
++++ b/tests/fixture_plugin/fresh.config.ts
+@@ -12,7 +12,7 @@ export default {
+     jsInjectPlugin,
+     cssInjectPluginAsync,
+     linkInjectPlugin,
+-    routePlugin({ title: "Title Set From Plugin Config" }),
++    routePlugin({ title: "Title Set From Plugin Config", async: false }),
+     secondMiddlewarePlugin(),
+   ],
+ } as FreshConfig;
+diff --git a/tests/fixture_plugin/routes/test.tsx b/tests/fixture_plugin/routes/test.tsx
+index c1c11ef7f85..2180db94460 100644
+--- a/tests/fixture_plugin/routes/test.tsx
++++ b/tests/fixture_plugin/routes/test.tsx
+@@ -1,7 +1,7 @@
+-import { HandlerContext, Handlers, PageProps } from "../../../server.ts";
++import { FreshContext, Handlers, PageProps } from "../../../server.ts";
+ 
+ export const handler: Handlers<unknown, { test: string }> = {
+-  async GET(_req, ctx: HandlerContext<unknown, { test: string }>) {
++  async GET(_req, ctx: FreshContext<{ test: string }, unknown>) {
+     const resp = await ctx.render();
+     return resp;
+   },
+diff --git a/tests/fixture_plugin/utils/route-plugin.ts b/tests/fixture_plugin/utils/route-plugin.ts
+index 5ec4cf87c0d..c549bfe9b02 100644
+--- a/tests/fixture_plugin/utils/route-plugin.ts
++++ b/tests/fixture_plugin/utils/route-plugin.ts
+@@ -1,12 +1,14 @@
+-import { MiddlewareHandlerContext, Plugin } from "$fresh/server.ts";
++import { FreshContext, Plugin } from "$fresh/server.ts";
+ import { handler as testMiddleware } from "./sample_routes/_middleware.ts";
+ import { AppBuilder } from "./sample_routes/AppBuilder.tsx";
+ import IslandPluginComponent from "./sample_routes/PluginRouteWithIsland.tsx";
+ import { SimpleRoute } from "./sample_routes/simple-route.tsx";
++import AsyncRoute from "./sample_routes/async-route.tsx";
+ export type { Options };
+ 
+ interface Options {
+   title: string;
++  async: boolean;
+ }
+ export type PluginMiddlewareState = {
+   num: number;
+@@ -16,14 +18,14 @@ export type PluginMiddlewareState = {
+ const twoPointlessMiddlewares = [
+   async (
+     _req: Request,
+-    ctx: MiddlewareHandlerContext<PluginMiddlewareState>,
++    ctx: FreshContext<PluginMiddlewareState>,
+   ) => {
+     ctx.state.num = ctx.state.num === undefined ? 1 : ctx.state.num + 1;
+     return await ctx.next();
+   },
+   async (
+     _req: Request,
+-    ctx: MiddlewareHandlerContext<PluginMiddlewareState>,
++    ctx: FreshContext<PluginMiddlewareState>,
+   ) => {
+     ctx.state.num = ctx.state.num === undefined ? 1 : ctx.state.num + 1;
+     return await ctx.next();
+@@ -45,6 +47,7 @@ export default function routePlugin(
+       path: "lots-of-middleware",
+     }],
+     routes: [
++      { path: "/async-route", component: AsyncRoute },
+       {
+         path: "/_app",
+         component: AppBuilder(options),
+diff --git a/tests/fixture_plugin/utils/sample_routes/AppBuilder.tsx b/tests/fixture_plugin/utils/sample_routes/AppBuilder.tsx
+index 73f18c0cf45..8164cd890d8 100644
+--- a/tests/fixture_plugin/utils/sample_routes/AppBuilder.tsx
++++ b/tests/fixture_plugin/utils/sample_routes/AppBuilder.tsx
+@@ -1,18 +1,32 @@
+-import { AppProps } from "$fresh/server.ts";
++import { defineApp, PageProps } from "$fresh/server.ts";
+ import { Head } from "../../../../runtime.ts";
+ import { Options } from "../route-plugin.ts";
+ 
+ export function AppBuilder(options: Options) {
+-  return ({ Component }: AppProps) => {
+-    return (
+-      <>
+-        <Head>
+-          <title>{options.title}</title>
+-        </Head>
+-        <main class="max-w-screen-md px-4 pt-16 mx-auto">
+-          <Component />
+-        </main>
+-      </>
+-    );
+-  };
++  return options.async
++    ? defineApp((_req, ctx) => {
++      return (
++        <>
++          <Head>
++            <title>{options.title}</title>
++          </Head>
++          <main class="max-w-screen-md px-4 pt-16 mx-auto">
++            foo
++            <ctx.Component />
++          </main>
++        </>
++      );
++    })
++    : ({ Component }: PageProps) => {
++      return (
++        <>
++          <Head>
++            <title>{options.title}</title>
++          </Head>
++          <main class="max-w-screen-md px-4 pt-16 mx-auto">
++            <Component />
++          </main>
++        </>
++      );
++    };
+ }
+diff --git a/tests/fixture_plugin/utils/sample_routes/_middleware.ts b/tests/fixture_plugin/utils/sample_routes/_middleware.ts
+index 5e946530bad..cd3d914c76b 100644
+--- a/tests/fixture_plugin/utils/sample_routes/_middleware.ts
++++ b/tests/fixture_plugin/utils/sample_routes/_middleware.ts
+@@ -1,9 +1,9 @@
+-import { MiddlewareHandlerContext } from "$fresh/server.ts";
++import { FreshContext } from "$fresh/server.ts";
+ import { PluginMiddlewareState } from "../../utils/route-plugin.ts";
+ 
+ export async function handler(
+   _req: Request,
+-  ctx: MiddlewareHandlerContext<PluginMiddlewareState>,
++  ctx: FreshContext<PluginMiddlewareState>,
+ ) {
+   ctx.state.test = "look, i'm set from a plugin!";
+   const resp = await ctx.next();
+diff --git a/tests/fixture_plugin/utils/sample_routes/async-route.tsx b/tests/fixture_plugin/utils/sample_routes/async-route.tsx
+new file mode 100644
+index 00000000000..ebf0fc5abba
+--- /dev/null
++++ b/tests/fixture_plugin/utils/sample_routes/async-route.tsx
+@@ -0,0 +1,9 @@
++import { defineRoute } from "$fresh/src/server/defines.ts";
++
++export default defineRoute((_req, _ctx) => {
++  return (
++    <div>
++      this is an async route!
++    </div>
++  );
++});
+diff --git a/tests/fixture_plugin/utils/second-middleware-plugin.ts b/tests/fixture_plugin/utils/second-middleware-plugin.ts
+index 95d328ce000..abee9aa9ae1 100644
+--- a/tests/fixture_plugin/utils/second-middleware-plugin.ts
++++ b/tests/fixture_plugin/utils/second-middleware-plugin.ts
+@@ -1,4 +1,4 @@
+-import { MiddlewareHandlerContext, Plugin } from "$fresh/server.ts";
++import { FreshContext, Plugin } from "$fresh/server.ts";
+ import { PluginMiddlewareState } from "./route-plugin.ts";
+ 
+ export default function secondMiddlewarePlugin(): Plugin<
+@@ -10,7 +10,7 @@ export default function secondMiddlewarePlugin(): Plugin<
+       middleware: {
+         handler: async (
+           _req: Request,
+-          ctx: MiddlewareHandlerContext<PluginMiddlewareState>,
++          ctx: FreshContext<PluginMiddlewareState>,
+         ) => {
+           return await ctx.next();
+         },
+@@ -20,7 +20,7 @@ export default function secondMiddlewarePlugin(): Plugin<
+       middleware: {
+         handler: async (
+           _req: Request,
+-          ctx: MiddlewareHandlerContext<PluginMiddlewareState>,
++          ctx: FreshContext<PluginMiddlewareState>,
+         ) => {
+           ctx.state.num = ctx.state.num === undefined ? 1 : ctx.state.num + 1;
+           return await ctx.next();
+@@ -31,7 +31,7 @@ export default function secondMiddlewarePlugin(): Plugin<
+       middleware: {
+         handler: async (
+           _req: Request,
+-          ctx: MiddlewareHandlerContext<PluginMiddlewareState>,
++          ctx: FreshContext<PluginMiddlewareState>,
+         ) => {
+           return await ctx.next();
+         },
+diff --git a/tests/fixture_plugin_middleware/routes/_middleware.ts b/tests/fixture_plugin_middleware/routes/_middleware.ts
+index 5bdc227c776..ccc8b2b8f6d 100644
+--- a/tests/fixture_plugin_middleware/routes/_middleware.ts
++++ b/tests/fixture_plugin_middleware/routes/_middleware.ts
+@@ -1,6 +1,6 @@
+-import { MiddlewareHandlerContext } from "$fresh/server.ts";
++import { FreshContext } from "$fresh/server.ts";
+ 
+-export async function handler(req: Request, ctx: MiddlewareHandlerContext) {
++export async function handler(req: Request, ctx: FreshContext) {
+   console.log(ctx.destination);
+   console.log(req.url);
+   const resp = await ctx.next();
+diff --git a/tests/fixture_static/deno.json b/tests/fixture_static/deno.json
+new file mode 100644
+index 00000000000..2b2fa78e147
+--- /dev/null
++++ b/tests/fixture_static/deno.json
+@@ -0,0 +1,13 @@
++{
++  "lock": false,
++  "imports": {
++    "$fresh/": "../../",
++    "preact": "https://esm.sh/preact@10.15.1",
++    "preact/": "https://esm.sh/preact@10.15.1/",
++    "preact-render-to-string": "https://esm.sh/*preact-render-to-string@6.2.1"
++  },
++  "compilerOptions": {
++    "jsx": "react-jsx",
++    "jsxImportSource": "preact"
++  }
++}
+diff --git a/tests/fixture_static/dev.ts b/tests/fixture_static/dev.ts
+new file mode 100755
+index 00000000000..2d85d6c183c
+--- /dev/null
++++ b/tests/fixture_static/dev.ts
+@@ -0,0 +1,5 @@
++#!/usr/bin/env -S deno run -A --watch=static/,routes/
++
++import dev from "$fresh/dev.ts";
++
++await dev(import.meta.url, "./main.ts");
+diff --git a/tests/fixture_static/fresh.gen.ts b/tests/fixture_static/fresh.gen.ts
+new file mode 100644
+index 00000000000..28188fccbbf
+--- /dev/null
++++ b/tests/fixture_static/fresh.gen.ts
+@@ -0,0 +1,21 @@
++// DO NOT EDIT. This file is generated by Fresh.
++// This file SHOULD be checked into source version control.
++// This file is automatically updated during development when running `dev.ts`.
++
++import * as $_app from "./routes/_app.tsx";
++import * as $css from "./routes/css.tsx";
++import * as $index from "./routes/index.tsx";
++
++import { type Manifest } from "$fresh/server.ts";
++
++const manifest = {
++  routes: {
++    "./routes/_app.tsx": $_app,
++    "./routes/css.tsx": $css,
++    "./routes/index.tsx": $index,
++  },
++  islands: {},
++  baseUrl: import.meta.url,
++} satisfies Manifest;
++
++export default manifest;
+diff --git a/tests/fixture_static/main.ts b/tests/fixture_static/main.ts
+new file mode 100644
+index 00000000000..dedce9cbb04
+--- /dev/null
++++ b/tests/fixture_static/main.ts
+@@ -0,0 +1,10 @@
++/// <reference no-default-lib="true" />
++/// <reference lib="dom" />
++/// <reference lib="dom.iterable" />
++/// <reference lib="dom.asynciterable" />
++/// <reference lib="deno.ns" />
++
++import { start } from "$fresh/server.ts";
++import manifest from "./fresh.gen.ts";
++
++await start(manifest);
+diff --git a/tests/fixture_static/routes/_app.tsx b/tests/fixture_static/routes/_app.tsx
+new file mode 100644
+index 00000000000..a4b545836c8
+--- /dev/null
++++ b/tests/fixture_static/routes/_app.tsx
+@@ -0,0 +1,17 @@
++import { PageProps } from "$fresh/server.ts";
++
++export default function App({ Component }: PageProps) {
++  return (
++    <html>
++      <head>
++        <meta charset="utf-8" />
++        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
++        <title>My Fresh app</title>
++        <link rel="stylesheet" href="/style.css" />
++      </head>
++      <body>
++        <Component />
++      </body>
++    </html>
++  );
++}
+diff --git a/tests/fixture_static/routes/css.tsx b/tests/fixture_static/routes/css.tsx
+new file mode 100644
+index 00000000000..fbba9a95699
+--- /dev/null
++++ b/tests/fixture_static/routes/css.tsx
+@@ -0,0 +1,3 @@
++export default function Page() {
++  return <h1>test</h1>;
++}
+diff --git a/tests/fixture_static/routes/index.tsx b/tests/fixture_static/routes/index.tsx
+new file mode 100644
+index 00000000000..d50c5fee82e
+--- /dev/null
++++ b/tests/fixture_static/routes/index.tsx
+@@ -0,0 +1,27 @@
++import { basename, dirname, extname, fromFileUrl } from "../../deps.ts";
++
++const __dirname = dirname(fromFileUrl(import.meta.url));
++
++const links: string[] = [];
++for (const file of Deno.readDirSync(__dirname)) {
++  if (file.name.startsWith("index")) continue;
++  const name = basename(file.name, extname(file.name));
++  links.push(name);
++}
++
++export default function Home() {
++  return (
++    <div>
++      <h1>Tests</h1>
++      <ul>
++        {links.sort().map((link) => {
++          return (
++            <li key={link}>
++              <a href={`/${link}`}>{link}</a>
++            </li>
++          );
++        })}
++      </ul>
++    </div>
++  );
++}
+diff --git a/tests/fixture_static/static/style.css b/tests/fixture_static/static/style.css
+new file mode 100644
+index 00000000000..adc68fa6a4d
+--- /dev/null
++++ b/tests/fixture_static/static/style.css
+@@ -0,0 +1,3 @@
++h1 {
++  color: red;
++}
+diff --git a/tests/fixture_tailwind/fresh.gen.ts b/tests/fixture_tailwind/fresh.gen.ts
+index e6643ad216e..2e895a65907 100644
+--- a/tests/fixture_tailwind/fresh.gen.ts
++++ b/tests/fixture_tailwind/fresh.gen.ts
+@@ -3,6 +3,7 @@
+ // This file is automatically updated during development when running `dev.ts`.
+ 
+ import * as $_app from "./routes/_app.tsx";
++import * as $_middleware from "./routes/_middleware.ts";
+ import * as $index from "./routes/index.tsx";
+ 
+ import { type Manifest } from "$fresh/server.ts";
+@@ -10,6 +11,7 @@ import { type Manifest } from "$fresh/server.ts";
+ const manifest = {
+   routes: {
+     "./routes/_app.tsx": $_app,
++    "./routes/_middleware.ts": $_middleware,
+     "./routes/index.tsx": $index,
+   },
+   islands: {},
+diff --git a/tests/fixture_tailwind/routes/_app.tsx b/tests/fixture_tailwind/routes/_app.tsx
+index 46ac9767d56..2e225e497f4 100644
+--- a/tests/fixture_tailwind/routes/_app.tsx
++++ b/tests/fixture_tailwind/routes/_app.tsx
+@@ -1,6 +1,6 @@
+-import { AppProps } from "$fresh/server.ts";
++import { PageProps } from "$fresh/server.ts";
+ 
+-export default function App({ Component }: AppProps) {
++export default function App({ Component }: PageProps) {
+   return (
+     <html>
+       <head>
+diff --git a/tests/fixture_tailwind/routes/_middleware.ts b/tests/fixture_tailwind/routes/_middleware.ts
+new file mode 100644
+index 00000000000..362a96be86b
+--- /dev/null
++++ b/tests/fixture_tailwind/routes/_middleware.ts
+@@ -0,0 +1,15 @@
++import { FreshContext } from "$fresh/server.ts";
++
++export async function handler(
++  _req: Request,
++  ctx: FreshContext,
++) {
++  if (ctx.url.pathname === "/middleware-only.css") {
++    return new Response(".foo-bar { color: red }", {
++      headers: {
++        "Content-Type": "text/css",
++      },
++    });
++  }
++  return await ctx.next();
++}
+diff --git a/tests/fixture_tailwind/tailwind.config.ts b/tests/fixture_tailwind/tailwind.config.ts
+index 63acf078c6e..d6a93ea01a1 100644
+--- a/tests/fixture_tailwind/tailwind.config.ts
++++ b/tests/fixture_tailwind/tailwind.config.ts
+@@ -4,4 +4,4 @@ export default {
+   content: [
+     "{routes,islands,components}/**/*.{ts,tsx}",
+   ],
+-} as Config;
++} satisfies Config;
+diff --git a/tests/fixture_tailwind_build/routes/_app.tsx b/tests/fixture_tailwind_build/routes/_app.tsx
+index 46ac9767d56..2e225e497f4 100644
+--- a/tests/fixture_tailwind_build/routes/_app.tsx
++++ b/tests/fixture_tailwind_build/routes/_app.tsx
+@@ -1,6 +1,6 @@
+-import { AppProps } from "$fresh/server.ts";
++import { PageProps } from "$fresh/server.ts";
+ 
+-export default function App({ Component }: AppProps) {
++export default function App({ Component }: PageProps) {
+   return (
+     <html>
+       <head>
+diff --git a/tests/fixture_tailwind_build/tailwind.config.ts b/tests/fixture_tailwind_build/tailwind.config.ts
+index 63acf078c6e..d6a93ea01a1 100644
+--- a/tests/fixture_tailwind_build/tailwind.config.ts
++++ b/tests/fixture_tailwind_build/tailwind.config.ts
+@@ -4,4 +4,4 @@ export default {
+   content: [
+     "{routes,islands,components}/**/*.{ts,tsx}",
+   ],
+-} as Config;
++} satisfies Config;
+diff --git a/tests/fixture_tailwind_build_2/deno.json b/tests/fixture_tailwind_build_2/deno.json
+new file mode 100644
+index 00000000000..d9ccbefafc5
+--- /dev/null
++++ b/tests/fixture_tailwind_build_2/deno.json
+@@ -0,0 +1,13 @@
++{
++  "lock": false,
++  "imports": {
++    "$fresh/": "../../",
++    "preact": "https://esm.sh/preact@10.15.1",
++    "preact/": "https://esm.sh/preact@10.15.1/",
++    "tailwindcss": "npm:tailwindcss@3.3.5"
++  },
++  "compilerOptions": {
++    "jsx": "react-jsx",
++    "jsxImportSource": "preact"
++  }
++}
+diff --git a/tests/fixture_tailwind_build_2/dev.ts b/tests/fixture_tailwind_build_2/dev.ts
+new file mode 100755
+index 00000000000..1fe3e340282
+--- /dev/null
++++ b/tests/fixture_tailwind_build_2/dev.ts
+@@ -0,0 +1,6 @@
++#!/usr/bin/env -S deno run -A --watch=static/,routes/
++
++import dev from "$fresh/dev.ts";
++import config from "./fresh.config.ts";
++
++await dev(import.meta.url, "./main.ts", config);
+diff --git a/tests/fixture_tailwind_build_2/fresh.config.ts b/tests/fixture_tailwind_build_2/fresh.config.ts
+new file mode 100644
+index 00000000000..6f7acca6964
+--- /dev/null
++++ b/tests/fixture_tailwind_build_2/fresh.config.ts
+@@ -0,0 +1,8 @@
++import { defineConfig } from "$fresh/server.ts";
++import tailwind from "$fresh/plugins/tailwind.ts";
++
++export default defineConfig({
++  plugins: [
++    tailwind(),
++  ],
++});
+diff --git a/tests/fixture_tailwind_build_2/fresh.gen.ts b/tests/fixture_tailwind_build_2/fresh.gen.ts
+new file mode 100644
+index 00000000000..e6643ad216e
+--- /dev/null
++++ b/tests/fixture_tailwind_build_2/fresh.gen.ts
+@@ -0,0 +1,19 @@
++// DO NOT EDIT. This file is generated by Fresh.
++// This file SHOULD be checked into source version control.
++// This file is automatically updated during development when running `dev.ts`.
++
++import * as $_app from "./routes/_app.tsx";
++import * as $index from "./routes/index.tsx";
++
++import { type Manifest } from "$fresh/server.ts";
++
++const manifest = {
++  routes: {
++    "./routes/_app.tsx": $_app,
++    "./routes/index.tsx": $index,
++  },
++  islands: {},
++  baseUrl: import.meta.url,
++} satisfies Manifest;
++
++export default manifest;
+diff --git a/tests/fixture_tailwind_build_2/main.ts b/tests/fixture_tailwind_build_2/main.ts
+new file mode 100644
+index 00000000000..fc9359215e3
+--- /dev/null
++++ b/tests/fixture_tailwind_build_2/main.ts
+@@ -0,0 +1,11 @@
++/// <reference no-default-lib="true" />
++/// <reference lib="dom" />
++/// <reference lib="dom.iterable" />
++/// <reference lib="dom.asynciterable" />
++/// <reference lib="deno.ns" />
++
++import { start } from "$fresh/server.ts";
++import manifest from "./fresh.gen.ts";
++import config from "./fresh.config.ts";
++
++await start(manifest, config);
+diff --git a/tests/fixture_tailwind_build_2/routes/_app.tsx b/tests/fixture_tailwind_build_2/routes/_app.tsx
+new file mode 100644
+index 00000000000..1e34814798e
+--- /dev/null
++++ b/tests/fixture_tailwind_build_2/routes/_app.tsx
+@@ -0,0 +1,17 @@
++import { PageProps } from "$fresh/server.ts";
++
++export default function App({ Component }: PageProps) {
++  return (
++    <html>
++      <head>
++        <meta charset="utf-8" />
++        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
++        <title>My Fresh app</title>
++        <link rel="stylesheet" href="/foo/styles.css" />
++      </head>
++      <body>
++        <Component />
++      </body>
++    </html>
++  );
++}
+diff --git a/tests/fixture_tailwind_build_2/routes/index.tsx b/tests/fixture_tailwind_build_2/routes/index.tsx
+new file mode 100644
+index 00000000000..ee3f8f3c9bd
+--- /dev/null
++++ b/tests/fixture_tailwind_build_2/routes/index.tsx
+@@ -0,0 +1,3 @@
++export default function Page() {
++  return <h1 class="text-red-600 block">foo</h1>;
++}
+diff --git a/tests/fixture_tailwind_build_2/static/foo/styles.css b/tests/fixture_tailwind_build_2/static/foo/styles.css
+new file mode 100644
+index 00000000000..b5c61c95671
+--- /dev/null
++++ b/tests/fixture_tailwind_build_2/static/foo/styles.css
+@@ -0,0 +1,3 @@
++@tailwind base;
++@tailwind components;
++@tailwind utilities;
+diff --git a/tests/fixture_tailwind_build_2/tailwind.config.ts b/tests/fixture_tailwind_build_2/tailwind.config.ts
+new file mode 100644
+index 00000000000..d6a93ea01a1
+--- /dev/null
++++ b/tests/fixture_tailwind_build_2/tailwind.config.ts
+@@ -0,0 +1,7 @@
++import { Config } from "tailwindcss";
++
++export default {
++  content: [
++    "{routes,islands,components}/**/*.{ts,tsx}",
++  ],
++} satisfies Config;
+diff --git a/tests/fixture_tailwind_config/routes/_app.tsx b/tests/fixture_tailwind_config/routes/_app.tsx
+index 46ac9767d56..2e225e497f4 100644
+--- a/tests/fixture_tailwind_config/routes/_app.tsx
++++ b/tests/fixture_tailwind_config/routes/_app.tsx
+@@ -1,6 +1,6 @@
+-import { AppProps } from "$fresh/server.ts";
++import { PageProps } from "$fresh/server.ts";
+ 
+-export default function App({ Component }: AppProps) {
++export default function App({ Component }: PageProps) {
+   return (
+     <html>
+       <head>
+diff --git a/tests/fixture_twind_app/routes/_app.tsx b/tests/fixture_twind_app/routes/_app.tsx
+index 9e889f936ce..af08da677dd 100644
+--- a/tests/fixture_twind_app/routes/_app.tsx
++++ b/tests/fixture_twind_app/routes/_app.tsx
+@@ -1,6 +1,6 @@
+-import { AppProps } from "$fresh/server.ts";
++import { PageProps } from "$fresh/server.ts";
+ 
+-export default function App({ Component }: AppProps) {
++export default function App({ Component }: PageProps) {
+   return (
+     <html className="bg-slate-800">
+       <head className="bg-slate-800">
+diff --git a/tests/fixture_twind_hydrate/routes/island_twind/_layout.tsx b/tests/fixture_twind_hydrate/routes/island_twind/_layout.tsx
+index 5f20a2ea8ec..79ce09c56cb 100644
+--- a/tests/fixture_twind_hydrate/routes/island_twind/_layout.tsx
++++ b/tests/fixture_twind_hydrate/routes/island_twind/_layout.tsx
+@@ -1,8 +1,8 @@
+ import { Partial } from "$fresh/runtime.ts";
+-import { LayoutProps } from "$fresh/server.ts";
++import { PageProps } from "$fresh/server.ts";
+ 
+ export default function Layout(
+-  { Component }: LayoutProps<unknown, unknown>,
++  { Component }: PageProps<unknown, unknown>,
+ ) {
+   return (
+     <div f-client-nav>
+diff --git a/tests/init_test.ts b/tests/init_test.ts
+index 5b0ad0b879c..4b6f9be0233 100644
+--- a/tests/init_test.ts
++++ b/tests/init_test.ts
+@@ -495,3 +495,61 @@ Deno.test("init - show help screen", async (t) => {
+     assertStringIncludes(stdout, "Initialize a new Fresh project");
+   });
+ });
++
++Deno.test({
++  name: "regenerate manifest",
++  async fn(t) {
++    const MANIFEST_FILENAME = "fresh.gen.ts";
++    const tmpDirName = await Deno.makeTempDir();
++    const manifestFilePath = path.join(tmpDirName, MANIFEST_FILENAME);
++
++    await t.step("execute init command", async () => {
++      const cliProcess = new Deno.Command(Deno.execPath(), {
++        args: [
++          "run",
++          "-A",
++          "init.ts",
++          tmpDirName,
++        ],
++        stdin: "null",
++        stdout: "null",
++      });
++      const { code } = await cliProcess.output();
++      assertEquals(code, 0);
++    });
++
++    let oldManifestContent: string;
++    await t.step("store the contents of the manifest", async () => {
++      oldManifestContent = await Deno.readTextFile(manifestFilePath);
++    });
++
++    await t.step("delete the manifest", async () => {
++      await Deno.remove(manifestFilePath);
++    });
++
++    await t.step("regenerate the manifest", async () => {
++      const cliProcess = new Deno.Command(Deno.execPath(), {
++        args: [
++          "task",
++          "manifest",
++        ],
++        cwd: tmpDirName,
++        stdin: "null",
++        stdout: "piped",
++        stderr: "piped",
++      });
++
++      const output = await cliProcess.output();
++
++      assertEquals(output.code, 0);
++    });
++
++    await t.step("assert the old and new contents are equal", async () => {
++      const newManifestContent = await Deno.readTextFile(manifestFilePath);
++      assertEquals(oldManifestContent, newManifestContent);
++    });
++
++    await retry(() => Deno.remove(tmpDirName, { recursive: true }));
++  },
++  sanitizeResources: false,
++});
+diff --git a/tests/main_test.ts b/tests/main_test.ts
+index cc9aa6ab29d..6be9bdf5a78 100644
+--- a/tests/main_test.ts
++++ b/tests/main_test.ts
+@@ -1212,3 +1212,11 @@ Deno.test("Expose config in ctx", async () => {
+     });
+   });
+ });
++
++Deno.test("empty string fallback for optional params", async () => {
++  await withFakeServe("./tests/fixture/main.ts", async (server) => {
++    const doc = await server.getHtml(`/std/foo`);
++    const data = JSON.parse(doc.querySelector("pre")?.textContent!);
++    assertEquals(data, { path: "foo", version: "" });
++  });
++});
+diff --git a/tests/plugin_test.ts b/tests/plugin_test.ts
+index 87a59902f0a..747a635c330 100644
+--- a/tests/plugin_test.ts
++++ b/tests/plugin_test.ts
+@@ -1,4 +1,4 @@
+-import { ServerContext, STATUS_CODE } from "../server.ts";
++import { type FreshConfig, ServerContext, STATUS_CODE } from "../server.ts";
+ import {
+   assert,
+   assertEquals,
+@@ -17,6 +17,8 @@ import {
+   withFakeServe,
+   withPageName,
+ } from "./test_utils.ts";
++import routePlugin from "./fixture_plugin/utils/route-plugin.ts";
++import secondMiddlewarePlugin from "./fixture_plugin/utils/second-middleware-plugin.ts";
+ 
+ const ctx = await ServerContext.fromManifest(manifest, config);
+ const handler = ctx.handler();
+@@ -81,6 +83,38 @@ Deno.test("plugin routes and middleware", async () => {
+   );
+ });
+ 
++Deno.test("plugin routes and middleware -- async _app", async () => {
++  const ctx = await ServerContext.fromManifest(manifest, {
++    plugins: [
++      routePlugin({ title: "Title Set From Plugin Config", async: true }),
++      secondMiddlewarePlugin(),
++    ],
++  } as FreshConfig);
++  const handler = ctx.handler();
++  const router = (req: Request) => {
++    return handler(req, {
++      remoteAddr: {
++        transport: "tcp",
++        hostname: "127.0.0.1",
++        port: 80,
++      },
++    });
++  };
++
++  const resp = await router(new Request("https://fresh.deno.dev/test"));
++  assert(resp);
++  assertEquals(resp.status, STATUS_CODE.OK);
++  const body = await resp.text();
++  assertStringIncludes(
++    body,
++    `<h1>look, i'm set from a plugin!</h1>`,
++  );
++  assertStringIncludes(
++    body,
++    `<title>Title Set From Plugin Config</title>`,
++  );
++});
++
+ Deno.test("plugin middleware multiple handlers", async () => {
+   const resp = await router(
+     new Request("https://fresh.deno.dev/lots-of-middleware"),
+@@ -107,6 +141,19 @@ Deno.test("plugin route no leading slash", async () => {
+   );
+ });
+ 
++Deno.test("plugin async route", async () => {
++  const resp = await router(
++    new Request("https://fresh.deno.dev/async-route"),
++  );
++  assert(resp);
++  assertEquals(resp.status, STATUS_CODE.OK);
++  const body = await resp.text();
++  assertStringIncludes(
++    body,
++    `<div>this is an async route!</div>`,
++  );
++});
++
+ Deno.test({
+   name: "plugin supports islands",
+   async fn(t) {
+diff --git a/tests/static_test.ts b/tests/static_test.ts
+new file mode 100644
+index 00000000000..2c69700aa18
+--- /dev/null
++++ b/tests/static_test.ts
+@@ -0,0 +1,65 @@
++import { assertEquals, dirname, fromFileUrl, join } from "./deps.ts";
++import { withFakeServe } from "./test_utils.ts";
++
++Deno.test("don't fallthrough to /_fresh/static in dev", async () => {
++  const fixtureDir = join(
++    dirname(fromFileUrl(import.meta.url)),
++    "fixture_static",
++  );
++
++  try {
++    await Deno.mkdir(join(fixtureDir, "_fresh", "static"), { recursive: true });
++  } catch (_err) {
++    // ignore
++  }
++  await Deno.writeTextFile(
++    join(fixtureDir, "_fresh", "static", "style.css"),
++    "h1 { color: blue; }",
++  );
++
++  await withFakeServe(
++    "./tests/fixture_static/dev.ts",
++    async (server) => {
++      const res = await server.get(`/style.css`);
++      const css = await res.text();
++      assertEquals(css.replace(/\s+/g, ""), "h1{color:red;}");
++    },
++  );
++
++  await Deno.remove(join(fixtureDir, "_fresh", "static", "style.css"));
++
++  await withFakeServe(
++    "./tests/fixture_static/dev.ts",
++    async (server) => {
++      const res = await server.get(`/style.css`);
++      const css = await res.text();
++      assertEquals(css.replace(/\s+/g, ""), "h1{color:red;}");
++    },
++  );
++});
++
++Deno.test("fallthrough to /_fresh/static in normal mode", async () => {
++  const fixtureDir = join(
++    dirname(fromFileUrl(import.meta.url)),
++    "fixture_static",
++  );
++
++  try {
++    await Deno.mkdir(join(fixtureDir, "_fresh", "static"), { recursive: true });
++  } catch (_err) {
++    // ignore
++  }
++  await Deno.writeTextFile(
++    join(fixtureDir, "_fresh", "static", "style.css"),
++    "h1 { color: blue; }",
++  );
++
++  await withFakeServe(
++    "./tests/fixture_static/main.ts",
++    async (server) => {
++      const res = await server.get(`/style.css`);
++      const css = await res.text();
++      assertEquals(css.replace(/\s+/g, ""), "h1{color:blue;}");
++    },
++  );
++});
+diff --git a/tests/tailwind_test.ts b/tests/tailwind_test.ts
+index f7740733cf8..7beca25878e 100644
+--- a/tests/tailwind_test.ts
++++ b/tests/tailwind_test.ts
+@@ -26,6 +26,19 @@ Deno.test("TailwindCSS - build mode", async () => {
+   );
+ });
+ 
++Deno.test("TailwindCSS - build mode in sub directory", async () => {
++  await runBuild("./tests/fixture_tailwind_build_2/dev.ts");
++  await withFakeServe(
++    "./tests/fixture_tailwind_build_2/main.ts",
++    async (server) => {
++      const res = await server.get("/foo/styles.css");
++      const content = await res.text();
++      assertStringIncludes(content, ".text-red-600{");
++    },
++    { loadConfig: true },
++  );
++});
++
+ Deno.test("TailwindCSS - config", async () => {
+   await withFakeServe(
+     "./tests/fixture_tailwind_config/dev.ts",
+@@ -37,3 +50,15 @@ Deno.test("TailwindCSS - config", async () => {
+     { loadConfig: true },
+   );
+ });
++
++Deno.test("TailwindCSS - middleware only css", async () => {
++  await withFakeServe(
++    "./tests/fixture_tailwind/dev.ts",
++    async (server) => {
++      const res = await server.get("/middleware-only.css");
++      const content = await res.text();
++      assertStringIncludes(content, ".foo-bar");
++    },
++    { loadConfig: true },
++  );
++});
+diff --git a/tests/test_utils.ts b/tests/test_utils.ts
+index 5abb3eb9ee0..429d345b2ce 100644
+--- a/tests/test_utils.ts
++++ b/tests/test_utils.ts
+@@ -171,9 +171,10 @@ export async function getErrorOverlay(
+   url: string,
+ ): Promise<{ title: string; codeFrame: boolean; stack: string }> {
+   const doc = await server.getHtml(url);
+-  const iframe = doc.querySelector(
++  const iframe = doc.querySelector<HTMLIFrameElement>(
+     "#fresh-error-overlay",
+-  ) as HTMLIFrameElement;
++  );
++  assert(iframe, "Missing fresh error overlay");
+ 
+   const doc2 = await server.getHtml(iframe.src);
+ 
+@@ -258,9 +259,13 @@ async function handleRequest(
+ 
+   // Follow redirects
+   while (res.headers.has("location")) {
+-    const loc = res.headers.get("location");
++    let loc = res.headers.get("location")!;
+     const hostname = conn.remoteAddr.hostname;
+-    res = await handler(new Request(`https://${hostname}${loc}`), conn);
++    if (!loc.startsWith("http://") && !loc.startsWith("https://")) {
++      loc = `https://${hostname}${loc}`;
++    }
++
++    res = await handler(new Request(loc), conn);
+   }
+ 
+   return res;
+diff --git a/update.ts b/update.ts
+index 98ce6f095d5..eaef8d043df 100644
+--- a/update.ts
++++ b/update.ts
+@@ -33,7 +33,7 @@ const flags = parse(Deno.args, {});
+ 
+ let unresolvedDirectory = Deno.args[0];
+ if (flags._.length !== 1) {
+-  const userInput = prompt("Project Directory", ".");
++  const userInput = prompt("Where is the project directory?", ".");
+   if (!userInput) {
+     error(help);
+   }
+@@ -278,9 +278,9 @@ await start(manifest, { plugins: [twindPlugin(twindConfig)] });\n`;
+ // Add default _app.tsx if not present
+ const routes = Array.from(Deno.readDirSync(join(srcDirectory, "routes")));
+ if (!routes.find((entry) => entry.isFile && entry.name.startsWith("_app."))) {
+-  const APP_TSX = `import { AppProps } from "$fresh/server.ts";
++  const APP_TSX = `import { PageProps } from "$fresh/server.ts";
+ 
+-export default function App({ Component }: AppProps) {
++export default function App({ Component }: PageProps) {
+   return (
+     <html>
+       <head>
+diff --git a/versions.json b/versions.json
+index e83b9554fc7..d2134afaa2c 100644
+--- a/versions.json
++++ b/versions.json
+@@ -1,4 +1,5 @@
+ [
++  "1.6.1",
+   "1.6.0",
+   "1.5.4",
+   "1.5.3",
+diff --git a/www/components/gallery/Footer.tsx b/www/components/gallery/Footer.tsx
+index 6232d589591..db94cd66549 100644
+--- a/www/components/gallery/Footer.tsx
++++ b/www/components/gallery/Footer.tsx
+@@ -1,11 +1,7 @@
+-import { ComponentChildren } from "preact";
+ import LemonIcon from "https://deno.land/x/tabler_icons_tsx@0.0.3/tsx/lemon-2.tsx";
+ import BrandGithub from "https://deno.land/x/tabler_icons_tsx@0.0.3/tsx/brand-github.tsx";
+-type Props = {
+-  children: ComponentChildren;
+-};
+ 
+-export default function Footer({ children }: Props) {
++export default function Footer() {
+   const menus = [
+     {
+       title: "Documentation",
+diff --git a/www/data/showcase.json b/www/data/showcase.json
+index 39bd529e8d6..25c774604d1 100644
+--- a/www/data/showcase.json
++++ b/www/data/showcase.json
+@@ -396,6 +396,12 @@
+     "link": "https://mergepanic.com",
+     "image": "MergePanic"
+   },
++  {
++    "title": "pyros.sh",
++    "link": "https://pyros.sh",
++    "github": "pyrossh/pyros.sh",
++    "image": "pyrossh"
++  },
+   {
+     "title": "Do not remove this, it’s for preventing conflicts by trailing comma",
+     "link": "",
+diff --git a/www/fresh.gen.ts b/www/fresh.gen.ts
+index 8489f26265b..3210600dfb6 100644
+--- a/www/fresh.gen.ts
++++ b/www/fresh.gen.ts
+@@ -8,6 +8,7 @@ import * as $_app from "./routes/_app.tsx";
+ import * as $_middleware from "./routes/_middleware.ts";
+ import * as $components from "./routes/components.tsx";
+ import * as $docs_slug_ from "./routes/docs/[...slug].tsx";
++import * as $docs_middleware from "./routes/docs/_middleware.ts";
+ import * as $docs_index from "./routes/docs/index.tsx";
+ import * as $index from "./routes/index.tsx";
+ import * as $raw from "./routes/raw.ts";
+@@ -30,6 +31,7 @@ const manifest = {
+     "./routes/_middleware.ts": $_middleware,
+     "./routes/components.tsx": $components,
+     "./routes/docs/[...slug].tsx": $docs_slug_,
++    "./routes/docs/_middleware.ts": $docs_middleware,
+     "./routes/docs/index.tsx": $docs_index,
+     "./routes/index.tsx": $index,
+     "./routes/raw.ts": $raw,
+diff --git a/www/islands/ComponentGallery.tsx b/www/islands/ComponentGallery.tsx
+index 51826024785..629c8561d3a 100644
+--- a/www/islands/ComponentGallery.tsx
++++ b/www/islands/ComponentGallery.tsx
+@@ -106,8 +106,7 @@ export default function ComponentGallery(props: ComponentGalleryProps) {
+       </Section>
+ 
+       <Section title="Footer" source={props.sources.Footer}>
+-        <Footer>
+-        </Footer>
++        <Footer />
+       </Section>
+ 
+       <Section title="Hero" source={props.sources.Hero}>
+diff --git a/www/routes/_app.tsx b/www/routes/_app.tsx
+index a06e377035f..f6fe488d695 100644
+--- a/www/routes/_app.tsx
++++ b/www/routes/_app.tsx
+@@ -1,6 +1,6 @@
+-import { AppProps } from "$fresh/server.ts";
++import { PageProps } from "$fresh/server.ts";
+ 
+-export default function App({ Component }: AppProps) {
++export default function App({ Component }: PageProps) {
+   return (
+     <html lang="en">
+       <head>
+diff --git a/www/routes/docs/_middleware.ts b/www/routes/docs/_middleware.ts
+new file mode 100644
+index 00000000000..ecbca4b1470
+--- /dev/null
++++ b/www/routes/docs/_middleware.ts
+@@ -0,0 +1,23 @@
++import { FreshContext } from "$fresh/server.ts";
++
++const REDIRECTS: Record<string, string> = {
++  "/docs/getting-started/fetching-data":
++    "/docs/getting-started/custom-handlers",
++};
++
++export async function handler(
++  _req: Request,
++  ctx: FreshContext,
++) {
++  // Redirect from old doc URLs to new ones
++  const redirect = REDIRECTS[ctx.url.pathname];
++  if (redirect) {
++    const url = new URL(redirect, ctx.url.origin);
++    return new Response("", {
++      status: 307,
++      headers: { location: url.href },
++    });
++  }
++
++  return await ctx.next();
++}
+diff --git a/www/tailwind.config.ts b/www/tailwind.config.ts
+index c993fe51bbb..9515fbc61f9 100644
+--- a/www/tailwind.config.ts
++++ b/www/tailwind.config.ts
+@@ -18,4 +18,4 @@ export default {
+       });
+     }),
+   ],
+-} as Config;
++} satisfies Config;

@@ -1,0 +1,1583 @@
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+index e9e061d75db..28a0164f928 100644
+--- a/.github/workflows/ci.yml
++++ b/.github/workflows/ci.yml
+@@ -25,7 +25,7 @@ jobs:
+           deno-version: ${{ matrix.deno }}
+ 
+       - name: Verify formatting
+-        if: startsWith(matrix.os, 'ubuntu') && matrix.deno == 'canary'
++        if: startsWith(matrix.os, 'ubuntu') && matrix.deno == 'v1.x'
+         run: deno fmt --check
+ 
+       - name: Run linter
+@@ -40,32 +40,32 @@ jobs:
+         uses: actions/cache@v2
+         with:
+           path: ~/.cache/deno/deno_puppeteer
+-          key: chrome-${{ runner.os }}-${{ hashFiles('tests/deps.ts') }}
+-          restore-keys: chrome-${{ runner.os }}-
++          key: chrome-991974-${{ runner.os }}-${{ hashFiles('tests/deps.ts') }}
++          restore-keys: chrome-991974-${{ runner.os }}-
+ 
+       - name: Cache Chrome (macOS)
+         if: startsWith(matrix.os, 'mac')
+         uses: actions/cache@v2
+         with:
+           path: ~/Library/Caches/deno/deno_puppeteer
+-          key: chrome-${{ runner.os }}-${{ hashFiles('tests/deps.ts') }}
+-          restore-keys: chrome-${{ runner.os }}-
++          key: chrome-991974-${{ runner.os }}-${{ hashFiles('tests/deps.ts') }}
++          restore-keys: chrome-991974-${{ runner.os }}-
+ 
+       - name: Cache Chrome (Windows)
+         if: startsWith(matrix.os, 'win')
+         uses: actions/cache@v2
+         with:
+           path: "C:\\Users\\RUNNER~1\\AppData\\Local\\deno\\deno_puppeteer"
+-          key: chrome-${{ runner.os }}-${{ hashFiles('tests/deps.ts') }}
+-          restore-keys: chrome-${{ runner.os }}-
++          key: chrome-991974-${{ runner.os }}-${{ hashFiles('tests/deps.ts') }}
++          restore-keys: chrome-991974-${{ runner.os }}-
+ 
+       - name: Install Chromium (Unix)
+         if: startsWith(matrix.os, 'ubuntu') || startsWith(matrix.os, 'mac')
+-        run: PUPPETEER_PRODUCT=chrome deno run -A --unstable https://deno.land/x/puppeteer@9.0.2/install.ts
++        run: PUPPETEER_PRODUCT=chrome deno run -A --unstable https://deno.land/x/puppeteer@14.1.1/install.ts
+ 
+       - name: Install Chromium (Windows)
+         if: startsWith(matrix.os, 'windows')
+-        run: set "PUPPETEER_PRODUCT=chrome" && deno run -A --unstable https://deno.land/x/puppeteer@9.0.2/install.ts
++        run: set "PUPPETEER_PRODUCT=chrome" && deno run -A --unstable https://deno.land/x/puppeteer@14.1.1/install.ts
+ 
+       - name: Run tests
+         run: deno test -A
+diff --git a/.vscode/import_map.json b/.vscode/import_map.json
+index 589c720e2ff..2aed60a33a1 100644
+--- a/.vscode/import_map.json
++++ b/.vscode/import_map.json
+@@ -7,10 +7,10 @@
+     "twind": "https://esm.sh/twind@0.16.17",
+     "twind/": "https://esm.sh/twind@0.16.17/",
+ 
+-    "preact": "https://esm.sh/preact@10.8.2",
+-    "preact/": "https://esm.sh/preact@10.8.2/",
+-    "preact-render-to-string": "https://esm.sh/preact-render-to-string@5.2.0?deps=preact@10.8.2",
++    "preact": "https://esm.sh/preact@10.10.0",
++    "preact/": "https://esm.sh/preact@10.10.0/",
++    "preact-render-to-string": "https://esm.sh/preact-render-to-string@5.2.1?external=preact",
+ 
+-    "$semver/": "https://deno.land/x/semver@v1.4.0/"
++    "$std/": "https://deno.land/std@0.150.0/"
+   }
+ }
+diff --git a/.vscode/settings.json b/.vscode/settings.json
+index 61e6398e7e1..7b0629d6200 100644
+--- a/.vscode/settings.json
++++ b/.vscode/settings.json
+@@ -1,5 +1,6 @@
+ {
+   "deno.enable": true,
+   "deno.lint": true,
+-  "deno.importMap": "./.vscode/import_map.json"
++  "deno.importMap": "./.vscode/import_map.json",
++  "editor.defaultFormatter": "denoland.vscode-deno"
+ }
+diff --git a/README.md b/README.md
+index a9157e642dd..8af10a135cf 100644
+--- a/README.md
++++ b/README.md
+@@ -1,4 +1,4 @@
+-[Documentation](#documentation) | [Getting started](#getting-started)
++[Documentation](#-documentation) | [Getting started](#-getting-started)
+ 
+ # fresh
+ 
+@@ -30,7 +30,7 @@ You can scaffold a new project by running the Fresh init script. To scaffold a
+ project in the `my-project` folder, run the following:
+ 
+ ```sh
+-deno run -A -r https://fresh.deno.dev my-project
++deno run -A -r https://fresh.deno.dev deno-fresh-demo
+ ```
+ 
+ Then navigate to the newly created project folder:
+@@ -54,7 +54,7 @@ To deploy the project to the live internet, you can use
+ 
+ 1. Push your project to GitHub.
+ 2. [Create a Deno Deploy project](https://dash.deno.com/new).
+-3. [Link][https://deno.com/deploy/docs/projects#enabling] the Deno Deploy
++3. [Link](https://deno.com/deploy/docs/projects#enabling) the Deno Deploy
+    project to the **`main.ts`** file in the root of the created repository.
+ 4. The project will be deployed to a public $project.deno.dev subdomain.
+ 
+diff --git a/docs/concepts/routes.md b/docs/concepts/routes.md
+index f53bccfc2f6..c4c2de7c3ca 100644
+--- a/docs/concepts/routes.md
++++ b/docs/concepts/routes.md
+@@ -20,6 +20,8 @@ determine exactly what should be rendered. By default components receives props
+ consisting of: the request URL, the matches from the URL pattern match, and any
+ data passed to the handler's `render` function.
+ 
++## Handler route
++
+ Let's look at a basic route that returns a plain text string:
+ 
+ ```tsx
+@@ -28,7 +30,7 @@ Let's look at a basic route that returns a plain text string:
+ import { HandlerContext, Handlers } from "$fresh/server.ts";
+ 
+ export const handler: Handlers = {
+-  GET(ctx: HandlerContext) {
++  GET(_req: Request, _ctx: HandlerContext) {
+     return new Response("Hello World");
+   },
+ };
+@@ -41,6 +43,8 @@ handler above is called for `GET` requests. If the handler is a function, it is
+ called for all requests regardless of the method. If an HTTP method does not
+ have a corresponding handler, a 405 HTTP error is returned.
+ 
++## Component route
++
+ Now, let's render some HTML using the route component:
+ 
+ ```tsx
+@@ -63,6 +67,8 @@ default handler is used that just renders out the page component if present. You
+ can also override the default handler though to modify how exactly rendering
+ should work.
+ 
++## Mixed handler and component route
++
+ In the below example, a custom handler is used to add a custom header to the
+ response after rendering the page component.
+ 
+diff --git a/docs/getting-started/dynamic-routes.md b/docs/getting-started/dynamic-routes.md
+index 8cb16a03aa9..e5d6eba69cb 100644
+--- a/docs/getting-started/dynamic-routes.md
++++ b/docs/getting-started/dynamic-routes.md
+@@ -22,7 +22,7 @@ the file name. For example the `/greet/:name` route maps to the file name
+ Just like the static `/about` route, the dynamic `/greet/:name` route will
+ render a page. The module must once again expose a component as a default
+ export. This time the component will receive the matched path segment properties
+-as arguments in it's `props` object though.
++as arguments in its `props` object though.
+ 
+ ```tsx
+ // routes/greet/[name].tsx
+diff --git a/docs/getting-started/running-locally.md b/docs/getting-started/running-locally.md
+index 3e05b5a6f17..441fee5a871 100644
+--- a/docs/getting-started/running-locally.md
++++ b/docs/getting-started/running-locally.md
+@@ -10,7 +10,7 @@ do this you can just `deno task start`.
+ ```
+ $ deno task start
+ Watcher Process started.
+-Server listening on http://localhost:8000
++Listening on http://localhost:8000
+ ```
+ 
+ If you want to start manually without Deno task, `deno run` the `main.ts` with
+@@ -45,7 +45,7 @@ Combining all of this we get the following `deno run` command:
+ ```
+ $ deno run --allow-net --allow-read --allow-env --allow-run --watch=static/,routes/ main.ts
+ Watcher Process started.
+-Server listening on http://localhost:8000
++Listening on http://localhost:8000
+ ```
+ 
+ If you now visit http://localhost:8000, you can see the running project. Try
+diff --git a/examples/counter/import_map.json b/examples/counter/import_map.json
+index b5705fb2226..e59539e4ddd 100644
+--- a/examples/counter/import_map.json
++++ b/examples/counter/import_map.json
+@@ -1,8 +1,8 @@
+ {
+   "imports": {
+     "$fresh/": "../../",
+-    "preact": "https://esm.sh/preact@10.8.2",
+-    "preact/": "https://esm.sh/preact@10.8.2/",
+-    "preact-render-to-string": "https://esm.sh/preact-render-to-string@5.2.0?deps=preact@10.8.2"
++    "preact": "https://esm.sh/preact@10.10.0",
++    "preact/": "https://esm.sh/preact@10.10.0/",
++    "preact-render-to-string": "https://esm.sh/preact-render-to-string@5.2.1?external=preact"
+   }
+ }
+diff --git a/init.ts b/init.ts
+index ed20cfac27e..7d6c737f28c 100644
+--- a/init.ts
++++ b/init.ts
+@@ -56,11 +56,11 @@ if (flags._.length !== 1) {
+   error(help);
+ }
+ 
+-let directory = Deno.args[0];
+-directory = resolve(directory);
++const unresolvedDirectory = Deno.args[0];
++const resolvedDirectory = resolve(unresolvedDirectory);
+ 
+ try {
+-  const dir = [...Deno.readDirSync(directory)];
++  const dir = [...Deno.readDirSync(resolvedDirectory)];
+   const isEmpty = dir.length === 0 ||
+     dir.length === 1 && dir[0].name === ".git";
+   if (
+@@ -83,21 +83,24 @@ const useVSCode = flags.vscode === null
+   ? confirm(USE_VSCODE_MESSAGE)
+   : flags.vscode;
+ 
+-await Deno.mkdir(join(directory, "routes", "api"), { recursive: true });
+-await Deno.mkdir(join(directory, "islands"), { recursive: true });
+-await Deno.mkdir(join(directory, "static"), { recursive: true });
++await Deno.mkdir(join(resolvedDirectory, "routes", "api"), { recursive: true });
++await Deno.mkdir(join(resolvedDirectory, "islands"), { recursive: true });
++await Deno.mkdir(join(resolvedDirectory, "static"), { recursive: true });
++await Deno.mkdir(join(resolvedDirectory, "components"), { recursive: true });
+ if (useVSCode) {
+-  await Deno.mkdir(join(directory, ".vscode"), { recursive: true });
++  await Deno.mkdir(join(resolvedDirectory, ".vscode"), { recursive: true });
++}
++if (useTwind) {
++  await Deno.mkdir(join(resolvedDirectory, "utils"), { recursive: true });
+ }
+-if (useTwind) await Deno.mkdir(join(directory, "utils"), { recursive: true });
+ 
+ const importMap = {
+   "imports": {
+     "$fresh/": new URL("./", import.meta.url).href,
+-    "preact": "https://esm.sh/preact@10.8.2",
+-    "preact/": "https://esm.sh/preact@10.8.2/",
++    "preact": "https://esm.sh/preact@10.10.0",
++    "preact/": "https://esm.sh/preact@10.10.0/",
+     "preact-render-to-string":
+-      "https://esm.sh/preact-render-to-string@5.2.0?deps=preact@10.8.2",
++      "https://esm.sh/preact-render-to-string@5.2.1?external=preact",
+   } as Record<string, string>,
+ };
+ if (useTwind) {
+@@ -106,7 +109,10 @@ if (useTwind) {
+   importMap.imports["twind/"] = "https://esm.sh/twind@0.16.17/";
+ }
+ const IMPORT_MAP_JSON = JSON.stringify(importMap, null, 2) + "\n";
+-await Deno.writeTextFile(join(directory, "import_map.json"), IMPORT_MAP_JSON);
++await Deno.writeTextFile(
++  join(resolvedDirectory, "import_map.json"),
++  IMPORT_MAP_JSON,
++);
+ 
+ let ROUTES_INDEX_TSX = `/** @jsx h */
+ import { h } from "preact";\n`;
+@@ -122,7 +128,7 @@ export default function Home() {
+         alt="the fresh logo: a sliced lemon dripping with juice"
+       />
+       <p${useTwind ? " class={tw\`my-6\`}" : ""}>
+-        Welcome to \`fresh\`. Try update this message in the ./routes/index.tsx
++        Welcome to \`fresh\`. Try updating this message in the ./routes/index.tsx
+         file, and refresh.
+       </p>
+       <Counter start={3} />
+@@ -131,63 +137,58 @@ export default function Home() {
+ }
+ `;
+ await Deno.writeTextFile(
+-  join(directory, "routes", "index.tsx"),
++  join(resolvedDirectory, "routes", "index.tsx"),
+   ROUTES_INDEX_TSX,
+ );
+ 
+-let ISLANDS_COUNTER_TSX = `/** @jsx h */
++const COMPONENTS_BUTTON_TSX = `/** @jsx h */
+ import { h } from "preact";
+-import { useState } from "preact/hooks";
+ import { IS_BROWSER } from "$fresh/runtime.ts";
+ ${useTwind ? 'import { tw } from "@twind";\n' : ""}
++export function Button(props: h.JSX.HTMLAttributes<HTMLButtonElement>) {
++  return (
++    <button
++      {...props}
++      disabled={!IS_BROWSER || props.disabled}
++    ${
++  useTwind
++    ? "  class={tw\`px-2 py-1 border(gray-100 2) hover:bg-gray-200\`}\n    "
++    : ""
++}/>
++  );
++}
++`;
++await Deno.writeTextFile(
++  join(resolvedDirectory, "components", "Button.tsx"),
++  COMPONENTS_BUTTON_TSX,
++);
++
++const ISLANDS_COUNTER_TSX = `/** @jsx h */
++import { h } from "preact";
++import { useState } from "preact/hooks";
++${useTwind ? 'import { tw } from "@twind";\n' : ""}
++import { Button } from "../components/Button.tsx";
++
+ interface CounterProps {
+   start: number;
+ }
+ 
+ export default function Counter(props: CounterProps) {
+   const [count, setCount] = useState(props.start);
+-`;
+-
+-if (useTwind) {
+-  ISLANDS_COUNTER_TSX +=
+-    `  const btn = tw\`px-2 py-1 border(gray-100 1) hover:bg-gray-200\`;\n`;
+-  ISLANDS_COUNTER_TSX += `  return (
+-    <div class={tw\`flex gap-2 w-full\`}>
+-      <p class={tw\`flex-grow-1 font-bold text-xl\`}>{count}</p>
+-      <button
+-        class={btn}
+-        onClick={() => setCount(count - 1)}
+-        disabled={!IS_BROWSER}
+-      >
+-        -1
+-      </button>
+-      <button
+-        class={btn}
+-        onClick={() => setCount(count + 1)}
+-        disabled={!IS_BROWSER}
+-      >
+-        +1
+-      </button>
+-    </div>
+-  );
+-`;
+-} else {
+-  ISLANDS_COUNTER_TSX += `  return (
+-    <div>
+-      <p>{count}</p>
+-      <button onClick={() => setCount(count - 1)} disabled={!IS_BROWSER}>
+-        -1
+-      </button>
+-      <button onClick={() => setCount(count + 1)} disabled={!IS_BROWSER}>
+-        +1
+-      </button>
++  return (
++    <div${useTwind ? " class={tw\`flex gap-2 w-full\`}" : ""}>
++      <p${
++  useTwind ? " class={tw\`flex-grow-1 font-bold text-xl\`}" : ""
++}>{count}</p>
++      <Button onClick={() => setCount(count - 1)}>-1</Button>
++      <Button onClick={() => setCount(count + 1)}>+1</Button>
+     </div>
+   );
+-`;
+ }
+-ISLANDS_COUNTER_TSX += `}\n`;
++`;
++
+ await Deno.writeTextFile(
+-  join(directory, "islands", "Counter.tsx"),
++  join(resolvedDirectory, "islands", "Counter.tsx"),
+   ISLANDS_COUNTER_TSX,
+ );
+ 
+@@ -200,7 +201,7 @@ export default function Greet(props: PageProps) {
+ }
+ `;
+ await Deno.writeTextFile(
+-  join(directory, "routes", "[name].tsx"),
++  join(resolvedDirectory, "routes", "[name].tsx"),
+   ROUTES_GREET_TSX,
+ );
+ 
+@@ -227,7 +228,7 @@ export const handler = (_req: Request, _ctx: HandlerContext): Response => {
+ };
+ `;
+ await Deno.writeTextFile(
+-  join(directory, "routes", "api", "joke.ts"),
++  join(resolvedDirectory, "routes", "api", "joke.ts"),
+   ROUTES_API_JOKE_TS,
+ );
+ 
+@@ -242,7 +243,7 @@ if (IS_BROWSER) setup(config);
+ `;
+ if (useTwind) {
+   await Deno.writeTextFile(
+-    join(directory, "utils", "twind.ts"),
++    join(resolvedDirectory, "utils", "twind.ts"),
+     UTILS_TWIND_TS,
+   );
+ }
+@@ -256,7 +257,7 @@ const STATIC_LOGO =
+ </svg>`;
+ 
+ await Deno.writeTextFile(
+-  join(directory, "static", "logo.svg"),
++  join(resolvedDirectory, "static", "logo.svg"),
+   STATIC_LOGO,
+ );
+ 
+@@ -264,7 +265,7 @@ try {
+   const faviconArrayBuffer = await fetch("https://fresh.deno.dev/favicon.ico")
+     .then((d) => d.arrayBuffer());
+   await Deno.writeFile(
+-    join(directory, "static", "favicon.ico"),
++    join(resolvedDirectory, "static", "favicon.ico"),
+     new Uint8Array(faviconArrayBuffer),
+   );
+ } catch {
+@@ -305,7 +306,7 @@ function render(ctx: RenderContext, render: InnerRenderFunction) {
+ }
+ 
+ MAIN_TS += `await start(manifest${useTwind ? ", { render }" : ""});\n`;
+-const MAIN_TS_PATH = join(directory, "main.ts");
++const MAIN_TS_PATH = join(resolvedDirectory, "main.ts");
+ await Deno.writeTextFile(MAIN_TS_PATH, MAIN_TS);
+ 
+ const DEV_TS = `#!/usr/bin/env -S deno run -A --watch=static/,routes/
+@@ -314,7 +315,7 @@ import dev from "$fresh/dev.ts";
+ 
+ await dev(import.meta.url, "./main.ts");
+ `;
+-const DEV_TS_PATH = join(directory, "dev.ts");
++const DEV_TS_PATH = join(resolvedDirectory, "dev.ts");
+ await Deno.writeTextFile(DEV_TS_PATH, DEV_TS);
+ try {
+   await Deno.chmod(DEV_TS_PATH, 0o777);
+@@ -330,7 +331,7 @@ const config = {
+ };
+ const DENO_CONFIG = JSON.stringify(config, null, 2) + "\n";
+ 
+-await Deno.writeTextFile(join(directory, "deno.json"), DENO_CONFIG);
++await Deno.writeTextFile(join(resolvedDirectory, "deno.json"), DENO_CONFIG);
+ 
+ const README_MD = `# fresh project
+ 
+@@ -345,19 +346,21 @@ deno task start
+ This will watch the project directory and restart as necessary.
+ `;
+ await Deno.writeTextFile(
+-  join(directory, "README.md"),
++  join(resolvedDirectory, "README.md"),
+   README_MD,
+ );
+ 
+ const vscodeSettings = {
+   "deno.enable": true,
++  "deno.lint": true,
++  "editor.defaultFormatter": "denoland.vscode-deno",
+ };
+ 
+ const VSCODE_SETTINGS = JSON.stringify(vscodeSettings, null, 2) + "\n";
+ 
+ if (useVSCode) {
+   await Deno.writeTextFile(
+-    join(directory, ".vscode", "settings.json"),
++    join(resolvedDirectory, ".vscode", "settings.json"),
+     VSCODE_SETTINGS,
+   );
+ }
+@@ -370,14 +373,17 @@ const VSCODE_EXTENSIONS = JSON.stringify(vscodeExtensions, null, 2) + "\n";
+ 
+ if (useVSCode) {
+   await Deno.writeTextFile(
+-    join(directory, ".vscode", "extensions.json"),
++    join(resolvedDirectory, ".vscode", "extensions.json"),
+     VSCODE_EXTENSIONS,
+   );
+ }
+ 
+-const manifest = await collect(directory);
+-await generate(directory, manifest);
++const manifest = await collect(resolvedDirectory);
++await generate(resolvedDirectory, manifest);
+ 
++// Specifically print unresolvedDirectory, rather than resolvedDirectory in order to
++// not leak personal info (e.g. `/Users/MyName`)
+ console.log("\n%cProject created!", "color: green; font-weight: bold");
+-console.log("\`cd my-project\` to enter to the project directory.");
+-console.log("Run \`deno task start\` to start the development server.");
++console.log(`\nIn order to start the development server, run:\n`);
++console.log(`$ cd ${unresolvedDirectory}`);
++console.log("$ deno task start");
+diff --git a/src/dev/deps.ts b/src/dev/deps.ts
+index 1fea90d70ef..a22f95eaba0 100644
+--- a/src/dev/deps.ts
++++ b/src/dev/deps.ts
+@@ -6,8 +6,7 @@ export {
+   join,
+   resolve,
+   toFileUrl,
+-} from "https://deno.land/std@0.128.0/path/mod.ts";
+-export { walk } from "https://deno.land/std@0.128.0/fs/walk.ts";
+-export { bold, red } from "https://deno.land/std@0.128.0/fmt/colors.ts";
+-export { parse } from "https://deno.land/std@0.128.0/flags/mod.ts";
+-export { gte } from "https://deno.land/x/semver@v1.4.0/mod.ts";
++} from "https://deno.land/std@0.150.0/path/mod.ts";
++export { walk } from "https://deno.land/std@0.150.0/fs/walk.ts";
++export { parse } from "https://deno.land/std@0.150.0/flags/mod.ts";
++export { gte } from "https://deno.land/std@0.150.0/semver/mod.ts";
+diff --git a/src/dev/error.ts b/src/dev/error.ts
+index a622370187d..7f7d72243ee 100644
+--- a/src/dev/error.ts
++++ b/src/dev/error.ts
+@@ -1,7 +1,5 @@
+-import { bold, red } from "./deps.ts";
+-
+ export function printError(message: string) {
+-  console.error(red(`${bold("error")}: ${message}`));
++  console.error(`%cerror%c: ${message}`, "color: red; font-weight: bold", "");
+ }
+ 
+ export function error(message: string): never {
+diff --git a/src/server/bundle.ts b/src/server/bundle.ts
+index 579b36b8b24..5356ac74a2c 100644
+--- a/src/server/bundle.ts
++++ b/src/server/bundle.ts
+@@ -2,21 +2,21 @@ import { BUILD_ID } from "./constants.ts";
+ import { denoPlugin, esbuild, toFileUrl } from "./deps.ts";
+ import { Island } from "./types.ts";
+ 
+-let esbuildInitalized: boolean | Promise<void> = false;
++let esbuildInitialized: boolean | Promise<void> = false;
+ async function ensureEsbuildInitialized() {
+-  if (esbuildInitalized === false) {
++  if (esbuildInitialized === false) {
+     if (Deno.run === undefined) {
+-      esbuildInitalized = esbuild.initialize({
+-        wasmURL: "https://unpkg.com/esbuild-wasm@0.14.39/esbuild.wasm",
++      esbuildInitialized = esbuild.initialize({
++        wasmURL: "https://unpkg.com/esbuild-wasm@0.14.51/esbuild.wasm",
+         worker: false,
+       });
+     } else {
+       esbuild.initialize({});
+     }
+-    await esbuildInitalized;
+-    esbuildInitalized = true;
+-  } else if (esbuildInitalized instanceof Promise) {
+-    await esbuildInitalized;
++    await esbuildInitialized;
++    esbuildInitialized = true;
++  } else if (esbuildInitialized instanceof Promise) {
++    await esbuildInitialized;
+   }
+ }
+ 
+diff --git a/src/server/context.ts b/src/server/context.ts
+index a9d4e7554d0..42731ecd82c 100644
+--- a/src/server/context.ts
++++ b/src/server/context.ts
+@@ -2,10 +2,11 @@ import {
+   ConnInfo,
+   extname,
+   fromFileUrl,
+-  mediaTypeLookup,
+   RequestHandler,
+   router,
++  Status,
+   toFileUrl,
++  typeByExtension,
+   walk,
+ } from "./deps.ts";
+ import { h } from "preact";
+@@ -32,7 +33,6 @@ import {
+ import { render as internalRender } from "./render.tsx";
+ import { ContentSecurityPolicyDirectives, SELF } from "../runtime/csp.ts";
+ import { ASSET_CACHE_BUST_KEY, INTERNAL_PREFIX } from "../runtime/utils.ts";
+-
+ interface RouterState {
+   state: Record<string, unknown>;
+ }
+@@ -105,7 +105,7 @@ export class ServerContext {
+     let error: ErrorPage = DEFAULT_ERROR;
+     for (const [self, module] of Object.entries(manifest.routes)) {
+       const url = new URL(self, baseUrl).href;
+-      if (!url.startsWith(baseUrl)) {
++      if (!url.startsWith(baseUrl + "routes")) {
+         throw new TypeError("Page is not a child of the basepath.");
+       }
+       const path = url.substring(baseUrl.length).substring("routes".length);
+@@ -196,7 +196,7 @@ export class ServerContext {
+       }
+       const path = url.substring(baseUrl.length).substring("islands".length);
+       const baseRoute = path.substring(1, path.length - extname(path).length);
+-      const name = baseRoute.replace("/", "");
++      const name = sanitizeIslandName(baseRoute);
+       const id = name.toLowerCase();
+       if (typeof module.default !== "function") {
+         throw new TypeError(
+@@ -224,7 +224,7 @@ export class ServerContext {
+         const localUrl = toFileUrl(entry.path);
+         const path = localUrl.href.substring(staticFolder.href.length);
+         const stat = await Deno.stat(localUrl);
+-        const contentType = mediaTypeLookup(extname(path)) ??
++        const contentType = typeByExtension(extname(path)) ??
+           "application/octet-stream";
+         const etag = await crypto.subtle.digest(
+           "SHA-1",
+@@ -278,7 +278,7 @@ export class ServerContext {
+       const url = new URL(req.url);
+       if (url.pathname.length > 1 && url.pathname.endsWith("/")) {
+         url.pathname = url.pathname.slice(0, -1);
+-        return Response.redirect(url.href, 307);
++        return Response.redirect(url.href, Status.TemporaryRedirect);
+       }
+       return withMiddlewares(req, connInfo, inner);
+     };
+@@ -400,6 +400,16 @@ export class ServerContext {
+           if (route.component === undefined) {
+             throw new Error("This page does not have a component to render.");
+           }
++
++          if (
++            typeof route.component === "function" &&
++            route.component.constructor.name === "AsyncFunction"
++          ) {
++            throw new Error(
++              "Async components are not supported. Fetch data inside of a route handler, as described in the docs: https://fresh.deno.dev/docs/getting-started/fetching-data",
++            );
++          }
++
+           const preloads: string[] = [];
+           const resp = await internalRender({
+             route,
+@@ -439,7 +449,7 @@ export class ServerContext {
+     };
+ 
+     for (const route of this.#routes) {
+-      const createRender = genRender(route, 200);
++      const createRender = genRender(route, Status.OK);
+       if (typeof route.handler === "function") {
+         routes[route.pattern] = (req, ctx, params) =>
+           (route.handler as Handler)(req, {
+@@ -459,7 +469,7 @@ export class ServerContext {
+       }
+     }
+ 
+-    const unknownHandlerRender = genRender(this.#notFound, 404);
++    const unknownHandlerRender = genRender(this.#notFound, Status.NotFound);
+     const unknownHandler: router.Handler<RouterState> = (
+       req,
+       ctx,
+@@ -472,14 +482,17 @@ export class ServerContext {
+         },
+       );
+ 
+-    const errorHandlerRender = genRender(this.#error, 500);
++    const errorHandlerRender = genRender(
++      this.#error,
++      Status.InternalServerError,
++    );
+     const errorHandler: router.ErrorHandler<RouterState> = (
+       req,
+       ctx,
+       error,
+     ) => {
+       console.error(
+-        "%cAn error occured during route handling or page rendering.",
++        "%cAn error occurred during route handling or page rendering.",
+         "color:red",
+         error,
+       );
+@@ -549,7 +562,7 @@ export class ServerContext {
+           "Cache-Control": "public, max-age=604800, immutable",
+         });
+ 
+-        const contentType = mediaTypeLookup(path);
++        const contentType = typeByExtension(extname(path));
+         if (contentType) {
+           headers.set("Content-Type", contentType);
+         }
+@@ -676,6 +689,18 @@ function sanitizePathToRegex(path: string): string {
+     .replaceAll("\:", "\\:");
+ }
+ 
++function toPascalCase(text: string): string {
++  return text.replace(
++    /(^\w|-\w)/g,
++    (substring) => substring.replace(/-/, "").toUpperCase(),
++  );
++}
++
++function sanitizeIslandName(name: string): string {
++  const fileName = name.replace("/", "");
++  return toPascalCase(fileName);
++}
++
+ function serializeCSPDirectives(csp: ContentSecurityPolicyDirectives): string {
+   return Object.entries(csp)
+     .filter(([_key, value]) => value !== undefined)
+diff --git a/src/server/deps.ts b/src/server/deps.ts
+index 60fb37d58d6..0f96d6b8e21 100644
+--- a/src/server/deps.ts
++++ b/src/server/deps.ts
+@@ -3,28 +3,29 @@ export {
+   extname,
+   fromFileUrl,
+   toFileUrl,
+-} from "https://deno.land/std@0.128.0/path/mod.ts";
+-export { walk } from "https://deno.land/std@0.128.0/fs/walk.ts";
+-export { serve } from "https://deno.land/std@0.128.0/http/server.ts";
++} from "https://deno.land/std@0.150.0/path/mod.ts";
++export { walk } from "https://deno.land/std@0.150.0/fs/walk.ts";
++export { serve } from "https://deno.land/std@0.150.0/http/server.ts";
+ export type {
+   ConnInfo,
+   Handler as RequestHandler,
+   ServeInit,
+-} from "https://deno.land/std@0.128.0/http/server.ts";
++} from "https://deno.land/std@0.150.0/http/server.ts";
++export { Status } from "https://deno.land/std@0.150.0/http/http_status.ts";
++export {
++  typeByExtension,
++} from "https://deno.land/std@0.150.0/media_types/mod.ts";
+ 
+ // -- router --
+ export * as router from "https://crux.land/router@0.0.11";
+ 
+-// -- media types --
+-export { lookup as mediaTypeLookup } from "https://deno.land/x/media_types@v2.10.2/mod.ts";
+-
+ // -- esbuild --
+-// @deno-types="https://deno.land/x/esbuild@v0.14.39/mod.d.ts"
+-import * as esbuildWasm from "https://unpkg.com/esbuild-wasm@0.14.39/esm/browser.js";
+-import * as esbuildNative from "https://deno.land/x/esbuild@v0.14.39/mod.js";
++// @deno-types="https://deno.land/x/esbuild@v0.14.51/mod.d.ts"
++import * as esbuildWasm from "https://deno.land/x/esbuild@v0.14.51/wasm.js";
++import * as esbuildNative from "https://deno.land/x/esbuild@v0.14.51/mod.js";
+ // @ts-ignore trust me
+ const esbuild: typeof esbuildWasm = Deno.run === undefined
+   ? esbuildWasm
+   : esbuildNative;
+ export { esbuild, esbuildWasm as esbuildTypes };
+-export { denoPlugin } from "https://deno.land/x/esbuild_deno_loader@0.5.0/mod.ts";
++export { denoPlugin } from "https://deno.land/x/esbuild_deno_loader@0.5.2/mod.ts";
+diff --git a/src/server/mod.ts b/src/server/mod.ts
+index 34446a34577..bd9b24e2601 100644
+--- a/src/server/mod.ts
++++ b/src/server/mod.ts
+@@ -1,5 +1,6 @@
+ import { ServerContext } from "./context.ts";
+ import { serve } from "./deps.ts";
++export { Status } from "./deps.ts";
+ import {
+   AppModule,
+   ErrorPageModule,
+@@ -50,10 +51,5 @@ export async function start(
+   opts: StartOptions = {},
+ ) {
+   const ctx = await ServerContext.fromManifest(routes, opts);
+-  console.log(
+-    `Server listening on http://${opts?.hostname ?? "localhost"}:${
+-      opts?.port ?? 8000
+-    }`,
+-  );
+   await serve(ctx.handler(), opts);
+ }
+diff --git a/src/server/render.tsx b/src/server/render.tsx
+index eba69c52dad..de2216684e4 100644
+--- a/src/server/render.tsx
++++ b/src/server/render.tsx
+@@ -272,7 +272,6 @@ export function template(opts: TemplateOptions): string {
+     <html lang={opts.lang}>
+       <head>
+         <meta charSet="UTF-8" />
+-        <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+         {opts.preloads.map((src) => <link rel="modulepreload" href={src} />)}
+         {opts.imports.map(([src, nonce]) => (
+diff --git a/tests/cli_test.ts b/tests/cli_test.ts
+index 1ff4c1fb717..f021be8e07a 100644
+--- a/tests/cli_test.ts
++++ b/tests/cli_test.ts
+@@ -1,3 +1,4 @@
++import { Status } from "../src/server/deps.ts";
+ import {
+   assert,
+   assertEquals,
+@@ -47,9 +48,8 @@ Deno.test({
+           "-A",
+           "init.ts",
+           tmpDirName,
+-          "--no-twind",
+-          "--no-vscode",
+         ],
++        stdin: "null",
+         stdout: "null",
+       });
+       const { code } = await cliProcess.status();
+@@ -66,6 +66,13 @@ Deno.test({
+           { "type": "file", "name": "README.md" },
+           { "type": "file", "name": "import_map.json" },
+           { "type": "file", "name": "fresh.gen.ts" },
++          {
++            "type": "directory",
++            "name": "components",
++            "contents": [
++              { "type": "file", "name": "Button.tsx" },
++            ],
++          },
+           {
+             "type": "directory",
+             "name": "islands",
+@@ -107,6 +114,7 @@ Deno.test({
+     await t.step("start up the server and access the root page", async () => {
+       const serverProcess = Deno.run({
+         cmd: ["deno", "run", "-A", "--check", "main.ts"],
++        stdin: "null",
+         stdout: "piped",
+         stderr: "inherit",
+         cwd: tmpDirName,
+@@ -119,7 +127,7 @@ Deno.test({
+       let started = false;
+       for await (const line of lines) {
+         console.log(line);
+-        if (line.includes("Server listening on http://")) {
++        if (line.includes("Listening on http://")) {
+           started = true;
+           break;
+         }
+@@ -133,10 +141,12 @@ Deno.test({
+       // Access the root page
+       const res = await fetch("http://localhost:8000");
+       await res.body?.cancel();
+-      assertEquals(res.status, 200);
++      assertEquals(res.status, Status.OK);
+ 
+       // verify the island is revived.
+-      const browser = await puppeteer.launch({ args: ["--no-sandbox"] });
++      const browser = await puppeteer.launch({
++        args: ["--no-sandbox"],
++      });
+       const page = await browser.newPage();
+       await page.goto("http://localhost:8000", { waitUntil: "networkidle2" });
+       const counter = await page.$("body > div > div > p");
+@@ -146,6 +156,8 @@ Deno.test({
+       const buttonPlus = await page.$("body > div > div > button:nth-child(3)");
+       await buttonPlus?.click();
+ 
++      await delay(100);
++
+       counterValue = await counter?.evaluate((el) => el.textContent);
+       assert(counterValue === "4");
+       await page.close();
+@@ -177,6 +189,7 @@ Deno.test({
+           "--twind",
+           "--vscode",
+         ],
++        stdin: "null",
+         stdout: "null",
+       });
+       const { code } = await cliProcess.status();
+@@ -193,6 +206,13 @@ Deno.test({
+           { "type": "file", "name": "README.md" },
+           { "type": "file", "name": "import_map.json" },
+           { "type": "file", "name": "fresh.gen.ts" },
++          {
++            "type": "directory",
++            "name": "components",
++            "contents": [
++              { "type": "file", "name": "Button.tsx" },
++            ],
++          },
+           {
+             "type": "directory",
+             "name": "islands",
+@@ -249,6 +269,7 @@ Deno.test({
+     await t.step("start up the server and access the root page", async () => {
+       const serverProcess = Deno.run({
+         cmd: ["deno", "run", "-A", "--check", "main.ts"],
++        stdin: "null",
+         stdout: "piped",
+         stderr: "inherit",
+         cwd: tmpDirName,
+@@ -261,7 +282,7 @@ Deno.test({
+       let started = false;
+       for await (const line of lines) {
+         console.log(line);
+-        if (line.includes("Server listening on http://")) {
++        if (line.includes("Listening on http://")) {
+           started = true;
+           break;
+         }
+@@ -275,7 +296,7 @@ Deno.test({
+       // Access the root page
+       const res = await fetch("http://localhost:8000");
+       await res.body?.cancel();
+-      assertEquals(res.status, 200);
++      assertEquals(res.status, Status.OK);
+ 
+       // verify the island is revived.
+       const browser = await puppeteer.launch({ args: ["--no-sandbox"] });
+@@ -294,6 +315,8 @@ Deno.test({
+       const buttonPlus = await page.$("body > div > div > button:nth-child(3)");
+       await buttonPlus?.click();
+ 
++      await delay(100);
++
+       counterValue = await counter?.evaluate((el) => el.textContent);
+       assert(counterValue === "4");
+       await page.close();
+@@ -316,6 +339,7 @@ Deno.test("fresh-init error(help)", async function (t) {
+     async () => {
+       const cliProcess = Deno.run({
+         cmd: ["deno", "run", "-A", "init.ts"],
++        stdin: "null",
+         stderr: "piped",
+       });
+       const { code } = await cliProcess.status();
+@@ -334,6 +358,7 @@ Deno.test("fresh-init error(help)", async function (t) {
+     async () => {
+       const cliProcess = Deno.run({
+         cmd: ["deno", "run", "-A", "init.ts", "-f"],
++        stdin: "null",
+         stderr: "piped",
+       });
+       const { code } = await cliProcess.status();
+@@ -352,6 +377,7 @@ Deno.test("fresh-init error(help)", async function (t) {
+     async () => {
+       const cliProcess = Deno.run({
+         cmd: ["deno", "run", "-A", "init.ts", "--foo"],
++        stdin: "null",
+         stderr: "piped",
+       });
+       const { code } = await cliProcess.status();
+diff --git a/tests/deps.ts b/tests/deps.ts
+index cf62d537924..9f5a0a75161 100644
+--- a/tests/deps.ts
++++ b/tests/deps.ts
+@@ -8,9 +8,9 @@ export {
+   assert,
+   assertEquals,
+   assertStringIncludes,
+-} from "https://deno.land/std@0.129.0/testing/asserts.ts";
++} from "https://deno.land/std@0.150.0/testing/asserts.ts";
+ export {
+   TextLineStream,
+-} from "https://deno.land/std@0.129.0/streams/delimiter.ts";
+-export { delay } from "https://deno.land/std@0.129.0/async/delay.ts";
+-export { default as puppeteer } from "https://deno.land/x/puppeteer@9.0.2/mod.ts";
++} from "https://deno.land/std@0.150.0/streams/delimiter.ts";
++export { delay } from "https://deno.land/std@0.150.0/async/delay.ts";
++export { default as puppeteer } from "https://deno.land/x/puppeteer@14.1.1/mod.ts";
+diff --git a/tests/error_test.ts b/tests/error_test.ts
+index 88cf5792934..f5768e1e885 100644
+--- a/tests/error_test.ts
++++ b/tests/error_test.ts
+@@ -1,4 +1,4 @@
+-import { ServerContext } from "../server.ts";
++import { ServerContext, Status } from "../server.ts";
+ import { REFRESH_JS_URL } from "../src/server/constants.ts";
+ import { assert, assertEquals, assertStringIncludes } from "./deps.ts";
+ import manifest from "./fixture_error/fresh.gen.ts";
+@@ -22,7 +22,7 @@ const router = (req: Request) => {
+ Deno.test("error page rendered", async () => {
+   const resp = await router(new Request("https://fresh.deno.dev/"));
+   assert(resp);
+-  assertEquals(resp.status, 500);
++  assertEquals(resp.status, Status.InternalServerError);
+   assertEquals(resp.headers.get("content-type"), "text/html; charset=utf-8");
+   const body = await resp.text();
+   assertStringIncludes(
+@@ -37,7 +37,7 @@ Deno.test("refresh.js rendered", async () => {
+     new Request("https://fresh.deno.dev" + REFRESH_JS_URL),
+   );
+   assert(resp);
+-  assertEquals(resp.status, 200);
++  assertEquals(resp.status, Status.OK);
+   assertEquals(
+     resp.headers.get("content-type"),
+     "application/javascript; charset=utf-8",
+diff --git a/tests/fixture/fresh.gen.ts b/tests/fixture/fresh.gen.ts
+index f62e7b40f70..959c48294b4 100644
+--- a/tests/fixture/fresh.gen.ts
++++ b/tests/fixture/fresh.gen.ts
+@@ -30,6 +30,7 @@ import * as $24 from "./routes/static.tsx";
+ import * as $25 from "./routes/wildcard.tsx";
+ import * as $$0 from "./islands/Counter.tsx";
+ import * as $$1 from "./islands/Test.tsx";
++import * as $$2 from "./islands/kebab-case-counter-test.tsx";
+ 
+ const manifest = {
+   routes: {
+@@ -63,6 +64,7 @@ const manifest = {
+   islands: {
+     "./islands/Counter.tsx": $$0,
+     "./islands/Test.tsx": $$1,
++    "./islands/kebab-case-counter-test.tsx": $$2,
+   },
+   baseUrl: import.meta.url,
+ };
+diff --git a/tests/fixture/import_map.json b/tests/fixture/import_map.json
+index b5705fb2226..e59539e4ddd 100644
+--- a/tests/fixture/import_map.json
++++ b/tests/fixture/import_map.json
+@@ -1,8 +1,8 @@
+ {
+   "imports": {
+     "$fresh/": "../../",
+-    "preact": "https://esm.sh/preact@10.8.2",
+-    "preact/": "https://esm.sh/preact@10.8.2/",
+-    "preact-render-to-string": "https://esm.sh/preact-render-to-string@5.2.0?deps=preact@10.8.2"
++    "preact": "https://esm.sh/preact@10.10.0",
++    "preact/": "https://esm.sh/preact@10.10.0/",
++    "preact-render-to-string": "https://esm.sh/preact-render-to-string@5.2.1?external=preact"
+   }
+ }
+diff --git a/tests/fixture/islands/kebab-case-counter-test.tsx b/tests/fixture/islands/kebab-case-counter-test.tsx
+new file mode 100644
+index 00000000000..90f16aa5f3d
+--- /dev/null
++++ b/tests/fixture/islands/kebab-case-counter-test.tsx
+@@ -0,0 +1,27 @@
++/** @jsx h */
++import { h } from "preact";
++import { useState } from "preact/hooks";
++import { IS_BROWSER } from "$fresh/runtime.ts";
++
++interface KebabCaseFileNameTestProps {
++  start: number;
++  id: string;
++}
++
++export default function KebabCaseFileNameTest(
++  props: KebabCaseFileNameTestProps,
++) {
++  const [count, setCount] = useState(props.start);
++  return (
++    <div id={props.id}>
++      <p>{count}</p>
++      <button
++        id={`b-${props.id}`}
++        onClick={() => setCount(count + 1)}
++        disabled={!IS_BROWSER}
++      >
++        +1
++      </button>
++    </div>
++  );
++}
+diff --git a/tests/fixture/routes/islands/index.tsx b/tests/fixture/routes/islands/index.tsx
+index ab478293ef5..527cb9c987c 100644
+--- a/tests/fixture/routes/islands/index.tsx
++++ b/tests/fixture/routes/islands/index.tsx
+@@ -1,6 +1,7 @@
+ /** @jsx h */
+ import { h } from "preact";
+ import Counter from "../../islands/Counter.tsx";
++import KebabCaseFileNameTest from "../../islands/kebab-case-counter-test.tsx";
+ import Test from "../../islands/Test.tsx";
+ 
+ export default function Home() {
+@@ -8,6 +9,7 @@ export default function Home() {
+     <div>
+       <Counter id="counter1" start={3} />
+       <Counter id="counter2" start={10} />
++      <KebabCaseFileNameTest id="kebab-case-file-counter" start={5} />
+       <Test message="" />
+     </div>
+   );
+diff --git a/tests/fixture_error/import_map.json b/tests/fixture_error/import_map.json
+index b5705fb2226..e59539e4ddd 100644
+--- a/tests/fixture_error/import_map.json
++++ b/tests/fixture_error/import_map.json
+@@ -1,8 +1,8 @@
+ {
+   "imports": {
+     "$fresh/": "../../",
+-    "preact": "https://esm.sh/preact@10.8.2",
+-    "preact/": "https://esm.sh/preact@10.8.2/",
+-    "preact-render-to-string": "https://esm.sh/preact-render-to-string@5.2.0?deps=preact@10.8.2"
++    "preact": "https://esm.sh/preact@10.10.0",
++    "preact/": "https://esm.sh/preact@10.10.0/",
++    "preact-render-to-string": "https://esm.sh/preact-render-to-string@5.2.1?external=preact"
+   }
+ }
+diff --git a/tests/islands_test.ts b/tests/islands_test.ts
+index 461615e6be0..680e797ae05 100644
+--- a/tests/islands_test.ts
++++ b/tests/islands_test.ts
+@@ -23,8 +23,7 @@ Deno.test({
+ 
+     let started = false;
+     for await (const line of lines) {
+-      console.log(line);
+-      if (line.includes("Server listening on http://")) {
++      if (line.includes("Listening on http://")) {
+         started = true;
+         break;
+       }
+@@ -45,6 +44,7 @@ Deno.test({
+ 
+       const buttonPlus = await page.$(`#b-${counterId}`);
+       await buttonPlus?.click();
++      await delay(100);
+       value = await pElem?.evaluate((el) => el.textContent);
+       assert(value === `${originalValue + 1}`, `${counterId} click`);
+     }
+@@ -53,9 +53,10 @@ Deno.test({
+       waitUntil: "networkidle2",
+     });
+ 
+-    await t.step("Ensure 2 islands on 1 page are revived", async () => {
++    await t.step("Ensure 3 islands on 1 page are revived", async () => {
+       await counterTest("counter1", 3);
+       await counterTest("counter2", 10);
++      await counterTest("kebab-case-file-counter", 5);
+     });
+ 
+     await t.step("Ensure an island revive an img 'hash' path", async () => {
+diff --git a/tests/main_test.ts b/tests/main_test.ts
+index d070b67545d..3b77146c4ab 100644
+--- a/tests/main_test.ts
++++ b/tests/main_test.ts
+@@ -1,4 +1,4 @@
+-import { ServerContext } from "../server.ts";
++import { ServerContext, Status } from "../server.ts";
+ import { assert, assertEquals, assertStringIncludes } from "./deps.ts";
+ import manifest from "./fixture/fresh.gen.ts";
+ import options from "./fixture/options.ts";
+@@ -22,7 +22,7 @@ const router = (req: Request) => {
+ Deno.test("/ page prerender", async () => {
+   const resp = await router(new Request("https://fresh.deno.dev/"));
+   assert(resp);
+-  assertEquals(resp.status, 200);
++  assertEquals(resp.status, Status.OK);
+   assertEquals(resp.headers.get("content-type"), "text/html; charset=utf-8");
+   assertEquals(resp.headers.get("server"), "fresh test server");
+   const body = await resp.text();
+@@ -40,7 +40,7 @@ Deno.test("/ page prerender", async () => {
+ Deno.test("/props/123 page prerender", async () => {
+   const resp = await router(new Request("https://fresh.deno.dev/props/123"));
+   assert(resp);
+-  assertEquals(resp.status, 200);
++  assertEquals(resp.status, Status.OK);
+   assertEquals(resp.headers.get("content-type"), "text/html; charset=utf-8");
+   const body = await resp.text();
+   assertStringIncludes(
+@@ -52,7 +52,7 @@ Deno.test("/props/123 page prerender", async () => {
+ Deno.test("/[name] page prerender", async () => {
+   const resp = await router(new Request("https://fresh.deno.dev/bar"));
+   assert(resp);
+-  assertEquals(resp.status, 200);
++  assertEquals(resp.status, Status.OK);
+   assertEquals(resp.headers.get("content-type"), "text/html; charset=utf-8");
+   const body = await resp.text();
+   assertStringIncludes(body, "<div>Hello bar</div>");
+@@ -64,7 +64,7 @@ Deno.test("/intercept - GET html", async () => {
+   });
+   const resp = await router(req);
+   assert(resp);
+-  assertEquals(resp.status, 200);
++  assertEquals(resp.status, Status.OK);
+   const body = await resp.text();
+   assertStringIncludes(body, "<div>This is HTML</div>");
+ });
+@@ -75,7 +75,7 @@ Deno.test("/intercept - GET text", async () => {
+   });
+   const resp = await router(req);
+   assert(resp);
+-  assertEquals(resp.status, 200);
++  assertEquals(resp.status, Status.OK);
+   const body = await resp.text();
+   assertEquals(body, "This is plain text");
+ });
+@@ -86,7 +86,7 @@ Deno.test("/intercept - POST", async () => {
+   });
+   const resp = await router(req);
+   assert(resp);
+-  assertEquals(resp.status, 200);
++  assertEquals(resp.status, Status.OK);
+   const body = await resp.text();
+   assertEquals(body, "POST response");
+ });
+@@ -97,7 +97,7 @@ Deno.test("/intercept - DELETE", async () => {
+   });
+   const resp = await router(req);
+   assert(resp);
+-  assertEquals(resp.status, 405);
++  assertEquals(resp.status, Status.MethodNotAllowed);
+ });
+ 
+ Deno.test("/intercept_args - GET html", async () => {
+@@ -106,7 +106,7 @@ Deno.test("/intercept_args - GET html", async () => {
+   });
+   const resp = await router(req);
+   assert(resp);
+-  assertEquals(resp.status, 200);
++  assertEquals(resp.status, Status.OK);
+   const body = await resp.text();
+   assertStringIncludes(body, "<div>intercepted</div>");
+ });
+@@ -118,13 +118,13 @@ Deno.test("/api/get_only - NOTAMETHOD", async () => {
+     }),
+   );
+   assert(resp);
+-  assertEquals(resp.status, 405);
++  assertEquals(resp.status, Status.MethodNotAllowed);
+ });
+ 
+ Deno.test("/api/xyz not found", async () => {
+   const resp = await router(new Request("https://fresh.deno.dev/api/xyz"));
+   assert(resp);
+-  assertEquals(resp.status, 404);
++  assertEquals(resp.status, Status.NotFound);
+   const body = await resp.text();
+   assertStringIncludes(body, "404 not found: /api/xyz");
+ });
+@@ -132,7 +132,7 @@ Deno.test("/api/xyz not found", async () => {
+ Deno.test("/static page prerender", async () => {
+   const resp = await router(new Request("https://fresh.deno.dev/static"));
+   assert(resp);
+-  assertEquals(resp.status, 200);
++  assertEquals(resp.status, Status.OK);
+   assertEquals(resp.headers.get("content-type"), "text/html; charset=utf-8");
+   const body = await resp.text();
+   assert(!body.includes(`main.js`));
+@@ -145,7 +145,7 @@ Deno.test("/static page prerender", async () => {
+ Deno.test("/books/:id page - /books/123", async () => {
+   const resp = await router(new Request("https://fresh.deno.dev/books/123"));
+   assert(resp);
+-  assertEquals(resp.status, 200);
++  assertEquals(resp.status, Status.OK);
+   assertEquals(resp.headers.get("content-type"), "text/html; charset=utf-8");
+   const body = await resp.text();
+   assertStringIncludes(body, "<div>Book 123</div>");
+@@ -154,13 +154,13 @@ Deno.test("/books/:id page - /books/123", async () => {
+ Deno.test("/books/:id page - /books/abc", async () => {
+   const resp = await router(new Request("https://fresh.deno.dev/books/abc"));
+   assert(resp);
+-  assertEquals(resp.status, 404);
++  assertEquals(resp.status, Status.NotFound);
+ });
+ 
+ Deno.test("redirect /pages/fresh/ to /pages/fresh", async () => {
+   const resp = await router(new Request("https://fresh.deno.dev/pages/fresh/"));
+   assert(resp);
+-  assertEquals(resp.status, 307);
++  assertEquals(resp.status, Status.TemporaryRedirect);
+   assertEquals(
+     resp.headers.get("location"),
+     "https://fresh.deno.dev/pages/fresh",
+@@ -170,7 +170,7 @@ Deno.test("redirect /pages/fresh/ to /pages/fresh", async () => {
+ Deno.test("/failure", async () => {
+   const resp = await router(new Request("https://fresh.deno.dev/failure"));
+   assert(resp);
+-  assertEquals(resp.status, 500);
++  assertEquals(resp.status, Status.InternalServerError);
+   const body = await resp.text();
+   assert(body.includes("500 internal error: it errored!"));
+ });
+@@ -178,14 +178,14 @@ Deno.test("/failure", async () => {
+ Deno.test("/foo/:path*", async () => {
+   const resp = await router(new Request("https://fresh.deno.dev/foo/bar/baz"));
+   assert(resp);
+-  assertEquals(resp.status, 200);
++  assertEquals(resp.status, Status.OK);
+   const body = await resp.text();
+   assert(body.includes("bar/baz"));
+ });
+ 
+ Deno.test("static file - by file path", async () => {
+   const resp = await router(new Request("https://fresh.deno.dev/foo.txt"));
+-  assertEquals(resp.status, 200);
++  assertEquals(resp.status, Status.OK);
+   const body = await resp.text();
+   assert(body.startsWith("bar"));
+   const etag = resp.headers.get("etag");
+@@ -202,7 +202,7 @@ Deno.test("static file - by file path", async () => {
+       },
+     }),
+   );
+-  assertEquals(resp2.status, 304);
++  assertEquals(resp2.status, Status.NotModified);
+   assertEquals(resp2.headers.get("etag"), etag);
+   assertEquals(resp2.headers.get("content-type"), "text/plain");
+ 
+@@ -213,7 +213,7 @@ Deno.test("static file - by file path", async () => {
+       },
+     }),
+   );
+-  assertEquals(resp3.status, 304);
++  assertEquals(resp3.status, Status.NotModified);
+   assertEquals(resp3.headers.get("etag"), etag);
+   assertEquals(resp3.headers.get("content-type"), "text/plain");
+ });
+@@ -233,7 +233,7 @@ Deno.test("static file - by 'hashed' path", async () => {
+     new Request(`https://fresh.deno.dev${imgFilePath}`),
+   );
+   const _ = await resp2.text();
+-  assertEquals(resp2.status, 200);
++  assertEquals(resp2.status, Status.OK);
+   assertEquals(
+     resp2.headers.get("cache-control"),
+     "public, max-age=31536000, immutable",
+@@ -246,7 +246,7 @@ Deno.test("static file - by 'hashed' path", async () => {
+       },
+     }),
+   );
+-  assertEquals(resp3.status, 304);
++  assertEquals(resp3.status, Status.NotModified);
+ 
+   // ensure asset hook is not applied on file explicitly excluded with attribute
+   const imgFilePathWithNoCache = body.match(
+@@ -285,7 +285,7 @@ Deno.test("/params/:path*", async () => {
+     new Request("https://fresh.deno.dev/params/bar/baz"),
+   );
+   assert(resp);
+-  assertEquals(resp.status, 200);
++  assertEquals(resp.status, Status.OK);
+   const body = await resp.text();
+   assertEquals(body, "bar/baz");
+ });
+@@ -293,7 +293,7 @@ Deno.test("/params/:path*", async () => {
+ Deno.test("/connInfo", async () => {
+   const resp = await router(new Request("https://fresh.deno.dev/connInfo"));
+   assert(resp);
+-  assertEquals(resp.status, 200);
++  assertEquals(resp.status, Status.OK);
+   const body = await resp.text();
+   assertEquals(body, "127.0.0.1");
+ });
+@@ -305,7 +305,7 @@ Deno.test({
+       new Request("https://fresh.deno.dev/middleware_root"),
+     );
+     assert(resp);
+-    assertEquals(resp.status, 200);
++    assertEquals(resp.status, Status.OK);
+     const body = await resp.text();
+     assertStringIncludes(body, "root_mw");
+     assert(!body.includes("layer1_mw"));
+@@ -319,7 +319,7 @@ Deno.test({
+       new Request("https://fresh.deno.dev/layeredMdw/layer2/abc"),
+     );
+     assert(resp);
+-    assertEquals(resp.status, 200);
++    assertEquals(resp.status, Status.OK);
+     const body = await resp.text();
+     console.log(body);
+     assertStringIncludes(body, "root_mw");
+@@ -332,7 +332,7 @@ Deno.test({
+       new Request("https://fresh.deno.dev/layeredMdw/layer2-no-mw/without_mw"),
+     );
+     assert(resp1);
+-    assertEquals(resp1.status, 200);
++    assertEquals(resp1.status, Status.OK);
+     const body1 = await resp1.text();
+     assertStringIncludes(body1, "root_mw");
+     assertStringIncludes(body1, "layer1_mw");
+@@ -349,7 +349,7 @@ Deno.test({
+       new Request("https://fresh.deno.dev/layeredMdw/layer2"),
+     );
+     assert(resp);
+-    assertEquals(resp.status, 200);
++    assertEquals(resp.status, Status.OK);
+     const body = await resp.text();
+     console.log(body);
+     assertStringIncludes(body, "root_mw");
+@@ -362,7 +362,7 @@ Deno.test({
+       new Request("https://fresh.deno.dev/layeredMdw/layer2-no-mw/without_mw"),
+     );
+     assert(resp1);
+-    assertEquals(resp1.status, 200);
++    assertEquals(resp1.status, Status.OK);
+     const body1 = await resp1.text();
+     assertStringIncludes(body1, "root_mw");
+     assertStringIncludes(body1, "layer1_mw");
+@@ -380,7 +380,7 @@ Deno.test({
+       new Request("https://fresh.deno.dev/layeredMdw/layer2/layer3/abc"),
+     );
+     assert(resp);
+-    assertEquals(resp.status, 200);
++    assertEquals(resp.status, Status.OK);
+     const body = await resp.text();
+     assertStringIncludes(body, "root_mw");
+     assertStringIncludes(body, "layer1_mw");
+diff --git a/versions.json b/versions.json
+index f8fe269bd56..b238afaf75e 100644
+--- a/versions.json
++++ b/versions.json
+@@ -1,4 +1,5 @@
+ [
++  "1.0.2",
+   "1.0.1",
+   "1.0.0",
+   "1.0.0-rc.6",
+diff --git a/www/components/Button.tsx b/www/components/Button.tsx
+index 53be18c9f08..d94503d7dde 100644
+--- a/www/components/Button.tsx
++++ b/www/components/Button.tsx
+@@ -9,8 +9,7 @@ export function RoundedButton(props: h.JSX.HTMLAttributes<HTMLButtonElement>) {
+         touchAction: "manipulation",
+       }}
+       {...props}
+-      class={tw
+-        `p-3 border border-transparent rounded-full text-white bg-green(500 hover:600) focus:(outline-none ring(2 offset-2 green-500)) disabled:(bg-green-200 cursor-default)`}
++      class={tw`p-3 border border-transparent rounded-full text-white bg-green(500 hover:600) focus:(outline-none ring(2 offset-2 green-500)) disabled:(bg-green-200 cursor-default)`}
+     />
+   );
+ }
+diff --git a/www/components/Footer.tsx b/www/components/Footer.tsx
+index 502664e0af2..8ba33d50bb2 100644
+--- a/www/components/Footer.tsx
++++ b/www/components/Footer.tsx
+@@ -18,10 +18,10 @@ const LINKS = [
+ ];
+ 
+ export default function Footer() {
+-  const footer = tw
+-    `border(t-2 gray-200) bg-gray-100 h-32 flex flex-col gap-4 justify-center`;
+-  const inner = tw
+-    `mx-auto max-w-screen-lg flex items-center justify-center gap-8`;
++  const footer =
++    tw`border(t-2 gray-200) bg-gray-100 h-32 flex flex-col gap-4 justify-center`;
++  const inner =
++    tw`mx-auto max-w-screen-lg flex items-center justify-center gap-8`;
+   const linkStyle = tw`text-gray-600 hover:underline`;
+   const copyright = tw`text(gray-600 center)`;
+   return (
+@@ -34,7 +34,7 @@ export default function Footer() {
+         ))}
+       </div>
+       <div class={copyright}>
+-        <span>© {new Date().getFullYear()} the fresh authors</span>
++        <span>© {new Date().getFullYear()} the Fresh authors</span>
+       </div>
+     </footer>
+   );
+diff --git a/www/import_map.json b/www/import_map.json
+index 21749586fb1..7b6980ed9c5 100644
+--- a/www/import_map.json
++++ b/www/import_map.json
+@@ -6,10 +6,10 @@
+     "twind": "https://esm.sh/twind@0.16.17",
+     "twind/": "https://esm.sh/twind@0.16.17/",
+ 
+-    "preact": "https://esm.sh/preact@10.8.2",
+-    "preact/": "https://esm.sh/preact@10.8.2/",
+-    "preact-render-to-string": "https://esm.sh/preact-render-to-string@5.2.0?deps=preact@10.8.2",
++    "preact": "https://esm.sh/preact@10.10.0",
++    "preact/": "https://esm.sh/preact@10.10.0/",
++    "preact-render-to-string": "https://esm.sh/preact-render-to-string@5.2.1?external=preact",
+ 
+-    "$semver/": "https://deno.land/x/semver@v1.4.0/"
++    "$std/": "https://deno.land/std@0.150.0/"
+   }
+ }
+diff --git a/www/islands/Counter.tsx b/www/islands/Counter.tsx
+index 0edf21c5005..2b884193ecc 100644
+--- a/www/islands/Counter.tsx
++++ b/www/islands/Counter.tsx
+@@ -14,8 +14,7 @@ export default function Counter(props: CounterProps) {
+   const [count, setCount] = useState(props.start);
+   return (
+     <div
+-      class={tw
+-        `bg-gray-100 p-4 border border-gray-200 flex items-center justify-around`}
++      class={tw`bg-gray-100 p-4 border border-gray-200 flex items-center justify-around`}
+     >
+       <RoundedButton
+         title="Subtract 1"
+diff --git a/www/routes/docs/[...slug].tsx b/www/routes/docs/[...slug].tsx
+index 1273387cdeb..6b1856cd0b8 100644
+--- a/www/routes/docs/[...slug].tsx
++++ b/www/routes/docs/[...slug].tsx
+@@ -90,8 +90,8 @@ function Logo() {
+ 
+ function Header() {
+   const header = tw`mx-auto max-w-screen-lg flex gap-3 justify-between`;
+-  const sidebarButton = tw
+-    `px-4 py-4 md:hidden border(l-2 green-200) flex items-center hover:bg-green-100`;
++  const sidebarButton =
++    tw`px-4 py-4 md:hidden border(l-2 green-200) flex items-center hover:bg-green-100`;
+   return (
+     <div class={tw`bg-green-300`}>
+       <header class={header}>
+@@ -123,8 +123,8 @@ function Header() {
+ }
+ 
+ function Title() {
+-  const title = tw
+-    `text(2xl gray-900) tracking-tight font-extrabold flex items-center gap-1`;
++  const title =
++    tw`text(2xl gray-900) tracking-tight font-extrabold flex items-center gap-1`;
+   const pageName = tw`font-light block pb-[1px]`;
+   const subtitle = tw`text(sm gray-700)`;
+   return (
+@@ -166,8 +166,8 @@ function Main(props: { path: string; page: Page }) {
+ function MobileSidebar(props: { path: string }) {
+   const container = tw`fixed inset-0 flex z-40 hidden` + " toggled";
+   const backdrop = tw`absolute inset-0 bg-gray-600 opacity-75`;
+-  const sidebar = tw
+-    `relative flex-1 flex flex-col w-[16rem] h-full bg-white border(r-2 gray-100)`;
++  const sidebar =
++    tw`relative flex-1 flex flex-col w-[16rem] h-full bg-white border(r-2 gray-100)`;
+   const heading = tw`p-4 border(b-2 gray-100) bg-green-300`;
+   const items = tw`pt-2 pb-16 px-4 overflow-x-auto`;
+   return (
+@@ -197,8 +197,7 @@ function MobileSidebar(props: { path: string }) {
+ function DesktopSidebar(props: { path: string }) {
+   return (
+     <nav
+-      class={tw
+-        `w-[16rem] flex-shrink-0 hidden md:block py-8 pr-4 border(r-2 gray-100)`}
++      class={tw`w-[16rem] flex-shrink-0 hidden md:block py-8 pr-4 border(r-2 gray-100)`}
+     >
+       <DocsSidebar path={props.path} />
+     </nav>
+diff --git a/www/routes/index.tsx b/www/routes/index.tsx
+index 9e350cb7688..5ad82e36666 100644
+--- a/www/routes/index.tsx
++++ b/www/routes/index.tsx
+@@ -57,11 +57,11 @@ export default function MainPage(props: PageProps) {
+ }
+ 
+ function Hero() {
+-  const container = tw
+-    `w-full flex justify-center items-center flex-col bg-green-300`;
++  const container =
++    tw`w-full flex justify-center items-center flex-col bg-green-300`;
+   const nav = tw`flex justify-end items-center bg-green-300`;
+-  const a = tw
+-    `border(1 black) inline-flex items-center h-10 px-4 m-4 text-black bg-transparent rounded hover:bg-white`;
++  const a =
++    tw`border(1 black) inline-flex items-center h-10 px-4 m-4 text-black bg-transparent rounded hover:bg-white`;
+ 
+   return (
+     <Fragment>
+@@ -92,8 +92,8 @@ function ListItem(props: ListItemProps) {
+ }
+ 
+ function Intro() {
+-  const title = tw
+-    `py-4 text(4xl sm:4xl lg:4xl gray-900 center) sm:tracking-tight font-extrabold`;
++  const title =
++    tw`py-4 text(4xl sm:4xl lg:4xl gray-900 center) sm:tracking-tight font-extrabold`;
+ 
+   return (
+     <section
+@@ -169,7 +169,7 @@ function GettingStarted(props: { origin: string }) {
+         Then you can use the Fresh init script to bootstrap a new project:
+       </p>
+       <pre class={tw`overflow-x-auto py-2 px-4 bg(gray-100)`}>
+-        {`deno run -A -r ${props.origin} my-app`}
++        {`deno run -A -r ${props.origin} my-project`}
+       </pre>
+       <p class={tw`text-gray-600`}>
+         Enter the newly created project directory and run the following command
+diff --git a/www/routes/raw.ts b/www/routes/raw.ts
+index 860ae44fe60..8389d5f51b2 100644
+--- a/www/routes/raw.ts
++++ b/www/routes/raw.ts
+@@ -1,6 +1,6 @@
+ import { RouteConfig } from "$fresh/server.ts";
+ import { Handlers } from "$fresh/server.ts";
+-import { parse } from "$semver/mod.ts";
++import { parse } from "$std/semver/mod.ts";
+ import VERSIONS from "../../versions.json" assert { type: "json" };
+ 
+ const BASE_URL = "https://raw.githubusercontent.com/denoland/fresh/";
+@@ -11,7 +11,7 @@ export const handler: Handlers = {
+     const isHTML = accept?.includes("text/html");
+     const { version, path } = ctx.params;
+ 
+-    const semver = parse(version, { includePrerelease: true, loose: false });
++    const semver = parse(version, { includePrerelease: true });
+     if (!semver) {
+       return new Response("Invalid version", { status: 400 });
+     }

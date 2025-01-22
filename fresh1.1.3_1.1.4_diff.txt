@@ -1,0 +1,349 @@
+diff --git a/docs/concepts/app-wrapper.md b/docs/concepts/app-wrapper.md
+new file mode 100644
+index 00000000000..20df80569d2
+--- /dev/null
++++ b/docs/concepts/app-wrapper.md
+@@ -0,0 +1,54 @@
++---
++description: |
++  Add a global application wrapper to provide common meta tags or context for application routes.
++---
++
++An application wrapper is defined in an `_app.tsx` file in `routes/` folder. It
++must contain a default export that is a regular Preact component. Only one such
++wrapper is allowed per application.
++
++It receives component through props which is to be wrapped. For instance, it
++allows to introduce a global container for the whole application.
++
++```tsx
++// routes/_app.tsx
++
++import { AppProps } from "$fresh/server.ts";
++
++export default function App({ Component }: AppProps) {
++  return (
++    <div class="wrapper">
++      <Component />
++    </div>
++  );
++}
++```
++
++There is also a possibility to modify the document template by using special
++tags `html`, `Head` or `body`. This can be done in any other Preact component,
++but using it in the application wrapper lets you define one common document
++template.
++
++```tsx
++// routes/_app.tsx
++
++import { asset, Head } from "$fresh/runtime.ts";
++import { AppProps } from "$fresh/src/server/types.ts";
++
++export default function App({ Component }: AppProps) {
++  return (
++    <html data-custom="data">
++      <Head>
++        <title>Fresh</title>
++        <link rel="stylesheet" href={asset("style.css")} />
++      </Head>
++      <body class="bodyClass">
++        <Component />
++      </body>
++    </html>
++  );
++}
++```
++
++Currently, there is no way of overriding default tags/attributes from provided
++template.
+diff --git a/docs/concepts/deployment.md b/docs/concepts/deployment.md
+index 37efd74a775..667d28e9509 100644
+--- a/docs/concepts/deployment.md
++++ b/docs/concepts/deployment.md
+@@ -3,8 +3,8 @@ description: |
+   Fresh can be deployed to a variety of platforms easily.
+ ---
+ 
+-While Fresh is designed to be deployed to [Deno Deploy][deno-deploy], it can can
+-be deployed to any system or platform that can run a Deno based web server.
++While Fresh is designed to be deployed to [Deno Deploy][deno-deploy], it can be
++deployed to any system or platform that can run a Deno based web server.
+ 
+ Here are instructions for specific providers / systems:
+ 
+diff --git a/docs/concepts/updating.md b/docs/concepts/updating.md
+index e5a3fdad4c7..474e13f2e56 100644
+--- a/docs/concepts/updating.md
++++ b/docs/concepts/updating.md
+@@ -21,7 +21,7 @@ below.
+ | Fresh version | Preact           | preact-render-to-string | Deno      |
+ | ------------- | ---------------- | ----------------------- | --------- |
+ | 1.0.0-1.0.2   | >=10.8.1 <11.0.0 | >=5.2.0 <6.0.0          | >= 1.23.0 |
+-| 1.1.0-1.1.3   | >=10.8.1 <11.0.0 | >=5.2.0 <6.0.0          | >= 1.25.0 |
++| 1.1.0-1.1.4   | >=10.8.1 <11.0.0 | >=5.2.0 <6.0.0          | >= 1.25.0 |
+ 
+ ## Updating dependencies
+ 
+@@ -58,7 +58,7 @@ version:
+   {
+     "imports": {
+ -     "$fresh/": "https://deno.land/x/fresh@1.0.2/",
+-+     "$fresh/": "https://deno.land/x/fresh@1.1.3/",
+++     "$fresh/": "https://deno.land/x/fresh@1.1.4/",
+ 
+ -     "preact": "https://esm.sh/preact@10.8.1",
+ -     "preact/": "https://esm.sh/preact@10.8.1/",
+diff --git a/docs/toc.json b/docs/toc.json
+index 96d28a90bec..57c28365750 100644
+--- a/docs/toc.json
++++ b/docs/toc.json
+@@ -29,7 +29,8 @@
+       ["data-fetching", "Data fetching"],
+       ["deployment", "Deployment"],
+       ["plugins", "Plugins"],
+-      ["updating", "Updating Fresh"]
++      ["updating", "Updating Fresh"],
++      ["app-wrapper", "Application wrapper"]
+     ]
+   },
+   "integrations": {
+diff --git a/plugins/twindv1.ts b/plugins/twindv1.ts
+new file mode 100644
+index 00000000000..848e9773c63
+--- /dev/null
++++ b/plugins/twindv1.ts
+@@ -0,0 +1,31 @@
++import { stringify, virtual } from "https://esm.sh/@twind/core@1.1.3";
++import { Plugin } from "../server.ts";
++
++import { Options, setup, STYLE_ELEMENT_ID } from "./twindv1/shared.ts";
++export type { Options };
++
++export default function twindv1(options: Options): Plugin {
++  const sheet = virtual(true);
++  setup(options, sheet);
++  const main = `data:application/javascript,import hydrate from "${
++    new URL("./twindv1/main.ts", import.meta.url).href
++  }";
++import options from "${options.selfURL}";
++export default function(state) { hydrate(options, state); }`;
++  return {
++    name: "twind",
++    entrypoints: { "main": main },
++    render(ctx) {
++      const res = ctx.render();
++      const cssText = stringify(sheet.target);
++      const scripts = [];
++      if (res.requiresHydration) {
++        scripts.push({ entrypoint: "main", state: [] });
++      }
++      return {
++        scripts,
++        styles: [{ cssText, id: STYLE_ELEMENT_ID }],
++      };
++    },
++  };
++}
+diff --git a/plugins/twindv1/main.ts b/plugins/twindv1/main.ts
+new file mode 100644
+index 00000000000..9b6a1902022
+--- /dev/null
++++ b/plugins/twindv1/main.ts
+@@ -0,0 +1,5 @@
++import { getSheet, setup, TwindConfig } from "https://esm.sh/@twind/core@1.1.3";
++
++export default function hydrate(options: TwindConfig) {
++  setup(options, getSheet());
++}
+diff --git a/plugins/twindv1/shared.ts b/plugins/twindv1/shared.ts
+new file mode 100644
+index 00000000000..5974b34c60d
+--- /dev/null
++++ b/plugins/twindv1/shared.ts
+@@ -0,0 +1,48 @@
++import { JSX, options as preactOptions, VNode } from "preact";
++import {
++  setup as twSetup,
++  Sheet,
++  tw,
++  TwindConfig,
++} from "https://esm.sh/@twind/core@1.1.3";
++
++export const STYLE_ELEMENT_ID = "__FRSH_TWIND";
++
++export interface Options extends TwindConfig {
++  /** The import.meta.url of the module defining these options. */
++  selfURL: string;
++}
++
++declare module "preact" {
++  namespace JSX {
++    interface DOMAttributes<Target extends EventTarget> {
++      class?: string;
++      className?: string;
++    }
++  }
++}
++
++export function setup({ selfURL: _selfURL, ...config }: Options, sheet: Sheet) {
++  twSetup(config, sheet);
++
++  const originalHook = preactOptions.vnode;
++  // deno-lint-ignore no-explicit-any
++  preactOptions.vnode = (vnode: VNode<JSX.DOMAttributes<any>>) => {
++    if (typeof vnode.type === "string" && typeof vnode.props === "object") {
++      const { props } = vnode;
++      const classes: string[] = [];
++      if (props.class) {
++        classes.push(tw(props.class));
++        props.class = undefined;
++      }
++      if (props.className) {
++        classes.push(tw(props.className));
++      }
++      if (classes.length) {
++        props.class = classes.join(" ");
++      }
++    }
++
++    originalHook?.(vnode);
++  };
++}
+diff --git a/src/server/context.ts b/src/server/context.ts
+index 9d25e411524..d2d765d6ff5 100644
+--- a/src/server/context.ts
++++ b/src/server/context.ts
+@@ -312,7 +312,7 @@ export class ServerContext {
+   handler(): RequestHandler {
+     const inner = rutt.router<RouterState>(...this.#handlers());
+     const withMiddlewares = this.#composeMiddlewares(this.#middlewares);
+-    return function handler(req: Request, connInfo: ConnInfo) {
++    return async function handler(req: Request, connInfo: ConnInfo) {
+       // Redirect requests that end with a trailing slash
+       // to their non-trailing slash counterpart.
+       // Ex: /about/ -> /about
+@@ -321,7 +321,24 @@ export class ServerContext {
+         url.pathname = url.pathname.slice(0, -1);
+         return Response.redirect(url.href, Status.TemporaryRedirect);
+       }
+-      return withMiddlewares(req, connInfo, inner);
++
++      // HEAD requests should be handled as GET requests
++      // but without the body.
++      const originalMethod = req.method;
++      // Internally, HEAD is handled in the same way as GET.
++      if (req.method === "HEAD") {
++        req = new Request(req.url, { method: "GET", headers: req.headers });
++      }
++      const res = await withMiddlewares(req, connInfo, inner);
++      if (originalMethod === "HEAD") {
++        res.body?.cancel();
++        return new Response(null, {
++          headers: res.headers,
++          status: res.status,
++          statusText: res.statusText,
++        });
++      }
++      return res;
+     };
+   }
+ 
+diff --git a/tests/main_test.ts b/tests/main_test.ts
+index 4603927e6d6..ea4c3199255 100644
+--- a/tests/main_test.ts
++++ b/tests/main_test.ts
+@@ -254,6 +254,29 @@ Deno.test("static file - by file path", async () => {
+   assertEquals(resp3.headers.get("content-type"), "text/plain");
+ });
+ 
++Deno.test("HEAD request", async () => {
++  // Static file
++  const resp = await router(
++    new Request("https://fresh.deno.dev/foo.txt", {
++      method: "HEAD",
++    }),
++  );
++  assertEquals(resp.status, Status.OK);
++  const body = await resp.text();
++  assertEquals(body, "");
++
++  // route
++  const resp2 = await router(
++    new Request("https://fresh.deno.dev/books/123", {
++      method: "HEAD",
++    }),
++  );
++  assert(resp2);
++  assertEquals(resp2.status, Status.OK);
++  const body2 = await resp2.text();
++  assertEquals(body2, "");
++});
++
+ Deno.test("static file - by 'hashed' path", async () => {
+   // Check that the file path have the BUILD_ID
+   const resp = await router(
+diff --git a/versions.json b/versions.json
+index f5b66541e12..ae3da55b722 100644
+--- a/versions.json
++++ b/versions.json
+@@ -1,4 +1,5 @@
+ [
++  "1.1.4",
+   "1.1.3",
+   "1.1.2",
+   "1.1.1",
+diff --git a/www/data/showcase.json b/www/data/showcase.json
+index a9954440841..abb79570d05 100644
+--- a/www/data/showcase.json
++++ b/www/data/showcase.json
+@@ -247,6 +247,24 @@
+     "github": "dunkbing/m33t",
+     "image": "m33t"
+   },
++  {
++    "title": "YAML to TypeScript",
++    "link": "https://yaml-to-ts.deno.dev/",
++    "github": "jiawei397/yaml_to_ts_web",
++    "image": "yaml-to-ts"
++  },
++  {
++    "title": "Denosoar",
++    "link": "https://denosoar.deno.dev/",
++    "github": "Denosoar-GUI/Denosoar-GUI",
++    "image": "super-deno"
++  },
++  {
++    "title": "link-maker",
++    "link": "https://link-maker.deno.dev/",
++    "github": "kuizuo/link-maker",
++    "image": "link-maker"
++  },
+   {
+     "title": "Do not remove this, it's for prevent conflicting by trailing comma",
+     "link": "",
+diff --git a/www/static/showcase/Denosoar1x.jpg b/www/static/showcase/Denosoar1x.jpg
+new file mode 100644
+index 00000000000..59cb2081e5e
+Binary files /dev/null and b/www/static/showcase/Denosoar1x.jpg differ
+diff --git a/www/static/showcase/Denosoar2x.jpg b/www/static/showcase/Denosoar2x.jpg
+new file mode 100644
+index 00000000000..23be8a46f2d
+Binary files /dev/null and b/www/static/showcase/Denosoar2x.jpg differ
+diff --git a/www/static/showcase/link-maker1x.jpg b/www/static/showcase/link-maker1x.jpg
+new file mode 100644
+index 00000000000..a1a7d5b5c47
+Binary files /dev/null and b/www/static/showcase/link-maker1x.jpg differ
+diff --git a/www/static/showcase/link-maker2x.jpg b/www/static/showcase/link-maker2x.jpg
+new file mode 100644
+index 00000000000..b82e2ece31c
+Binary files /dev/null and b/www/static/showcase/link-maker2x.jpg differ
+diff --git a/www/static/showcase/yaml-to-ts1x.jpg b/www/static/showcase/yaml-to-ts1x.jpg
+new file mode 100644
+index 00000000000..70b741332ce
+Binary files /dev/null and b/www/static/showcase/yaml-to-ts1x.jpg differ
+diff --git a/www/static/showcase/yaml-to-ts2x.jpg b/www/static/showcase/yaml-to-ts2x.jpg
+new file mode 100644
+index 00000000000..b7c40323aa9
+Binary files /dev/null and b/www/static/showcase/yaml-to-ts2x.jpg differ

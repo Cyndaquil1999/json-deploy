@@ -1,0 +1,11 @@
+diff --git a/versions.json b/versions.json
+index 31e1adb3f8f..d25f17d1091 100644
+--- a/versions.json
++++ b/versions.json
+@@ -1,4 +1,6 @@
+ [
++  "1.6.5",
++  "1.6.4",
+   "1.6.3",
+   "1.6.2",
+   "1.6.1",

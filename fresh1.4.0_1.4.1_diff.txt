@@ -1,0 +1,156 @@
+diff --git a/dev.ts b/dev.ts
+index 39539a26e5f..1e775bc0f10 100644
+--- a/dev.ts
++++ b/dev.ts
+@@ -1,2 +1,2 @@
+-import { dev } from "./src/dev/mod.ts";
++import { dev } from "./src/dev/dev_command.ts";
+ export default dev;
+diff --git a/src/dev/dev_command.ts b/src/dev/dev_command.ts
+new file mode 100644
+index 00000000000..d092b0ee992
+--- /dev/null
++++ b/src/dev/dev_command.ts
+@@ -0,0 +1,50 @@
++import { updateCheck } from "./update_check.ts";
++import { DAY, dirname, fromFileUrl, join } from "./deps.ts";
++import { FreshOptions } from "../server/mod.ts";
++import { build } from "./build.ts";
++import { collect, ensureMinDenoVersion, generate, Manifest } from "./mod.ts";
++
++export async function dev(
++  base: string,
++  entrypoint: string,
++  options: FreshOptions = {},
++) {
++  ensureMinDenoVersion();
++
++  // Run update check in background
++  updateCheck(DAY).catch(() => {});
++
++  entrypoint = new URL(entrypoint, base).href;
++
++  const dir = dirname(fromFileUrl(base));
++
++  let currentManifest: Manifest;
++  const prevManifest = Deno.env.get("FRSH_DEV_PREVIOUS_MANIFEST");
++  if (prevManifest) {
++    currentManifest = JSON.parse(prevManifest);
++  } else {
++    currentManifest = { islands: [], routes: [] };
++  }
++  const newManifest = await collect(dir);
++  Deno.env.set("FRSH_DEV_PREVIOUS_MANIFEST", JSON.stringify(newManifest));
++
++  const manifestChanged =
++    !arraysEqual(newManifest.routes, currentManifest.routes) ||
++    !arraysEqual(newManifest.islands, currentManifest.islands);
++
++  if (manifestChanged) await generate(dir, newManifest);
++
++  if (Deno.args.includes("build")) {
++    await build(join(dir, "fresh.gen.ts"), options);
++  } else {
++    await import(entrypoint);
++  }
++}
++
++function arraysEqual<T>(a: T[], b: T[]): boolean {
++  if (a.length !== b.length) return false;
++  for (let i = 0; i < a.length; ++i) {
++    if (a[i] !== b[i]) return false;
++  }
++  return true;
++}
+diff --git a/src/dev/mod.ts b/src/dev/mod.ts
+index 519e803d207..834802f1bb8 100644
+--- a/src/dev/mod.ts
++++ b/src/dev/mod.ts
+@@ -1,18 +1,5 @@
+-import { updateCheck } from "./update_check.ts";
+-import {
+-  DAY,
+-  dirname,
+-  fromFileUrl,
+-  gte,
+-  join,
+-  posix,
+-  relative,
+-  walk,
+-  WalkEntry,
+-} from "./deps.ts";
++import { gte, join, posix, relative, walk, WalkEntry } from "./deps.ts";
+ import { error } from "./error.ts";
+-import { FreshOptions } from "../server/mod.ts";
+-import { build } from "./build.ts";
+ 
+ const MIN_DENO_VERSION = "1.31.0";
+ 
+@@ -57,7 +44,7 @@ async function collectDir(
+   }
+ }
+ 
+-interface Manifest {
++export interface Manifest {
+   routes: string[];
+   islands: string[];
+ }
+@@ -184,48 +171,3 @@ export default manifest;
+     "color: blue; font-weight: bold",
+   );
+ }
+-
+-export async function dev(
+-  base: string,
+-  entrypoint: string,
+-  options: FreshOptions = {},
+-) {
+-  ensureMinDenoVersion();
+-
+-  // Run update check in background
+-  updateCheck(DAY).catch(() => {});
+-
+-  entrypoint = new URL(entrypoint, base).href;
+-
+-  const dir = dirname(fromFileUrl(base));
+-
+-  let currentManifest: Manifest;
+-  const prevManifest = Deno.env.get("FRSH_DEV_PREVIOUS_MANIFEST");
+-  if (prevManifest) {
+-    currentManifest = JSON.parse(prevManifest);
+-  } else {
+-    currentManifest = { islands: [], routes: [] };
+-  }
+-  const newManifest = await collect(dir);
+-  Deno.env.set("FRSH_DEV_PREVIOUS_MANIFEST", JSON.stringify(newManifest));
+-
+-  const manifestChanged =
+-    !arraysEqual(newManifest.routes, currentManifest.routes) ||
+-    !arraysEqual(newManifest.islands, currentManifest.islands);
+-
+-  if (manifestChanged) await generate(dir, newManifest);
+-
+-  if (Deno.args.includes("build")) {
+-    await build(join(dir, "fresh.gen.ts"), options);
+-  } else {
+-    await import(entrypoint);
+-  }
+-}
+-
+-function arraysEqual<T>(a: T[], b: T[]): boolean {
+-  if (a.length !== b.length) return false;
+-  for (let i = 0; i < a.length; ++i) {
+-    if (a[i] !== b[i]) return false;
+-  }
+-  return true;
+-}
+diff --git a/versions.json b/versions.json
+index 2a6082d1454..870da2cdfc7 100644
+--- a/versions.json
++++ b/versions.json
+@@ -1,4 +1,5 @@
+ [
++  "1.4.1",
+   "1.4.0",
+   "1.3.1",
+   "1.3.0",

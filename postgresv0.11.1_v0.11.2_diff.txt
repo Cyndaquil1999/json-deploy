@@ -1,0 +1,59 @@
+diff --git a/README.md b/README.md
+index a54e2bdc..14418aec 100644
+--- a/README.md
++++ b/README.md
+@@ -3,7 +3,7 @@
+ ![Build Status](https://img.shields.io/github/workflow/status/denodrivers/postgres/ci?label=Build&logo=github&style=flat-square)
+ [![Discord server](https://img.shields.io/discord/768918486575480863?color=blue&label=Ask%20for%20help%20here&logo=discord&style=flat-square)](https://discord.gg/HEdTCvZUSf)
+ [![Manual](https://img.shields.io/github/v/release/denodrivers/postgres?color=orange&label=Manual&logo=deno&style=flat-square)](https://deno-postgres.com)
+-[![Documentation](https://img.shields.io/github/v/release/denodrivers/postgres?color=yellow&label=Documentation&logo=deno&style=flat-square)](https://doc.deno.land/https/deno.land/x/postgres@v0.11.1/mod.ts)
++[![Documentation](https://img.shields.io/github/v/release/denodrivers/postgres?color=yellow&label=Documentation&logo=deno&style=flat-square)](https://doc.deno.land/https/deno.land/x/postgres@v0.11.2/mod.ts)
+ [![License](https://img.shields.io/github/license/denodrivers/postgres?color=yellowgreen&label=License&style=flat-square)](LICENSE)
+ 
+ A lightweight PostgreSQL driver for Deno focused on user experience
+@@ -124,6 +124,19 @@ Deno.test("INSERT works correctly", async () => {
+ });
+ ```
+ 
++## Deno compatibility
++
++Due to a not intended breaking change in Deno 1.9.0, two versions of
++`deno-postgres` require a specific version of Deno in order to work correctly,
++the following is a compatibility table that ranges from Deno 1.8 to Deno 1.9 and
++above indicating possible compatibility problems
++
++| Deno version | Min driver version | Max driver version |
++| ------------ | ------------------ | ------------------ |
++| 1.8.x        | 0.5.0              | 0.10.0             |
++| 1.9.0        | 0.11.0             | 0.11.1             |
++| 1.9.1 and up | 0.11.2             |                    |
++
+ ## Contributing guidelines
+ 
+ When contributing to repository make sure to:
+diff --git a/connection/connection.ts b/connection/connection.ts
+index a3f1799e..1d599013 100644
+--- a/connection/connection.ts
++++ b/connection/connection.ts
+@@ -146,7 +146,7 @@ const encoder = new TextEncoder();
+ export class Connection {
+   #bufReader!: BufReader;
+   #bufWriter!: BufWriter;
+-  #conn!: Deno.Conn<Deno.NetAddr>;
++  #conn!: Deno.Conn;
+   connected = false;
+   #packetWriter = new PacketWriter();
+   // TODO
+diff --git a/docs/README.md b/docs/README.md
+index ab52b1d8..c1d0f3c1 100644
+--- a/docs/README.md
++++ b/docs/README.md
+@@ -3,7 +3,7 @@
+ ![Build Status](https://img.shields.io/github/workflow/status/denodrivers/postgres/ci?label=Build&logo=github&style=flat-square)
+ [![Discord server](https://img.shields.io/discord/768918486575480863?color=blue&label=Ask%20for%20help%20here&logo=discord&style=flat-square)](https://discord.gg/HEdTCvZUSf)
+ ![Manual](https://img.shields.io/github/v/release/denodrivers/postgres?color=orange&label=Manual&logo=deno&style=flat-square)
+-[![Documentation](https://img.shields.io/github/v/release/denodrivers/postgres?color=yellow&label=Documentation&logo=deno&style=flat-square)](https://doc.deno.land/https/deno.land/x/postgres@v0.11.1/mod.ts)
++[![Documentation](https://img.shields.io/github/v/release/denodrivers/postgres?color=yellow&label=Documentation&logo=deno&style=flat-square)](https://doc.deno.land/https/deno.land/x/postgres@v0.11.2/mod.ts)
+ ![License](https://img.shields.io/github/license/denodrivers/postgres?color=yellowgreen&label=License&style=flat-square)
+ 
+ `deno-postgres` is a lightweight PostgreSQL driver for Deno focused on user

@@ -1,0 +1,3063 @@
+diff --git a/deno.json b/deno.json
+index 793d2390f85..44b8c0a264f 100644
+--- a/deno.json
++++ b/deno.json
+@@ -1,12 +1,13 @@
+ {
+   "lock": false,
+   "tasks": {
+-    "test": "deno test -A --parallel --trace-ops --unstable",
++    "test": "deno test -A --parallel --trace-ops",
+     "fixture": "deno run -A --watch=static/,routes/ tests/fixture/dev.ts",
+     "www": "deno task --cwd=www start",
+     "screenshot": "deno run -A www/utils/screenshot.ts",
+     "check:types": "deno check **/*.ts && deno check **/*.tsx",
+-    "ok": "deno fmt --check && deno lint && deno task check:types && deno task test"
++    "ok": "deno fmt --check && deno lint && deno task check:types && deno task test",
++    "install-puppeteer": "PUPPETEER_PRODUCT=chrome deno run -A --unstable https://deno.land/x/puppeteer@16.2.0/install.ts && PUPPETEER_PRODUCT=firefox deno run -A --unstable https://deno.land/x/puppeteer@16.2.0/install.ts"
+   },
+   "exclude": [
+     "**/_fresh/*",
+diff --git a/docs/latest/concepts/partials.md b/docs/latest/concepts/partials.md
+index 94266c4fa97..1aecc53cdf7 100644
+--- a/docs/latest/concepts/partials.md
++++ b/docs/latest/concepts/partials.md
+@@ -101,7 +101,7 @@ export default defineRoute(async (req, ctx) => {
+ An optimal route that only renders the content instead of the outer layout with
+ the sidebar might look like this respectively.
+ 
+-```tsx partials/docs/[id].tsx
++```tsx routes/partials/docs/[id].tsx
+ import { defineRoute, RouteConfig } from "$fresh/server.ts";
+ import { Partial } from "$fresh/runtime.ts";
+ 
+diff --git a/src/dev/dev_command.ts b/src/dev/dev_command.ts
+index 177af3175f3..dfebac1831a 100644
+--- a/src/dev/dev_command.ts
++++ b/src/dev/dev_command.ts
+@@ -3,7 +3,7 @@ import { DAY, dirname, fromFileUrl, join, toFileUrl } from "./deps.ts";
+ import { FreshConfig, Manifest as ServerManifest } from "../server/mod.ts";
+ import { build } from "./build.ts";
+ import { collect, ensureMinDenoVersion, generate, Manifest } from "./mod.ts";
+-import { startFromContext } from "../server/boot.ts";
++import { startServer } from "../server/boot.ts";
+ import { getFreshConfigWithDefaults } from "../server/config.ts";
+ import { getServerContext } from "$fresh/src/server/context.ts";
+ 
+@@ -54,7 +54,7 @@ export async function dev(
+     configWithDefaults.dev = true;
+     configWithDefaults.loadSnapshot = false;
+     const ctx = await getServerContext(configWithDefaults);
+-    await startFromContext(ctx, configWithDefaults.server);
++    await startServer(ctx.handler(), configWithDefaults.server);
+   } else {
+     // Legacy entry point: Back then `dev.ts` would call `main.ts` but
+     // this causes duplicate plugin instantiation if both `dev.ts` and
+diff --git a/src/runtime/active_url.ts b/src/runtime/active_url.ts
+index 60f4418aeba..5534eed906e 100644
+--- a/src/runtime/active_url.ts
++++ b/src/runtime/active_url.ts
+@@ -37,8 +37,10 @@ export function setActiveUrl(vnode: VNode, pathname: string): void {
+     const match = matchesUrl(pathname, hrefProp);
+     if (match === UrlMatchKind.Current) {
+       props[DATA_CURRENT] = "true";
++      props["aria-current"] = "page";
+     } else if (match === UrlMatchKind.Ancestor) {
+       props[DATA_ANCESTOR] = "true";
++      props["aria-current"] = "true";
+     }
+   }
+ }
+diff --git a/src/runtime/client.ts b/src/runtime/client.ts
+new file mode 100644
+index 00000000000..21d1a656143
+--- /dev/null
++++ b/src/runtime/client.ts
+@@ -0,0 +1,87 @@
++let ws: WebSocket;
++
++let reconnectTimer: number;
++const backoff = [
++  0,
++  100,
++  150,
++  200,
++  250,
++  300,
++  350,
++  400,
++  450,
++  500,
++  500,
++  605,
++  750,
++  1000,
++  1250,
++  1500,
++  1750,
++  2000,
++];
++let backoffIdx = 0;
++function reconnect() {
++  if (ws.readyState !== ws.CLOSED) return;
++
++  reconnectTimer = setTimeout(() => {
++    if (backoffIdx === 0) {
++      console.log(
++        `%c Fresh %c Connection closed. Trying to reconnect...`,
++        "background-color: #86efac; color: black",
++        "color: inherit",
++      );
++    }
++    backoffIdx++;
++
++    try {
++      connect(true);
++      clearTimeout(reconnectTimer);
++    } catch (_err) {
++      reconnect();
++    }
++  }, backoff[Math.min(backoffIdx, backoff.length - 1)]);
++}
++
++function connect(forceReload?: boolean) {
++  const url = new URL("/_frsh/alive", location.origin.replace("http", "ws"));
++  ws = new WebSocket(
++    url,
++  );
++
++  ws.addEventListener("open", () => {
++    if (forceReload) {
++      location.reload();
++    } else {
++      backoffIdx = 0;
++      console.log(
++        `%c Fresh %c Connected to development server.`,
++        "background-color: #86efac; color: black",
++        "color: inherit",
++      );
++    }
++  });
++
++  ws.addEventListener("close", () => {
++    reconnect();
++  });
++
++  ws.addEventListener("message", handleMessage);
++  ws.addEventListener("error", handleError);
++}
++
++connect();
++
++function handleMessage(e: MessageEvent) {
++  const data = JSON.parse(e.data);
++  console.log(data);
++}
++
++function handleError(e: Event) {
++  // TODO
++  // deno-lint-ignore no-explicit-any
++  if (e && (e as any).code === "ECONNREFUSED") {
++    setTimeout(connect, 1000);
++  }
++}
+diff --git a/src/runtime/entrypoints/main.ts b/src/runtime/entrypoints/main.ts
+index baa047d8db7..105be8b5538 100644
+--- a/src/runtime/entrypoints/main.ts
++++ b/src/runtime/entrypoints/main.ts
+@@ -326,10 +326,10 @@ function _walkInner(
+         vnodeStack.push(
+           h(PartialComp, { name, key, mode: +mode }) as VNode,
+         );
+-      } else if (comment.startsWith("frsh-key")) {
++      } else if (comment.startsWith("frsh-key:")) {
+         const key = comment.slice("frsh-key:".length);
+         vnodeStack.push(h(Fragment, { key }) as VNode);
+-      } else if (comment.startsWith("/frsh-key")) {
++      } else if (comment.startsWith("/frsh-key:")) {
+         const vnode = vnodeStack.pop();
+         const parent = vnodeStack[vnodeStack.length - 1]!;
+         addPropsChild(parent, vnode);
+@@ -568,13 +568,16 @@ function updateLinks(url: URL) {
+ 
+     if (match === UrlMatchKind.Current) {
+       link.setAttribute(DATA_CURRENT, "true");
++      link.setAttribute("aria-current", "page");
+       link.removeAttribute(DATA_ANCESTOR);
+     } else if (match === UrlMatchKind.Ancestor) {
+       link.setAttribute(DATA_ANCESTOR, "true");
++      link.setAttribute("aria-current", "true");
+       link.removeAttribute(DATA_CURRENT);
+     } else {
+       link.removeAttribute(DATA_CURRENT);
+       link.removeAttribute(DATA_ANCESTOR);
++      link.removeAttribute("aria-current");
+     }
+   });
+ }
+@@ -869,8 +872,14 @@ export interface FreshHistoryState {
+   scrollY: number;
+ }
+ 
+-function checkClientNavEnabled() {
+-  return document.querySelector(`[${CLIENT_NAV_ATTR}]`) !== null;
++function checkClientNavEnabled(el: HTMLElement | null) {
++  if (el === null) {
++    return document.querySelector(`[${CLIENT_NAV_ATTR}="true"]`) !== null;
++  }
++
++  const setting = el.closest(`[${CLIENT_NAV_ATTR}]`);
++  if (setting === null) return false;
++  return setting.getAttribute(CLIENT_NAV_ATTR) === "true";
+ }
+ 
+ // Keep track of history state to apply forward or backward animations
+@@ -914,8 +923,7 @@ document.addEventListener("click", async (e) => {
+       // we're doing a fragment navigation.
+       if (
+         el.getAttribute("href")?.startsWith("#") ||
+-        !checkClientNavEnabled() ||
+-        el.closest(`[${CLIENT_NAV_ATTR}="true"]`) === null
++        !checkClientNavEnabled(el)
+       ) {
+         return;
+       }
+@@ -975,8 +983,7 @@ document.addEventListener("click", async (e) => {
+         // Check if the user opted out of client side navigation.
+         if (
+           partial === null ||
+-          !checkClientNavEnabled() ||
+-          button.closest(`[${CLIENT_NAV_ATTR}="true"]`) === null
++          !checkClientNavEnabled(button)
+         ) {
+           return;
+         }
+@@ -1006,7 +1013,7 @@ addEventListener("popstate", async (e) => {
+   const nextIdx = state.index ?? index + 1;
+   index = nextIdx;
+ 
+-  if (!checkClientNavEnabled()) {
++  if (!checkClientNavEnabled(null)) {
+     location.reload();
+     return;
+   }
+diff --git a/src/runtime/entrypoints/main_dev.ts b/src/runtime/entrypoints/main_dev.ts
+index 4e4f0c5634b..4fe0bdb9424 100644
+--- a/src/runtime/entrypoints/main_dev.ts
++++ b/src/runtime/entrypoints/main_dev.ts
+@@ -1,2 +1,3 @@
+ import "preact/debug";
++import "../client.ts";
+ export * from "./main.ts";
+diff --git a/src/server/boot.ts b/src/server/boot.ts
+index bf44efdf9a9..13dd9f0d838 100644
+--- a/src/server/boot.ts
++++ b/src/server/boot.ts
+@@ -1,9 +1,8 @@
+-import { ServerContext } from "./context.ts";
+ import { colors } from "./deps.ts";
+ import { ServeHandler } from "./types.ts";
+ 
+-export async function startFromContext(
+-  ctx: ServerContext,
++export async function startServer(
++  handler: Deno.ServeHandler,
+   opts: Partial<Deno.ServeTlsOptions>,
+ ) {
+   if (!opts.onListen) {
+@@ -24,8 +23,6 @@ export async function startFromContext(
+     opts.port ??= parseInt(portEnv, 10);
+   }
+ 
+-  const handler = ctx.handler();
+-
+   if (opts.port) {
+     await bootServer(handler, opts);
+   } else {
+diff --git a/src/server/constants.ts b/src/server/constants.ts
+index 2567ed90204..648594de5b4 100644
+--- a/src/server/constants.ts
++++ b/src/server/constants.ts
+@@ -1,7 +1,6 @@
+ import { INTERNAL_PREFIX } from "../runtime/utils.ts";
+ import { BUILD_ID } from "./build_id.ts";
+ 
+-export const REFRESH_JS_URL = `${INTERNAL_PREFIX}/refresh.js`;
+ export const ALIVE_URL = `${INTERNAL_PREFIX}/alive`;
+ export const JS_PREFIX = `/js`;
+ export const DEBUG = !Deno.env.get("DENO_DEPLOYMENT_ID");
+diff --git a/src/server/context.ts b/src/server/context.ts
+index 6cc5a533745..27eb3ff4a7a 100644
+--- a/src/server/context.ts
++++ b/src/server/context.ts
+@@ -10,7 +10,7 @@ import {
+ import { ComponentType, h } from "preact";
+ import * as router from "./router.ts";
+ import { FreshConfig, Manifest } from "./mod.ts";
+-import { ALIVE_URL, JS_PREFIX, REFRESH_JS_URL } from "./constants.ts";
++import { ALIVE_URL, JS_PREFIX } from "./constants.ts";
+ import { BUILD_ID, setBuildId } from "./build_id.ts";
+ import DefaultErrorHandler from "./default_error_page.tsx";
+ import {
+@@ -172,7 +172,7 @@ export async function getServerContext(opts: InternalFreshConfig) {
+     if (!url.startsWith(baseUrl + "routes")) {
+       throw new TypeError("Page is not a child of the basepath.");
+     }
+-    const path = url.substring(baseUrl.length).substring("routes".length);
++    const path = url.substring(baseUrl.length + "routes".length);
+     const baseRoute = path.substring(1, path.length - extname(path).length);
+     const name = baseRoute.replace("/", "-");
+     const isLayout = path.endsWith("/_layout.tsx") ||
+@@ -489,14 +489,33 @@ export class ServerContext {
+       router.getParamsAndRoute<RouterState>(handlers),
+     );
+     const trailingSlashEnabled = this.#routerOptions?.trailingSlash;
++    const isDev = this.#dev;
++
+     return async function handler(
+       req: Request,
+       connInfo: ServeHandlerInfo = DEFAULT_CONN_INFO,
+     ) {
++      const url = new URL(req.url);
++
++      // Live reload: Send updates to browser
++      if (isDev && url.pathname === ALIVE_URL) {
++        if (req.headers.get("upgrade") !== "websocket") {
++          return new Response(null, { status: 501 });
++        }
++
++        // TODO: When a change is made the Deno server restarts,
++        // so for now the WebSocket connection is only used for
++        // the client to know when the server is back up. Once we
++        // have HMR we'll actively start sending messages back
++        // and forth.
++        const { response } = Deno.upgradeWebSocket(req);
++
++        return response;
++      }
++
+       // Redirect requests that end with a trailing slash to their non-trailing
+       // slash counterpart.
+       // Ex: /about/ -> /about
+-      const url = new URL(req.url);
+       if (
+         url.pathname.length > 1 && url.pathname.endsWith("/") &&
+         !trailingSlashEnabled
+@@ -662,46 +681,6 @@ export class ServerContext {
+         default: this.#bundleAssetRoute(),
+       },
+     };
+-    if (this.#dev) {
+-      internalRoutes[REFRESH_JS_URL] = {
+-        baseRoute: toBaseRoute(REFRESH_JS_URL),
+-        methods: {
+-          default: () => {
+-            return new Response(refreshJs(ALIVE_URL, BUILD_ID), {
+-              headers: {
+-                "content-type": "application/javascript; charset=utf-8",
+-              },
+-            });
+-          },
+-        },
+-      };
+-      internalRoutes[ALIVE_URL] = {
+-        baseRoute: toBaseRoute(ALIVE_URL),
+-        methods: {
+-          default: () => {
+-            let timerId: number | undefined = undefined;
+-            const body = new ReadableStream({
+-              start(controller) {
+-                controller.enqueue(`data: ${BUILD_ID}\nretry: 100\n\n`);
+-                timerId = setInterval(() => {
+-                  controller.enqueue(`data: ${BUILD_ID}\n\n`);
+-                }, 1000);
+-              },
+-              cancel() {
+-                if (timerId !== undefined) {
+-                  clearInterval(timerId);
+-                }
+-              },
+-            });
+-            return new Response(body.pipeThrough(new TextEncoderStream()), {
+-              headers: {
+-                "content-type": "text/event-stream",
+-              },
+-            });
+-          },
+-        },
+-      };
+-    }
+ 
+     // Add the static file routes.
+     // each files has 2 static routes:
+@@ -792,7 +771,6 @@ export class ServerContext {
+       status: number,
+     ) => {
+       const imports: string[] = [];
+-      if (this.#dev) imports.push(REFRESH_JS_URL);
+       return (
+         req: Request,
+         params: Record<string, string>,
+@@ -1307,19 +1285,6 @@ export function toBaseRoute(input: string): BaseRoute {
+   return (suffix + input) as BaseRoute;
+ }
+ 
+-function refreshJs(aliveUrl: string, buildId: string) {
+-  return `let es = new EventSource("${aliveUrl}");
+-window.addEventListener("beforeunload", (event) => {
+-  es.close();
+-});
+-es.addEventListener("message", function listener(e) {
+-  if (e.data !== "${buildId}") {
+-    this.removeEventListener("message", listener);
+-    location.reload();
+-  }
+-});`;
+-}
+-
+ function collectEntrypoints(
+   dev: boolean,
+   islands: Island[],
+@@ -1422,9 +1387,25 @@ function sendResponse(
+       headers["content-security-policy"] = directive;
+     }
+   }
++
++  if (options.headers) {
++    if (Array.isArray(options.headers)) {
++      for (let i = 0; i < options.headers.length; i++) {
++        const item = options.headers[i];
++        headers[item[0]] = item[1];
++      }
++    } else if (options.headers instanceof Headers) {
++      options.headers.forEach((value, key) => {
++        headers[key] = value;
++      });
++    } else {
++      Object.assign(headers, options.headers);
++    }
++  }
++
+   return new Response(body, {
+     status: options.status,
+     statusText: options.statusText,
+-    headers: options.headers ? { ...headers, ...options.headers } : headers,
++    headers,
+   });
+ }
+diff --git a/src/server/mod.ts b/src/server/mod.ts
+index d65b9603e25..9dbee9124ed 100644
+--- a/src/server/mod.ts
++++ b/src/server/mod.ts
+@@ -13,7 +13,7 @@ import {
+   ServeHandlerInfo,
+   UnknownHandler,
+ } from "./types.ts";
+-import { startFromContext } from "./boot.ts";
++import { startServer } from "./boot.ts";
+ export {
+   defineApp,
+   defineConfig,
+@@ -74,9 +74,14 @@ export interface Manifest {
+         ctx: any,
+         // deno-lint-ignore no-explicit-any
+       ) => Promise<any | Response> | any;
+-      // deno-lint-ignore no-explicit-any
+-      handler?: Handler<any, any> | Handlers<any, any> | UnknownHandler;
+-      config?: RouteConfig | LayoutConfig | ErrorHandler;
++      handler?:
++        // deno-lint-ignore no-explicit-any
++        | Handler<any, any>
++        // deno-lint-ignore no-explicit-any
++        | Handlers<any, any>
++        | UnknownHandler
++        | ErrorHandler;
++      config?: RouteConfig | LayoutConfig;
+     } | MiddlewareModule
+   >;
+   islands: Record<string, IslandModule>;
+@@ -101,5 +106,5 @@ export async function start(manifest: Manifest, config: FreshConfig = {}) {
+     skipSnapshot: false,
+     dev: false,
+   });
+-  await startFromContext(ctx, config.server ?? config);
++  await startServer(ctx.handler(), config.server ?? config);
+ }
+diff --git a/src/server/rendering/preact_hooks.ts b/src/server/rendering/preact_hooks.ts
+index 455c6623d25..0347d6190a3 100644
+--- a/src/server/rendering/preact_hooks.ts
++++ b/src/server/rendering/preact_hooks.ts
+@@ -205,7 +205,7 @@ options.vnode = (vnode) => {
+     }
+ 
+     if (typeof props[CLIENT_NAV_ATTR] === "boolean") {
+-      props[CLIENT_NAV_ATTR] = props[CLIENT_NAV_ATTR] ? "true" : null;
++      props[CLIENT_NAV_ATTR] = props[CLIENT_NAV_ATTR] ? "true" : "false";
+     }
+   } else if (
+     current && typeof vnode.type === "function" && vnode.type !== Fragment &&
+diff --git a/src/server/router.ts b/src/server/router.ts
+index c9c1ce1e02c..76bb3698f0f 100644
+--- a/src/server/router.ts
++++ b/src/server/router.ts
+@@ -50,7 +50,7 @@ export type DestinationKind = "internal" | "static" | "route" | "notFound";
+ // deno-lint-ignore ban-types
+ export type InternalRoute<T = {}> = {
+   baseRoute: BaseRoute;
+-  pattern: URLPattern;
++  pattern: URLPattern | string;
+   methods: { [K in KnownMethod]?: MatchHandler<T> };
+   default?: MatchHandler<T>;
+   destination: DestinationKind;
+@@ -109,14 +109,16 @@ export function defaultUnknownMethodHandler(
+ }
+ 
+ function processRoutes<T>(
+-  processedRoutes: InternalRoute<T>[],
++  processedRoutes: Array<InternalRoute<T> | null>,
+   routes: Routes<T>,
+   destination: DestinationKind,
+ ) {
+   for (const [path, def] of Object.entries(routes)) {
+     const entry: InternalRoute<T> = {
+       baseRoute: def.baseRoute,
+-      pattern: new URLPattern({ pathname: path }),
++      pattern: destination === "static"
++        ? path
++        : new URLPattern({ pathname: path }),
+       methods: {},
+       default: undefined,
+       destination,
+@@ -134,6 +136,11 @@ function processRoutes<T>(
+   }
+ }
+ 
++interface RouteResult<T> {
++  route: InternalRoute<T> | undefined;
++  params: Record<string, string>;
++}
++
+ export function getParamsAndRoute<T>(
+   {
+     internalRoutes,
+@@ -142,13 +149,39 @@ export function getParamsAndRoute<T>(
+   }: RouterOptions<T>,
+ ): (
+   url: string,
+-) => { route: InternalRoute<T> | undefined; params: Record<string, string> } {
+-  const processedRoutes: InternalRoute<T>[] = [];
++) => RouteResult<T> {
++  const processedRoutes: Array<InternalRoute<T> | null> = [];
+   processRoutes(processedRoutes, internalRoutes, "internal");
+   processRoutes(processedRoutes, staticRoutes, "static");
+   processRoutes(processedRoutes, routes, "route");
++
++  const statics = new Map<string, RouteResult<T>>();
++
+   return (url: string) => {
+-    for (const route of processedRoutes) {
++    const pathname = new URL(url).pathname;
++    const cached = statics.get(pathname);
++    if (cached !== undefined) {
++      return cached;
++    }
++
++    for (let i = 0; i < processedRoutes.length; i++) {
++      const route = processedRoutes[i];
++      if (route === null) continue;
++
++      // Static routes where the full pattern contains no dynamic
++      // parts and must be an exact match. We use that for static
++      // files.
++      if (typeof route.pattern === "string") {
++        if (route.pattern === pathname) {
++          processedRoutes[i] = null;
++          const res = { route: route, params: {} };
++          statics.set(route.pattern, res);
++          return res;
++        }
++
++        continue;
++      }
++
+       const res = route.pattern.exec(url);
+ 
+       if (res !== null) {
+@@ -182,40 +215,36 @@ export function router<T = unknown>(
+ 
+   return (req, ctx, groups, route) => {
+     if (route) {
+-      const res = route.pattern.exec(req.url);
+-
+-      if (res !== null) {
+-        // If not overridden, HEAD requests should be handled as GET requests but without the body.
+-        if (req.method === "HEAD" && !route.methods["HEAD"]) {
+-          req = new Request(req.url, { method: "GET", headers: req.headers });
+-        }
+-
+-        for (const [method, handler] of Object.entries(route.methods)) {
+-          if (req.method === method) {
+-            return {
+-              destination: route.destination,
+-              handler: () => handler(req, ctx, groups),
+-            };
+-          }
+-        }
++      // If not overridden, HEAD requests should be handled as GET requests but without the body.
++      if (req.method === "HEAD" && !route.methods["HEAD"]) {
++        req = new Request(req.url, { method: "GET", headers: req.headers });
++      }
+ 
+-        if (route.default) {
++      for (const [method, handler] of Object.entries(route.methods)) {
++        if (req.method === method) {
+           return {
+             destination: route.destination,
+-            handler: () => route.default!(req, ctx, groups),
+-          };
+-        } else {
+-          return {
+-            destination: route.destination,
+-            handler: () =>
+-              unknownMethodHandler!(
+-                req,
+-                ctx,
+-                Object.keys(route.methods) as KnownMethod[],
+-              ),
++            handler: () => handler(req, ctx, groups),
+           };
+         }
+       }
++
++      if (route.default) {
++        return {
++          destination: route.destination,
++          handler: () => route.default!(req, ctx, groups),
++        };
++      } else {
++        return {
++          destination: route.destination,
++          handler: () =>
++            unknownMethodHandler!(
++              req,
++              ctx,
++              Object.keys(route.methods) as KnownMethod[],
++            ),
++        };
++      }
+     }
+ 
+     return {
+diff --git a/tests/dev_command_test.ts b/tests/dev_command_test.ts
+index 3896a4a2993..81cac993dcf 100644
+--- a/tests/dev_command_test.ts
++++ b/tests/dev_command_test.ts
+@@ -66,20 +66,6 @@ Deno.test({
+   },
+ });
+ 
+-Deno.test("adds refresh script to html", async () => {
+-  await withFakeServe("./tests/fixture/dev.ts", async (server) => {
+-    const doc = await server.getHtml("/");
+-    assertSelector(doc, `script[src="/_frsh/refresh.js"]`);
+-
+-    const res = await server.get(`/_frsh/refresh.js`);
+-    assertEquals(
+-      res.headers.get("content-type"),
+-      "application/javascript; charset=utf-8",
+-    );
+-    await res.body?.cancel();
+-  });
+-});
+-
+ Deno.test("preact/debug is active in dev mode", async () => {
+   await withFakeServe(
+     "./tests/fixture_render_error/dev.ts",
+@@ -99,14 +85,6 @@ Deno.test("preact/debug is active in dev mode", async () => {
+   );
+ });
+ 
+-Deno.test("middleware destination internal", async () => {
+-  await withFakeServe("./tests/fixture/dev.ts", async (server) => {
+-    const resp = await server.get(`/_frsh/refresh.js`);
+-    assertEquals(resp.headers.get("destination"), "internal");
+-    await resp.body?.cancel();
+-  });
+-});
+-
+ Deno.test("warns when using hooks in server components", async (t) => {
+   await withFakeServe("./tests/fixture/main.ts", async (server) => {
+     await t.step("useState", async () => {
+diff --git a/tests/fixture_custom_500/routes/_500.tsx b/tests/fixture_custom_500/routes/_500.tsx
+index 06ec8219421..fb2fd55b40e 100644
+--- a/tests/fixture_custom_500/routes/_500.tsx
++++ b/tests/fixture_custom_500/routes/_500.tsx
+@@ -1,4 +1,8 @@
+-import { ErrorPageProps } from "../../../server.ts";
++import { ErrorHandler, ErrorPageProps } from "../../../server.ts";
++
++export const handler: ErrorHandler = (_req, ctx) => {
++  return ctx.render();
++};
+ 
+ export default function Error500Page({ error }: ErrorPageProps) {
+   return <p class="custom-500">Custom 500: {(error as Error).message}</p>;
+diff --git a/tests/fixture_partials/fresh.gen.ts b/tests/fixture_partials/fresh.gen.ts
+index 9949634aef3..285133b8f3a 100644
+--- a/tests/fixture_partials/fresh.gen.ts
++++ b/tests/fixture_partials/fresh.gen.ts
+@@ -20,90 +20,97 @@ import * as $14 from "./routes/client_nav/injected.tsx";
+ import * as $15 from "./routes/client_nav/page-a.tsx";
+ import * as $16 from "./routes/client_nav/page-b.tsx";
+ import * as $17 from "./routes/client_nav/page-c.tsx";
+-import * as $18 from "./routes/client_nav_opt_out/_layout.tsx";
+-import * as $19 from "./routes/client_nav_opt_out/index.tsx";
+-import * as $20 from "./routes/client_nav_opt_out/injected.tsx";
+-import * as $21 from "./routes/client_nav_opt_out/page-a.tsx";
+-import * as $22 from "./routes/client_nav_opt_out/page-b.tsx";
+-import * as $23 from "./routes/client_nav_opt_out/page-c.tsx";
+-import * as $24 from "./routes/deep_partial/index.tsx";
+-import * as $25 from "./routes/deep_partial/injected.tsx";
+-import * as $26 from "./routes/deep_partial/update.tsx";
+-import * as $27 from "./routes/form/index.tsx";
+-import * as $28 from "./routes/form/injected.tsx";
+-import * as $29 from "./routes/form/update.tsx";
+-import * as $30 from "./routes/fragment_nav.tsx";
+-import * as $31 from "./routes/fragment_nav_scroll.tsx";
+-import * as $32 from "./routes/head_merge/duplicate.tsx";
+-import * as $33 from "./routes/head_merge/index.tsx";
+-import * as $34 from "./routes/head_merge/injected.tsx";
+-import * as $35 from "./routes/head_merge/update.tsx";
+-import * as $36 from "./routes/index.tsx";
+-import * as $37 from "./routes/island_instance/index.tsx";
+-import * as $38 from "./routes/island_instance/injected.tsx";
+-import * as $39 from "./routes/island_instance/partial.tsx";
+-import * as $40 from "./routes/island_instance/partial_remove.tsx";
+-import * as $41 from "./routes/island_instance/partial_replace.tsx";
+-import * as $42 from "./routes/island_instance_multiple/index.tsx";
+-import * as $43 from "./routes/island_instance_multiple/injected.tsx";
+-import * as $44 from "./routes/island_instance_multiple/partial.tsx";
+-import * as $45 from "./routes/island_instance_multiple/partial_both.tsx";
+-import * as $46 from "./routes/island_instance_nested/index.tsx";
+-import * as $47 from "./routes/island_instance_nested/injected.tsx";
+-import * as $48 from "./routes/island_instance_nested/partial.tsx";
+-import * as $49 from "./routes/island_instance_nested/replace.tsx";
+-import * as $50 from "./routes/island_props/index.tsx";
+-import * as $51 from "./routes/island_props/injected.tsx";
+-import * as $52 from "./routes/island_props/partial.tsx";
+-import * as $53 from "./routes/island_props_signals/index.tsx";
+-import * as $54 from "./routes/island_props_signals/injected.tsx";
+-import * as $55 from "./routes/island_props_signals/partial.tsx";
+-import * as $56 from "./routes/keys/index.tsx";
+-import * as $57 from "./routes/keys/injected.tsx";
+-import * as $58 from "./routes/keys/swap.tsx";
+-import * as $59 from "./routes/keys_components/index.tsx";
+-import * as $60 from "./routes/keys_components/injected.tsx";
+-import * as $61 from "./routes/keys_components/swap.tsx";
+-import * as $62 from "./routes/keys_dom/index.tsx";
+-import * as $63 from "./routes/keys_dom/injected.tsx";
+-import * as $64 from "./routes/keys_dom/swap.tsx";
+-import * as $65 from "./routes/keys_outside/index.tsx";
+-import * as $66 from "./routes/loading/index.tsx";
+-import * as $67 from "./routes/loading/injected.tsx";
+-import * as $68 from "./routes/loading/update.tsx";
+-import * as $69 from "./routes/missing_partial/index.tsx";
+-import * as $70 from "./routes/missing_partial/injected.tsx";
+-import * as $71 from "./routes/missing_partial/update.tsx";
+-import * as $72 from "./routes/mode/append.tsx";
+-import * as $73 from "./routes/mode/index.tsx";
+-import * as $74 from "./routes/mode/injected.tsx";
+-import * as $75 from "./routes/mode/prepend.tsx";
+-import * as $76 from "./routes/mode/replace.tsx";
+-import * as $77 from "./routes/no_islands/index.tsx";
+-import * as $78 from "./routes/no_islands/injected.tsx";
+-import * as $79 from "./routes/no_islands/update.tsx";
+-import * as $80 from "./routes/no_partial_response/index.tsx";
+-import * as $81 from "./routes/no_partial_response/injected.tsx";
+-import * as $82 from "./routes/no_partial_response/update.tsx";
+-import * as $83 from "./routes/partial_slot_inside_island.tsx";
+-import * as $84 from "./routes/relative_link/index.tsx";
+-import * as $85 from "./routes/scroll_restoration/index.tsx";
+-import * as $86 from "./routes/scroll_restoration/injected.tsx";
+-import * as $87 from "./routes/scroll_restoration/update.tsx";
++import * as $18 from "./routes/client_nav_both/_layout.tsx";
++import * as $19 from "./routes/client_nav_both/index.tsx";
++import * as $20 from "./routes/client_nav_both/page-a.tsx";
++import * as $21 from "./routes/client_nav_both/page-b.tsx";
++import * as $22 from "./routes/client_nav_both/page-c.tsx";
++import * as $23 from "./routes/client_nav_opt_out/_layout.tsx";
++import * as $24 from "./routes/client_nav_opt_out/index.tsx";
++import * as $25 from "./routes/client_nav_opt_out/injected.tsx";
++import * as $26 from "./routes/client_nav_opt_out/page-a.tsx";
++import * as $27 from "./routes/client_nav_opt_out/page-b.tsx";
++import * as $28 from "./routes/client_nav_opt_out/page-c.tsx";
++import * as $29 from "./routes/deep_partial/index.tsx";
++import * as $30 from "./routes/deep_partial/injected.tsx";
++import * as $31 from "./routes/deep_partial/update.tsx";
++import * as $32 from "./routes/form/index.tsx";
++import * as $33 from "./routes/form/injected.tsx";
++import * as $34 from "./routes/form/update.tsx";
++import * as $35 from "./routes/fragment_nav.tsx";
++import * as $36 from "./routes/fragment_nav_scroll.tsx";
++import * as $37 from "./routes/head_merge/duplicate.tsx";
++import * as $38 from "./routes/head_merge/index.tsx";
++import * as $39 from "./routes/head_merge/injected.tsx";
++import * as $40 from "./routes/head_merge/update.tsx";
++import * as $41 from "./routes/index.tsx";
++import * as $42 from "./routes/island_instance/index.tsx";
++import * as $43 from "./routes/island_instance/injected.tsx";
++import * as $44 from "./routes/island_instance/partial.tsx";
++import * as $45 from "./routes/island_instance/partial_remove.tsx";
++import * as $46 from "./routes/island_instance/partial_replace.tsx";
++import * as $47 from "./routes/island_instance_multiple/index.tsx";
++import * as $48 from "./routes/island_instance_multiple/injected.tsx";
++import * as $49 from "./routes/island_instance_multiple/partial.tsx";
++import * as $50 from "./routes/island_instance_multiple/partial_both.tsx";
++import * as $51 from "./routes/island_instance_nested/index.tsx";
++import * as $52 from "./routes/island_instance_nested/injected.tsx";
++import * as $53 from "./routes/island_instance_nested/partial.tsx";
++import * as $54 from "./routes/island_instance_nested/replace.tsx";
++import * as $55 from "./routes/island_props/index.tsx";
++import * as $56 from "./routes/island_props/injected.tsx";
++import * as $57 from "./routes/island_props/partial.tsx";
++import * as $58 from "./routes/island_props_signals/index.tsx";
++import * as $59 from "./routes/island_props_signals/injected.tsx";
++import * as $60 from "./routes/island_props_signals/partial.tsx";
++import * as $61 from "./routes/keys/index.tsx";
++import * as $62 from "./routes/keys/injected.tsx";
++import * as $63 from "./routes/keys/swap.tsx";
++import * as $64 from "./routes/keys_components/index.tsx";
++import * as $65 from "./routes/keys_components/injected.tsx";
++import * as $66 from "./routes/keys_components/swap.tsx";
++import * as $67 from "./routes/keys_confusion/index.tsx";
++import * as $68 from "./routes/keys_dom/index.tsx";
++import * as $69 from "./routes/keys_dom/injected.tsx";
++import * as $70 from "./routes/keys_dom/swap.tsx";
++import * as $71 from "./routes/keys_outside/index.tsx";
++import * as $72 from "./routes/loading/index.tsx";
++import * as $73 from "./routes/loading/injected.tsx";
++import * as $74 from "./routes/loading/update.tsx";
++import * as $75 from "./routes/missing_partial/index.tsx";
++import * as $76 from "./routes/missing_partial/injected.tsx";
++import * as $77 from "./routes/missing_partial/update.tsx";
++import * as $78 from "./routes/mode/append.tsx";
++import * as $79 from "./routes/mode/index.tsx";
++import * as $80 from "./routes/mode/injected.tsx";
++import * as $81 from "./routes/mode/prepend.tsx";
++import * as $82 from "./routes/mode/replace.tsx";
++import * as $83 from "./routes/no_islands/index.tsx";
++import * as $84 from "./routes/no_islands/injected.tsx";
++import * as $85 from "./routes/no_islands/update.tsx";
++import * as $86 from "./routes/no_partial_response/index.tsx";
++import * as $87 from "./routes/no_partial_response/injected.tsx";
++import * as $88 from "./routes/no_partial_response/update.tsx";
++import * as $89 from "./routes/partial_slot_inside_island.tsx";
++import * as $90 from "./routes/relative_link/index.tsx";
++import * as $91 from "./routes/scroll_restoration/index.tsx";
++import * as $92 from "./routes/scroll_restoration/injected.tsx";
++import * as $93 from "./routes/scroll_restoration/update.tsx";
+ import * as $$0 from "./islands/Counter.tsx";
+ import * as $$1 from "./islands/CounterA.tsx";
+ import * as $$2 from "./islands/CounterB.tsx";
+ import * as $$3 from "./islands/Fader.tsx";
+ import * as $$4 from "./islands/InvalidSlot.tsx";
+-import * as $$5 from "./islands/LazyLink.tsx";
+-import * as $$6 from "./islands/Logger.tsx";
+-import * as $$7 from "./islands/Other.tsx";
+-import * as $$8 from "./islands/PartialTrigger.tsx";
+-import * as $$9 from "./islands/PassThrough.tsx";
+-import * as $$10 from "./islands/PropIsland.tsx";
+-import * as $$11 from "./islands/SignalProp.tsx";
+-import * as $$12 from "./islands/Spinner.tsx";
+-import * as $$13 from "./islands/Stateful.tsx";
++import * as $$5 from "./islands/KeyExplorer.tsx";
++import * as $$6 from "./islands/LazyLink.tsx";
++import * as $$7 from "./islands/Logger.tsx";
++import * as $$8 from "./islands/Other.tsx";
++import * as $$9 from "./islands/PartialTrigger.tsx";
++import * as $$10 from "./islands/PassThrough.tsx";
++import * as $$11 from "./islands/PropIsland.tsx";
++import * as $$12 from "./islands/SignalProp.tsx";
++import * as $$13 from "./islands/Spinner.tsx";
++import * as $$14 from "./islands/Stateful.tsx";
+ 
+ const manifest = {
+   routes: {
+@@ -125,76 +132,82 @@ const manifest = {
+     "./routes/client_nav/page-a.tsx": $15,
+     "./routes/client_nav/page-b.tsx": $16,
+     "./routes/client_nav/page-c.tsx": $17,
+-    "./routes/client_nav_opt_out/_layout.tsx": $18,
+-    "./routes/client_nav_opt_out/index.tsx": $19,
+-    "./routes/client_nav_opt_out/injected.tsx": $20,
+-    "./routes/client_nav_opt_out/page-a.tsx": $21,
+-    "./routes/client_nav_opt_out/page-b.tsx": $22,
+-    "./routes/client_nav_opt_out/page-c.tsx": $23,
+-    "./routes/deep_partial/index.tsx": $24,
+-    "./routes/deep_partial/injected.tsx": $25,
+-    "./routes/deep_partial/update.tsx": $26,
+-    "./routes/form/index.tsx": $27,
+-    "./routes/form/injected.tsx": $28,
+-    "./routes/form/update.tsx": $29,
+-    "./routes/fragment_nav.tsx": $30,
+-    "./routes/fragment_nav_scroll.tsx": $31,
+-    "./routes/head_merge/duplicate.tsx": $32,
+-    "./routes/head_merge/index.tsx": $33,
+-    "./routes/head_merge/injected.tsx": $34,
+-    "./routes/head_merge/update.tsx": $35,
+-    "./routes/index.tsx": $36,
+-    "./routes/island_instance/index.tsx": $37,
+-    "./routes/island_instance/injected.tsx": $38,
+-    "./routes/island_instance/partial.tsx": $39,
+-    "./routes/island_instance/partial_remove.tsx": $40,
+-    "./routes/island_instance/partial_replace.tsx": $41,
+-    "./routes/island_instance_multiple/index.tsx": $42,
+-    "./routes/island_instance_multiple/injected.tsx": $43,
+-    "./routes/island_instance_multiple/partial.tsx": $44,
+-    "./routes/island_instance_multiple/partial_both.tsx": $45,
+-    "./routes/island_instance_nested/index.tsx": $46,
+-    "./routes/island_instance_nested/injected.tsx": $47,
+-    "./routes/island_instance_nested/partial.tsx": $48,
+-    "./routes/island_instance_nested/replace.tsx": $49,
+-    "./routes/island_props/index.tsx": $50,
+-    "./routes/island_props/injected.tsx": $51,
+-    "./routes/island_props/partial.tsx": $52,
+-    "./routes/island_props_signals/index.tsx": $53,
+-    "./routes/island_props_signals/injected.tsx": $54,
+-    "./routes/island_props_signals/partial.tsx": $55,
+-    "./routes/keys/index.tsx": $56,
+-    "./routes/keys/injected.tsx": $57,
+-    "./routes/keys/swap.tsx": $58,
+-    "./routes/keys_components/index.tsx": $59,
+-    "./routes/keys_components/injected.tsx": $60,
+-    "./routes/keys_components/swap.tsx": $61,
+-    "./routes/keys_dom/index.tsx": $62,
+-    "./routes/keys_dom/injected.tsx": $63,
+-    "./routes/keys_dom/swap.tsx": $64,
+-    "./routes/keys_outside/index.tsx": $65,
+-    "./routes/loading/index.tsx": $66,
+-    "./routes/loading/injected.tsx": $67,
+-    "./routes/loading/update.tsx": $68,
+-    "./routes/missing_partial/index.tsx": $69,
+-    "./routes/missing_partial/injected.tsx": $70,
+-    "./routes/missing_partial/update.tsx": $71,
+-    "./routes/mode/append.tsx": $72,
+-    "./routes/mode/index.tsx": $73,
+-    "./routes/mode/injected.tsx": $74,
+-    "./routes/mode/prepend.tsx": $75,
+-    "./routes/mode/replace.tsx": $76,
+-    "./routes/no_islands/index.tsx": $77,
+-    "./routes/no_islands/injected.tsx": $78,
+-    "./routes/no_islands/update.tsx": $79,
+-    "./routes/no_partial_response/index.tsx": $80,
+-    "./routes/no_partial_response/injected.tsx": $81,
+-    "./routes/no_partial_response/update.tsx": $82,
+-    "./routes/partial_slot_inside_island.tsx": $83,
+-    "./routes/relative_link/index.tsx": $84,
+-    "./routes/scroll_restoration/index.tsx": $85,
+-    "./routes/scroll_restoration/injected.tsx": $86,
+-    "./routes/scroll_restoration/update.tsx": $87,
++    "./routes/client_nav_both/_layout.tsx": $18,
++    "./routes/client_nav_both/index.tsx": $19,
++    "./routes/client_nav_both/page-a.tsx": $20,
++    "./routes/client_nav_both/page-b.tsx": $21,
++    "./routes/client_nav_both/page-c.tsx": $22,
++    "./routes/client_nav_opt_out/_layout.tsx": $23,
++    "./routes/client_nav_opt_out/index.tsx": $24,
++    "./routes/client_nav_opt_out/injected.tsx": $25,
++    "./routes/client_nav_opt_out/page-a.tsx": $26,
++    "./routes/client_nav_opt_out/page-b.tsx": $27,
++    "./routes/client_nav_opt_out/page-c.tsx": $28,
++    "./routes/deep_partial/index.tsx": $29,
++    "./routes/deep_partial/injected.tsx": $30,
++    "./routes/deep_partial/update.tsx": $31,
++    "./routes/form/index.tsx": $32,
++    "./routes/form/injected.tsx": $33,
++    "./routes/form/update.tsx": $34,
++    "./routes/fragment_nav.tsx": $35,
++    "./routes/fragment_nav_scroll.tsx": $36,
++    "./routes/head_merge/duplicate.tsx": $37,
++    "./routes/head_merge/index.tsx": $38,
++    "./routes/head_merge/injected.tsx": $39,
++    "./routes/head_merge/update.tsx": $40,
++    "./routes/index.tsx": $41,
++    "./routes/island_instance/index.tsx": $42,
++    "./routes/island_instance/injected.tsx": $43,
++    "./routes/island_instance/partial.tsx": $44,
++    "./routes/island_instance/partial_remove.tsx": $45,
++    "./routes/island_instance/partial_replace.tsx": $46,
++    "./routes/island_instance_multiple/index.tsx": $47,
++    "./routes/island_instance_multiple/injected.tsx": $48,
++    "./routes/island_instance_multiple/partial.tsx": $49,
++    "./routes/island_instance_multiple/partial_both.tsx": $50,
++    "./routes/island_instance_nested/index.tsx": $51,
++    "./routes/island_instance_nested/injected.tsx": $52,
++    "./routes/island_instance_nested/partial.tsx": $53,
++    "./routes/island_instance_nested/replace.tsx": $54,
++    "./routes/island_props/index.tsx": $55,
++    "./routes/island_props/injected.tsx": $56,
++    "./routes/island_props/partial.tsx": $57,
++    "./routes/island_props_signals/index.tsx": $58,
++    "./routes/island_props_signals/injected.tsx": $59,
++    "./routes/island_props_signals/partial.tsx": $60,
++    "./routes/keys/index.tsx": $61,
++    "./routes/keys/injected.tsx": $62,
++    "./routes/keys/swap.tsx": $63,
++    "./routes/keys_components/index.tsx": $64,
++    "./routes/keys_components/injected.tsx": $65,
++    "./routes/keys_components/swap.tsx": $66,
++    "./routes/keys_confusion/index.tsx": $67,
++    "./routes/keys_dom/index.tsx": $68,
++    "./routes/keys_dom/injected.tsx": $69,
++    "./routes/keys_dom/swap.tsx": $70,
++    "./routes/keys_outside/index.tsx": $71,
++    "./routes/loading/index.tsx": $72,
++    "./routes/loading/injected.tsx": $73,
++    "./routes/loading/update.tsx": $74,
++    "./routes/missing_partial/index.tsx": $75,
++    "./routes/missing_partial/injected.tsx": $76,
++    "./routes/missing_partial/update.tsx": $77,
++    "./routes/mode/append.tsx": $78,
++    "./routes/mode/index.tsx": $79,
++    "./routes/mode/injected.tsx": $80,
++    "./routes/mode/prepend.tsx": $81,
++    "./routes/mode/replace.tsx": $82,
++    "./routes/no_islands/index.tsx": $83,
++    "./routes/no_islands/injected.tsx": $84,
++    "./routes/no_islands/update.tsx": $85,
++    "./routes/no_partial_response/index.tsx": $86,
++    "./routes/no_partial_response/injected.tsx": $87,
++    "./routes/no_partial_response/update.tsx": $88,
++    "./routes/partial_slot_inside_island.tsx": $89,
++    "./routes/relative_link/index.tsx": $90,
++    "./routes/scroll_restoration/index.tsx": $91,
++    "./routes/scroll_restoration/injected.tsx": $92,
++    "./routes/scroll_restoration/update.tsx": $93,
+   },
+   islands: {
+     "./islands/Counter.tsx": $$0,
+@@ -202,15 +215,16 @@ const manifest = {
+     "./islands/CounterB.tsx": $$2,
+     "./islands/Fader.tsx": $$3,
+     "./islands/InvalidSlot.tsx": $$4,
+-    "./islands/LazyLink.tsx": $$5,
+-    "./islands/Logger.tsx": $$6,
+-    "./islands/Other.tsx": $$7,
+-    "./islands/PartialTrigger.tsx": $$8,
+-    "./islands/PassThrough.tsx": $$9,
+-    "./islands/PropIsland.tsx": $$10,
+-    "./islands/SignalProp.tsx": $$11,
+-    "./islands/Spinner.tsx": $$12,
+-    "./islands/Stateful.tsx": $$13,
++    "./islands/KeyExplorer.tsx": $$5,
++    "./islands/LazyLink.tsx": $$6,
++    "./islands/Logger.tsx": $$7,
++    "./islands/Other.tsx": $$8,
++    "./islands/PartialTrigger.tsx": $$9,
++    "./islands/PassThrough.tsx": $$10,
++    "./islands/PropIsland.tsx": $$11,
++    "./islands/SignalProp.tsx": $$12,
++    "./islands/Spinner.tsx": $$13,
++    "./islands/Stateful.tsx": $$14,
+   },
+   baseUrl: import.meta.url,
+ };
+diff --git a/tests/fixture_partials/islands/KeyExplorer.tsx b/tests/fixture_partials/islands/KeyExplorer.tsx
+new file mode 100644
+index 00000000000..c589ea009d1
+--- /dev/null
++++ b/tests/fixture_partials/islands/KeyExplorer.tsx
+@@ -0,0 +1,13 @@
++import { useSignal } from "@preact/signals";
++
++export default function KeyExplorer() {
++  const sig = useSignal(0);
++
++  return (
++    <div class="island">
++      <h1>counter</h1>
++      <p class="output">{sig.value}</p>
++      <button onClick={() => sig.value += 1}>update</button>
++    </div>
++  );
++}
+diff --git a/tests/fixture_partials/routes/client_nav_both/_layout.tsx b/tests/fixture_partials/routes/client_nav_both/_layout.tsx
+new file mode 100644
+index 00000000000..f614581d95a
+--- /dev/null
++++ b/tests/fixture_partials/routes/client_nav_both/_layout.tsx
+@@ -0,0 +1,50 @@
++import { AppProps } from "$fresh/server.ts";
++import { Partial } from "$fresh/runtime.ts";
++import { Fader } from "../../islands/Fader.tsx";
++
++export default function AppLayout({ Component }: AppProps) {
++  return (
++    <html>
++      <head>
++        <meta charset="utf-8" />
++        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
++        <title>fresh title</title>
++      </head>
++      <body f-client-nav>
++        <Partial name="body">
++          <Fader>
++            <Component />
++          </Fader>
++        </Partial>
++        <div f-client-nav={false}>
++          <p>
++            <a
++              class="page-a-link"
++              href="/client_nav_both/page-a"
++            >
++              Page A
++            </a>
++          </p>
++          <p>
++            <a
++              class="page-b-link"
++              href="/client_nav_both/page-b"
++            >
++              Page B
++            </a>
++          </p>
++          <p>
++            <a
++              class="page-c-link"
++              href="/client_nav_both/page-c"
++            >
++              Page C
++            </a>
++          </p>
++        </div>
++
++        <pre id="logs" />
++      </body>
++    </html>
++  );
++}
+diff --git a/tests/fixture_partials/routes/client_nav_both/index.tsx b/tests/fixture_partials/routes/client_nav_both/index.tsx
+new file mode 100644
+index 00000000000..bf717a6a55d
+--- /dev/null
++++ b/tests/fixture_partials/routes/client_nav_both/index.tsx
+@@ -0,0 +1,21 @@
++import { Partial } from "$fresh/runtime.ts";
++import { RouteConfig } from "$fresh/server.ts";
++import CounterA from "../../islands/CounterA.tsx";
++import { Fader } from "../../islands/Fader.tsx";
++
++export const config: RouteConfig = {
++  skipAppWrapper: true,
++};
++
++export default function ModeDemo() {
++  return (
++    <div>
++      <Partial name="slot-1">
++        <Fader>
++          <p class="status-initial">Initial content</p>
++          <CounterA />
++        </Fader>
++      </Partial>
++    </div>
++  );
++}
+diff --git a/tests/fixture_partials/routes/client_nav_both/page-a.tsx b/tests/fixture_partials/routes/client_nav_both/page-a.tsx
+new file mode 100644
+index 00000000000..94fcfa0bb51
+--- /dev/null
++++ b/tests/fixture_partials/routes/client_nav_both/page-a.tsx
+@@ -0,0 +1,17 @@
++import { RouteConfig } from "$fresh/server.ts";
++import CounterA from "../../islands/CounterA.tsx";
++import { Fader } from "../../islands/Fader.tsx";
++
++export const config: RouteConfig = {
++  skipAppWrapper: true,
++};
++
++export default function PageA() {
++  return (
++    <Fader>
++      <h1>Page A</h1>
++      <p>asdfasdf asdf asdf</p>
++      <CounterA />
++    </Fader>
++  );
++}
+diff --git a/tests/fixture_partials/routes/client_nav_both/page-b.tsx b/tests/fixture_partials/routes/client_nav_both/page-b.tsx
+new file mode 100644
+index 00000000000..70468dc22d3
+--- /dev/null
++++ b/tests/fixture_partials/routes/client_nav_both/page-b.tsx
+@@ -0,0 +1,20 @@
++import { RouteConfig } from "$fresh/server.ts";
++import { Fader } from "../../islands/Fader.tsx";
++import CounterB from "../../islands/CounterB.tsx";
++
++export const config: RouteConfig = {
++  skipAppWrapper: true,
++};
++
++export default function PageB() {
++  return (
++    <Fader>
++      <i>something before</i>
++      <div>
++        <h1>Page B</h1>
++      </div>
++      <CounterB />
++      <p>asdfasdf asdf asdf</p>
++    </Fader>
++  );
++}
+diff --git a/tests/fixture_partials/routes/client_nav_both/page-c.tsx b/tests/fixture_partials/routes/client_nav_both/page-c.tsx
+new file mode 100644
+index 00000000000..577849e70a6
+--- /dev/null
++++ b/tests/fixture_partials/routes/client_nav_both/page-c.tsx
+@@ -0,0 +1,17 @@
++import { RouteConfig } from "$fresh/server.ts";
++import { Fader } from "../../islands/Fader.tsx";
++
++export const config: RouteConfig = {
++  skipAppWrapper: true,
++};
++
++export default function PageB() {
++  return (
++    <Fader>
++      <h1>Page C</h1>
++      <span class="page-c-text">
++        <p>asdfasdf asdf asdf</p>
++      </span>
++    </Fader>
++  );
++}
+diff --git a/tests/fixture_partials/routes/keys_confusion/index.tsx b/tests/fixture_partials/routes/keys_confusion/index.tsx
+new file mode 100644
+index 00000000000..cb9701f5989
+--- /dev/null
++++ b/tests/fixture_partials/routes/keys_confusion/index.tsx
+@@ -0,0 +1,5 @@
++import KeyExplorer from "../../islands/KeyExplorer.tsx";
++
++export default function SlotDemo() {
++  return <KeyExplorer />;
++}
+diff --git a/tests/fixture_render/deno.json b/tests/fixture_render/deno.json
+new file mode 100644
+index 00000000000..2b2fa78e147
+--- /dev/null
++++ b/tests/fixture_render/deno.json
+@@ -0,0 +1,13 @@
++{
++  "lock": false,
++  "imports": {
++    "$fresh/": "../../",
++    "preact": "https://esm.sh/preact@10.15.1",
++    "preact/": "https://esm.sh/preact@10.15.1/",
++    "preact-render-to-string": "https://esm.sh/*preact-render-to-string@6.2.1"
++  },
++  "compilerOptions": {
++    "jsx": "react-jsx",
++    "jsxImportSource": "preact"
++  }
++}
+diff --git a/tests/fixture_render/dev.ts b/tests/fixture_render/dev.ts
+new file mode 100755
+index 00000000000..2d85d6c183c
+--- /dev/null
++++ b/tests/fixture_render/dev.ts
+@@ -0,0 +1,5 @@
++#!/usr/bin/env -S deno run -A --watch=static/,routes/
++
++import dev from "$fresh/dev.ts";
++
++await dev(import.meta.url, "./main.ts");
+diff --git a/tests/fixture_render/fresh.gen.ts b/tests/fixture_render/fresh.gen.ts
+new file mode 100644
+index 00000000000..2d5e061cc83
+--- /dev/null
++++ b/tests/fixture_render/fresh.gen.ts
+@@ -0,0 +1,21 @@
++// DO NOT EDIT. This file is generated by Fresh.
++// This file SHOULD be checked into source version control.
++// This file is automatically updated during development when running `dev.ts`.
++
++import * as $0 from "./routes/header_arr.tsx";
++import * as $1 from "./routes/header_instance.tsx";
++import * as $2 from "./routes/header_obj.tsx";
++import * as $3 from "./routes/index.tsx";
++
++const manifest = {
++  routes: {
++    "./routes/header_arr.tsx": $0,
++    "./routes/header_instance.tsx": $1,
++    "./routes/header_obj.tsx": $2,
++    "./routes/index.tsx": $3,
++  },
++  islands: {},
++  baseUrl: import.meta.url,
++};
++
++export default manifest;
+diff --git a/tests/fixture_render/main.ts b/tests/fixture_render/main.ts
+new file mode 100644
+index 00000000000..dedce9cbb04
+--- /dev/null
++++ b/tests/fixture_render/main.ts
+@@ -0,0 +1,10 @@
++/// <reference no-default-lib="true" />
++/// <reference lib="dom" />
++/// <reference lib="dom.iterable" />
++/// <reference lib="dom.asynciterable" />
++/// <reference lib="deno.ns" />
++
++import { start } from "$fresh/server.ts";
++import manifest from "./fresh.gen.ts";
++
++await start(manifest);
+diff --git a/tests/fixture_render/routes/header_arr.tsx b/tests/fixture_render/routes/header_arr.tsx
+new file mode 100644
+index 00000000000..eef2f6d33bc
+--- /dev/null
++++ b/tests/fixture_render/routes/header_arr.tsx
+@@ -0,0 +1,16 @@
++import type { Handlers } from "$fresh/server.ts";
++
++export const handler: Handlers<unknown, unknown> = {
++  GET(_, ctx) {
++    const headers = [["x-foo", "Hello world!"]] as [string, string][];
++    return ctx.render(undefined, { headers });
++  },
++};
++
++export default function Home() {
++  return (
++    <div>
++      Should have <code>X-Foo</code> header set.
++    </div>
++  );
++}
+diff --git a/tests/fixture_render/routes/header_instance.tsx b/tests/fixture_render/routes/header_instance.tsx
+new file mode 100644
+index 00000000000..54c1f96f5c1
+--- /dev/null
++++ b/tests/fixture_render/routes/header_instance.tsx
+@@ -0,0 +1,17 @@
++import type { Handlers } from "$fresh/server.ts";
++
++export const handler: Handlers<unknown, unknown> = {
++  GET(_, ctx) {
++    const headers = new Headers();
++    headers.set("x-foo", "Hello world!");
++    return ctx.render(undefined, { headers });
++  },
++};
++
++export default function Home() {
++  return (
++    <div>
++      Should have <code>X-Foo</code> header set.
++    </div>
++  );
++}
+diff --git a/tests/fixture_render/routes/header_obj.tsx b/tests/fixture_render/routes/header_obj.tsx
+new file mode 100644
+index 00000000000..22fc22ba9e1
+--- /dev/null
++++ b/tests/fixture_render/routes/header_obj.tsx
+@@ -0,0 +1,18 @@
++import type { Handlers } from "$fresh/server.ts";
++
++export const handler: Handlers<unknown, unknown> = {
++  GET(_, ctx) {
++    const headers = {
++      "x-foo": "Hello world!",
++    };
++    return ctx.render(undefined, { headers });
++  },
++};
++
++export default function Home() {
++  return (
++    <div>
++      Should have <code>X-Foo</code> header set.
++    </div>
++  );
++}
+diff --git a/tests/fixture_render/routes/index.tsx b/tests/fixture_render/routes/index.tsx
+new file mode 100644
+index 00000000000..9c4322894a0
+--- /dev/null
++++ b/tests/fixture_render/routes/index.tsx
+@@ -0,0 +1,27 @@
++import * as path from "https://deno.land/std@0.192.0/path/mod.ts";
++
++const __dirname = path.dirname(path.fromFileUrl(import.meta.url));
++
++const links: string[] = [];
++for (const file of Deno.readDirSync(__dirname)) {
++  if (file.name.startsWith("index")) continue;
++  const name = path.basename(file.name, path.extname(file.name));
++  links.push(name);
++}
++
++export default function Home() {
++  return (
++    <div>
++      <h1>Tests</h1>
++      <ul>
++        {links.sort().map((link) => {
++          return (
++            <li key={link}>
++              <a href={`/${link}`}>{link}</a>
++            </li>
++          );
++        })}
++      </ul>
++    </div>
++  );
++}
+diff --git a/tests/partials_test.ts b/tests/partials_test.ts
+index c0e0f14c5c0..3a2cb3e878c 100644
+--- a/tests/partials_test.ts
++++ b/tests/partials_test.ts
+@@ -15,7 +15,8 @@ import {
+ } from "./test_utils.ts";
+ 
+ async function assertLogs(page: Page, expected: string[]) {
+-  await waitForText(page, "#logs", expected.join("\n") + "\n");
++  const text = expected.length > 0 ? expected.join("\n") + "\n" : "";
++  await waitForText(page, "#logs", text);
+ }
+ 
+ Deno.test("injects server content with no islands present", async () => {
+@@ -556,6 +557,19 @@ Deno.test("don't serialize keys for nodes outside islands or partials", async ()
+   });
+ });
+ 
++Deno.test("doesn't confuse islands starting with 'key' with key marker", async () => {
++  await withPageName(
++    "./tests/fixture_partials/main.ts",
++    async (page, address) => {
++      await page.goto(`${address}/keys_confusion`);
++      await page.waitForSelector(".island");
++
++      await page.click("button");
++      await waitForText(page, ".output", "1");
++    },
++  );
++});
++
+ Deno.test("partial injection mode", async () => {
+   await withPageName(
+     "./tests/fixture_partials/main.ts",
+@@ -839,6 +853,62 @@ Deno.test("allow opting out of client navigation", async () => {
+   );
+ });
+ 
++Deno.test("allow opting out of client navigation if parent opted in", async () => {
++  await withPageName(
++    "./tests/fixture_partials/main.ts",
++    async (page, address) => {
++      const initialUrl = `${address}/client_nav_both`;
++      await page.goto(initialUrl);
++      await page.waitForSelector(".island");
++
++      await page.click(".island-a button");
++      await waitForText(page, ".output-a", "1");
++
++      // Go to page B
++      await page.click(".page-b-link");
++      await page.waitForSelector(".island-b");
++      await assertLogs(page, ["mount Counter B"]);
++
++      await page.click(".island-b button");
++      await waitForText(page, ".output-b", "1");
++      await assertLogs(page, ["mount Counter B", "update Counter B"]);
++
++      // Go to page C
++      await page.click(".page-c-link");
++      await page.waitForSelector(".page-c-text");
++      await assertLogs(page, []);
++
++      // Go back to B
++      await page.goBack();
++      await page.waitForSelector(".island-b");
++      await assertLogs(page, ["mount Counter B"]);
++
++      // Check that island is interactive
++      await page.click(".island-b button");
++      await waitForText(page, ".output-b", "1");
++
++      // Go back to A
++      await page.goBack();
++      await page.waitForSelector(".island-a");
++      await assertLogs(page, ["mount Counter A"]);
++
++      // Check that island is interactive
++      await page.click(".island-a button");
++      await waitForText(page, ".output-a", "1");
++      await assertNoPageComments(page);
++
++      // Go forward to B
++      await page.goForward();
++      await page.waitForSelector(".island-b");
++      await assertLogs(page, ["mount Counter B"]);
++
++      // Check that island is interactive
++      await page.click(".island-b button");
++      await waitForText(page, ".output-b", "1");
++    },
++  );
++});
++
+ Deno.test("restore scroll position", async () => {
+   await withPageName(
+     "./tests/fixture_partials/main.ts",
+@@ -976,15 +1046,21 @@ Deno.test("active links without client nav", async () => {
+       // Current
+       assertNotSelector(doc, "a[href='/active_nav'][data-ancestor]");
+       assertSelector(doc, "a[href='/active_nav'][data-current]");
++      assertSelector(doc, `a[href='/active_nav'][aria-current="page"]`);
+ 
+       // Unrelated links
+       assertNotSelector(doc, "a[href='/active_nav/foo'][data-ancestor]");
++      assertNotSelector(doc, "a[href='/active_nav/foo'][aria-current]");
+       assertNotSelector(doc, "a[href='/active_nav/foo/bar'][data-ancestor]");
++      assertNotSelector(doc, "a[href='/active_nav/foo/bar'][aria-current]");
+ 
+       doc = await server.getHtml(`/active_nav/foo`);
+       assertSelector(doc, "a[href='/active_nav/foo'][data-current]");
++      assertSelector(doc, `a[href='/active_nav/foo'][aria-current="page"]`);
+       assertSelector(doc, "a[href='/active_nav'][data-ancestor]");
++      assertSelector(doc, `a[href='/active_nav'][aria-current="true"]`);
+       assertSelector(doc, "a[href='/'][data-ancestor]");
++      assertSelector(doc, `a[href='/'][aria-current="true"]`);
+     },
+   );
+ });
+@@ -1001,22 +1077,40 @@ Deno.test("Updates active links outside of vdom", async () => {
+       // Current
+       assertNotSelector(doc, "a[href='/active_nav_partial'][data-ancestor]");
+       assertSelector(doc, "a[href='/active_nav_partial'][data-current]");
++      assertSelector(doc, `a[href='/active_nav_partial'][aria-current="page"]`);
+ 
+       // Unrelated links
+       assertNotSelector(
+         doc,
+         "a[href='/active_nav_partial/foo'][data-ancestor]",
+       );
++      assertNotSelector(
++        doc,
++        "a[href='/active_nav_partial/foo'][aria-current]",
++      );
+       assertNotSelector(
+         doc,
+         "a[href='/active_nav_partial/foo/bar'][data-ancestor]",
+       );
++      assertNotSelector(
++        doc,
++        "a[href='/active_nav_partial/foo/bar'][aria-current]",
++      );
+ 
+       await page.goto(`${address}/active_nav_partial/foo`);
+       doc = parseHtml(await page.content());
+       assertSelector(doc, "a[href='/active_nav_partial/foo'][data-current]");
++      assertSelector(
++        doc,
++        `a[href='/active_nav_partial/foo'][aria-current="page"]`,
++      );
+       assertSelector(doc, "a[href='/active_nav_partial'][data-ancestor]");
++      assertSelector(
++        doc,
++        `a[href='/active_nav_partial'][data-ancestor][aria-current="true"]`,
++      );
+       assertSelector(doc, "a[href='/'][data-ancestor]");
++      assertSelector(doc, `a[href='/'][aria-current="true"]`);
+     },
+   );
+ });
+diff --git a/tests/render_test.ts b/tests/render_test.ts
+index a0ed7e8d425..1781b8b5ffc 100644
+--- a/tests/render_test.ts
++++ b/tests/render_test.ts
+@@ -1,4 +1,8 @@
+-import { assertSelector, parseHtml } from "$fresh/tests/test_utils.ts";
++import {
++  assertSelector,
++  parseHtml,
++  withFakeServe,
++} from "$fresh/tests/test_utils.ts";
+ import { assertEquals } from "$std/testing/asserts.ts";
+ import { createHandler } from "$fresh/server.ts";
+ import manifest from "./fixture/fresh.gen.ts";
+@@ -26,3 +30,19 @@ Deno.test("doesn't leak data across renderers", async () => {
+   }
+   await Promise.all(promises);
+ });
++
++Deno.test("render headers passed to ctx.render()", async () => {
++  await withFakeServe("./tests/fixture_render/main.ts", async (server) => {
++    let res = await server.get("/header_arr");
++    assertEquals(res.headers.get("x-foo"), "Hello world!");
++    await res.body?.cancel();
++
++    res = await server.get("/header_obj");
++    assertEquals(res.headers.get("x-foo"), "Hello world!");
++    await res.body?.cancel();
++
++    res = await server.get("/header_instance");
++    assertEquals(res.headers.get("x-foo"), "Hello world!");
++    await res.body?.cancel();
++  });
++});
+diff --git a/update.ts b/update.ts
+index a611d335a90..d0ff4f2e717 100644
+--- a/update.ts
++++ b/update.ts
+@@ -158,7 +158,7 @@ if (denoJson.compilerOptions?.jsx !== "react-jsx" && confirm(JSX_CODEMOD)) {
+     join(resolvedDirectory, "**", "*.{js,jsx,ts,tsx}"),
+   );
+ 
+-  for (const sf of sfs) {
++  await Promise.all(sfs.map((sf) => {
+     for (const d of sf.getImportDeclarations()) {
+       if (d.getModuleSpecifierValue() !== "preact") continue;
+       for (const n of d.getNamedImports()) {
+@@ -179,8 +179,8 @@ if (denoJson.compilerOptions?.jsx !== "react-jsx" && confirm(JSX_CODEMOD)) {
+     text = text.replaceAll("/** @jsxFrag Fragment */\n", "");
+     sf.replaceWithText(text);
+ 
+-    await sf.save();
+-  }
++    return sf.save();
++  }));
+ }
+ 
+ // Code mod for class={tw`border`} to class="border".
+@@ -226,7 +226,7 @@ await start(manifest, { plugins: [twindPlugin(twindConfig)] });\n`;
+     join(resolvedDirectory, "**", "*.{js,jsx,ts,tsx}"),
+   );
+ 
+-  for (const sf of sfs) {
++  await Promise.all(sfs.map((sf) => {
+     const nodes = sf.forEachDescendantAsArray();
+     for (const n of nodes) {
+       if (!n.wasForgotten() && Node.isJsxAttribute(n)) {
+@@ -271,8 +271,8 @@ await start(manifest, { plugins: [twindPlugin(twindConfig)] });\n`;
+       }
+     }
+ 
+-    await sf.save();
+-  }
++    return sf.save();
++  }));
+ }
+ 
+ // Add default _app.tsx if not present
+diff --git a/versions.json b/versions.json
+index fa79ed5a3de..da70f1624e3 100644
+--- a/versions.json
++++ b/versions.json
+@@ -1,4 +1,5 @@
+ [
++  "1.5.2",
+   "1.5.1",
+   "1.5.0",
+   "1.4.3",
+diff --git a/www/components/DocsSidebar.tsx b/www/components/DocsSidebar.tsx
+index b167ff20d05..1b401a80999 100644
+--- a/www/components/DocsSidebar.tsx
++++ b/www/components/DocsSidebar.tsx
+@@ -6,6 +6,8 @@ import {
+ import SearchButton from "../islands/SearchButton.tsx";
+ import VersionSelect from "../islands/VersionSelect.tsx";
+ import { type VersionLink } from "../routes/docs/[...slug].tsx";
++import { Logo } from "$fresh/www/components/Header.tsx";
++import DocsTitle from "$fresh/www/components/DocsTitle.tsx";
+ 
+ export default function DocsSidebar(
+   props: {
+@@ -16,55 +18,29 @@ export default function DocsSidebar(
+ ) {
+   return (
+     <>
+-      {props.mobile
+-        ? (
+-          <button
+-            type="button"
+-            class="bg-gray-200 font-bold text-gray-400 rounded-full py-1 px-2 w-full mb-2"
+-          >
+-            <script
+-              dangerouslySetInnerHTML={{
+-                __html:
+-                  `document.currentScript.parentNode.onclick = function () {
+-                    document.querySelector(".DocSearch.DocSearch-Button").click()
+-                  }`,
+-              }}
++      <div class="fixed  w-[17rem] md:flex h-screen overflow-hidden ">
++        <div class="flex-1  h-screen overflow-y-auto">
++          <div class="sticky mb-4 top-0 bg-white z-10">
++            <div class=" py-4 flex items-center">
++              <Logo />
++              <DocsTitle />
++            </div>
++            <hr />
++          </div>
++          <SearchButton class="mr-4 sm:mr-0" />
++          <div class="mb-4">
++            <VersionSelect
++              selectedVersion={props.selectedVersion}
++              versions={props.versionLinks}
+             />
+-            <span class="DocSearch-Button-Container">
+-              <svg
+-                width="20"
+-                height="20"
+-                class="DocSearch-Search-Icon"
+-                viewBox="0 0 20 20"
+-              >
+-                <path
+-                  d="M14.386 14.386l4.0877 4.0877-4.0877-4.0877c-2.9418 2.9419-7.7115 2.9419-10.6533 0-2.9419-2.9418-2.9419-7.7115 0-10.6533 2.9418-2.9419 7.7115-2.9419 10.6533 0 2.9419 2.9418 2.9419 7.7115 0 10.6533z"
+-                  stroke="currentColor"
+-                  fill="none"
+-                  fill-rule="evenodd"
+-                  stroke-linecap="round"
+-                  stroke-linejoin="round"
+-                >
+-                </path>
+-              </svg>
+-              <span class="DocSearch-Button-Placeholder">Search</span>
+-            </span>
+-          </button>
+-        )
+-        : <SearchButton />}
+-
+-      <div class="mb-4">
+-        <VersionSelect
+-          selectedVersion={props.selectedVersion}
+-          versions={props.versionLinks}
+-        />
++          </div>
++          <ul class="list-inside font-semibold nested ml-2.5">
++            {CATEGORIES[props.selectedVersion].map((category) => (
++              <SidebarCategory key={category.href} category={category} />
++            ))}
++          </ul>
++        </div>
+       </div>
+-
+-      <ul class="list-inside font-semibold nested ml-2.5">
+-        {CATEGORIES[props.selectedVersion].map((category) => (
+-          <SidebarCategory key={category.href} category={category} />
+-        ))}
+-      </ul>
+     </>
+   );
+ }
+diff --git a/www/components/DocsTitle.tsx b/www/components/DocsTitle.tsx
+index 07abce35bc8..e99ebbc4c82 100644
+--- a/www/components/DocsTitle.tsx
++++ b/www/components/DocsTitle.tsx
+@@ -1,4 +1,4 @@
+-export default function DocsTitle(props: { title: string }) {
++export default function DocsTitle() {
+   return (
+     <>
+       <a
+diff --git a/www/components/Footer.tsx b/www/components/Footer.tsx
+index f0ceed953e1..841c4b8ce0b 100644
+--- a/www/components/Footer.tsx
++++ b/www/components/Footer.tsx
+@@ -17,7 +17,7 @@ const LINKS = [
+ 
+ export default function Footer() {
+   return (
+-    <footer class="border-t-2 border-gray-200 bg-gray-100 md:h-16 flex gap-4 justify-center">
++    <footer class="border-t-2 border-gray-200 md:h-16 flex  my-8 justify-center">
+       <div class="flex flex-col sm:flex-row gap-4 justify-between items-center max-w-screen-xl mx-auto w-full px(4 sm:6 md:8) p-4">
+         <div class="text(gray-600 center)">
+           <span>© {new Date().getFullYear()} the Fresh authors</span>
+@@ -30,27 +30,6 @@ export default function Footer() {
+             </a>
+           ))}
+         </div>
+-
+-        <ul class="flex justify-center items-center gap-4 md:ml-4 mt-2 mb-4 sm:mt-0 sm:mb-0 flex-wrap">
+-          <li class="flex items-center">
+-            <a
+-              href="https://github.com/denoland/fresh"
+-              class="hover:text-green-600 inline-block transition"
+-              aria-label="GitHub"
+-            >
+-              <Icons.GitHub />
+-            </a>
+-          </li>
+-          <li class="flex items-center">
+-            <a
+-              href="https://discord.com/invite/deno"
+-              class="hover:text-green-600 inline-block transition"
+-              aria-label="Discord"
+-            >
+-              <Icons.Discord />
+-            </a>
+-          </li>
+-        </ul>
+       </div>
+     </footer>
+   );
+diff --git a/www/components/Header.tsx b/www/components/Header.tsx
+index fecd8224349..47f949a7f6a 100644
+--- a/www/components/Header.tsx
++++ b/www/components/Header.tsx
+@@ -3,26 +3,47 @@ import NavigationBar from "./NavigationBar.tsx";
+ 
+ export default function Header(props: { title: string; active: string }) {
+   const isHome = props.active == "/";
++  const isDocs = props.active == "/docs";
++
+   return (
+-    <div>
+-      <header
+-        class={"mx-auto max-w-screen-xl flex gap-3 items-center " +
+-          (isHome ? "justify-end" : "justify-between")}
+-      >
+-        {!isHome && (
+-          <div class="p-4 flex items-center">
+-            <Logo />
+-            <DocsTitle title={props.title} />
+-          </div>
++    <>
++      {isDocs
++        ? (
++          <header
++            class={"  top-0 w-full bg-white mx-auto max-w-screen-xl flex gap-3 items-center " +
++              "justify-between md:justify-end"}
++            f-client-nav={false}
++          >
++            <div class="p-4 flex items-center md:hidden">
++              <Logo />
++              <DocsTitle />
++            </div>
++
++            <NavigationBar class="hidden md:flex" active={props.active} />
++          </header>
++        )
++        : (
++          <header
++            class={"mx-auto max-w-screen-xl flex gap-3 items-center " +
++              (isHome ? "justify-end" : "justify-between")}
++            f-client-nav={false}
++          >
++            {!isHome && (
++              <div class="p-4 flex items-center">
++                <Logo />
++                <DocsTitle />
++              </div>
++            )}
++            <NavigationBar class="hidden md:flex" active={props.active} />
++          </header>
+         )}
+-        <NavigationBar class="hidden md:flex" active={props.active} />
+-      </header>
++
+       <NavigationBar class="md:hidden pb-3" active={props.active} />
+-    </div>
++    </>
+   );
+ }
+ 
+-function Logo() {
++export function Logo() {
+   return (
+     <a href="/" class="flex mr-3 items-center" aria-label="Top Page">
+       <img src="/logo.svg" alt="Fresh logo" width={40} height={40} />
+diff --git a/www/fresh.gen.ts b/www/fresh.gen.ts
+index 55d7ccdaa33..3afc115da3f 100644
+--- a/www/fresh.gen.ts
++++ b/www/fresh.gen.ts
+@@ -8,11 +8,10 @@ import * as $2 from "./routes/_middleware.ts";
+ import * as $3 from "./routes/components.tsx";
+ import * as $4 from "./routes/docs/[...slug].tsx";
+ import * as $5 from "./routes/docs/index.tsx";
+-import * as $6 from "./routes/gfm.css.ts";
+-import * as $7 from "./routes/index.tsx";
+-import * as $8 from "./routes/raw.ts";
+-import * as $9 from "./routes/showcase.tsx";
+-import * as $10 from "./routes/update.tsx";
++import * as $6 from "./routes/index.tsx";
++import * as $7 from "./routes/raw.ts";
++import * as $8 from "./routes/showcase.tsx";
++import * as $9 from "./routes/update.tsx";
+ import * as $$0 from "./islands/ComponentGallery.tsx";
+ import * as $$1 from "./islands/CopyArea.tsx";
+ import * as $$2 from "./islands/Counter.tsx";
+@@ -28,11 +27,10 @@ const manifest = {
+     "./routes/components.tsx": $3,
+     "./routes/docs/[...slug].tsx": $4,
+     "./routes/docs/index.tsx": $5,
+-    "./routes/gfm.css.ts": $6,
+-    "./routes/index.tsx": $7,
+-    "./routes/raw.ts": $8,
+-    "./routes/showcase.tsx": $9,
+-    "./routes/update.tsx": $10,
++    "./routes/index.tsx": $6,
++    "./routes/raw.ts": $7,
++    "./routes/showcase.tsx": $8,
++    "./routes/update.tsx": $9,
+   },
+   islands: {
+     "./islands/ComponentGallery.tsx": $$0,
+diff --git a/www/islands/VersionSelect.tsx b/www/islands/VersionSelect.tsx
+index b97d5c11373..4995aa4a524 100644
+--- a/www/islands/VersionSelect.tsx
++++ b/www/islands/VersionSelect.tsx
+@@ -14,7 +14,7 @@ export default function VersionSelect(
+ 
+   return (
+     <>
+-      <div class="relative">
++      <div class="relative mr-4 sm:mr-0">
+         <label htmlFor="version" class="sr-only">
+           Version
+         </label>
+diff --git a/www/routes/docs/[...slug].tsx b/www/routes/docs/[...slug].tsx
+index 9d860de23af..5e61e3687d3 100644
+--- a/www/routes/docs/[...slug].tsx
++++ b/www/routes/docs/[...slug].tsx
+@@ -146,7 +146,7 @@ export default function DocsPage(props: PageProps<Data>) {
+     <>
+       <Head>
+         <title>{title}</title>
+-        <link rel="stylesheet" href={asset("/gfm.css")} />
++        <link rel="stylesheet" href={asset("/markdown.css")} />
+         <meta name="description" content={description} />
+         <meta property="og:title" content={title} />
+         <meta property="og:description" content={description} />
+@@ -155,10 +155,8 @@ export default function DocsPage(props: PageProps<Data>) {
+         <meta property="og:image" content={ogImageUrl} />
+         <meta name="view-transition" content="same-origin" />
+       </Head>
+-      <div class="flex flex-col min-h-screen">
+-        <Header title="docs" active="/docs" />
++      <div class="flex flex-col min-h-screen mx-auto max-w-screen-xl">
+         <Main page={props.data.page} />
+-        <Footer />
+       </div>
+     </>
+   );
+@@ -166,31 +164,8 @@ export default function DocsPage(props: PageProps<Data>) {
+ 
+ function Main(props: { page: Page }) {
+   return (
+-    <div class="flex-1" f-client-nav>
+-      <MobileSidebar page={props.page} />
+-      <div class="flex mx-auto max-w-screen-xl px-4 md:px-0 md:py-0 justify-end bg-gray-100">
+-        <label
+-          for="docs_sidebar"
+-          class="px-4 py-3 md:hidden flex items-center hover:bg-gray-100 rounded gap-2 cursor-pointer"
+-        >
+-          <svg
+-            class="h-6 w-6"
+-            stroke="currentColor"
+-            fill="none"
+-            viewBox="0 0 24 24"
+-          >
+-            <path
+-              strokeLinecap="round"
+-              strokeLinejoin="round"
+-              strokeWidth="2"
+-              d="M4 6h16M4 12h16M4 18h7"
+-            >
+-            </path>
+-          </svg>
+-          <div>Table of Contents</div>
+-        </label>
+-      </div>
+-      <div class="mx-auto max-w-screen-xl flex gap-6 md:gap-8">
++    <div class="flex-1 " f-client-nav>
++      <div class=" md:flex">
+         <DesktopSidebar page={props.page} />
+         <Partial name="docs-main">
+           <Content page={props.page} />
+@@ -202,7 +177,7 @@ function Main(props: { page: Page }) {
+ 
+ function MobileSidebar(props: { page: Page }) {
+   return (
+-    <>
++    <div class="md:hidden">
+       <input
+         type="checkbox"
+         class="hidden toggle"
+@@ -215,11 +190,8 @@ function MobileSidebar(props: { page: Page }) {
+           class="absolute inset-0 bg-gray-600 opacity-75"
+           for="docs_sidebar"
+         />
+-        <div class="relative flex-1 flex flex-col w-[16rem] h-full bg-white border(r-2 gray-100)">
+-          <div class="p-4 border(b-2 gray-100) bg-green-300">
+-            <DocsTitle title="docs" />
+-          </div>
+-          <nav class="pt-6 pb-16 px-4 overflow-x-auto">
++        <div class="relative flex-1 flex flex-col w-[18rem] h-full bg-white border(r-2 gray-100)">
++          <nav class="pt-0 pb-16 px-4 overflow-x-auto">
+             <DocsSidebar
+               mobile
+               versionLinks={props.page.versionLinks}
+@@ -228,13 +200,13 @@ function MobileSidebar(props: { page: Page }) {
+           </nav>
+         </div>
+       </div>
+-    </>
++    </div>
+   );
+ }
+ 
+ function DesktopSidebar(props: { page: Page }) {
+   return (
+-    <nav class="w-[18rem] flex-shrink-0 hidden md:block py-7 px-4">
++    <nav class="w-[18rem] flex-shrink-0 hidden md:block px-4">
+       <DocsSidebar
+         versionLinks={props.page.versionLinks}
+         selectedVersion={props.page.version}
+@@ -246,21 +218,48 @@ function DesktopSidebar(props: { page: Page }) {
+ function Content(props: { page: Page }) {
+   const html = renderMarkdown(props.page.markdown);
+   return (
+-    <main class="py-6 md:mr-4 lg:mr-32 min-w-0">
+-      <h1 class="text(4xl gray-900) tracking-tight font-extrabold md:mt-0 px-4">
+-        {props.page.title}
+-      </h1>
+-      <div
+-        class="mt-6 markdown-body"
+-        dangerouslySetInnerHTML={{ __html: html }}
+-      />
+-      <ForwardBackButtons
+-        slug={props.page.slug}
+-        version={props.page.version}
+-        prev={props.page.prevNav}
+-        next={props.page.nextNav}
+-      />
+-    </main>
++    <div class="w-full min-w-0">
++      <Header title="docs" active="/docs" />
++      <main class="max-w-3xl mt-4 min-w-0 mx-auto">
++        <MobileSidebar page={props.page} />
++        <div class="flex mx-auto max-w-screen-xl px-4 md:px-0 md:py-0 justify-end bg-gray-100">
++          <label
++            for="docs_sidebar"
++            class="px-4 py-3 md:hidden flex items-center hover:bg-gray-100 rounded gap-2 cursor-pointer"
++          >
++            <svg
++              class="h-6 w-6"
++              stroke="currentColor"
++              fill="none"
++              viewBox="0 0 24 24"
++            >
++              <path
++                strokeLinecap="round"
++                strokeLinejoin="round"
++                strokeWidth="2"
++                d="M4 6h16M4 12h16M4 18h7"
++              >
++              </path>
++            </svg>
++            <div>Table of Contents</div>
++          </label>
++        </div>
++        <h1 class="text(4xl gray-900) tracking-tight font-extrabold md:mt-0 px-4">
++          {props.page.title}
++        </h1>
++        <div
++          class="mt-6 markdown-body"
++          dangerouslySetInnerHTML={{ __html: html }}
++        />
++        <ForwardBackButtons
++          slug={props.page.slug}
++          version={props.page.version}
++          prev={props.page.prevNav}
++          next={props.page.nextNav}
++        />
++        <Footer />
++      </main>
++    </div>
+   );
+ }
+ 
+diff --git a/www/routes/gfm.css.ts b/www/routes/gfm.css.ts
+deleted file mode 100644
+index e35e4a6568e..00000000000
+--- a/www/routes/gfm.css.ts
++++ /dev/null
+@@ -1,200 +0,0 @@
+-import { Handlers } from "$fresh/server.ts";
+-import { gfm } from "../utils/markdown.ts";
+-
+-// TODO(lucacasonato): hash the file and use the hash as the filename, and serve
+-// with high-cacheability headers.
+-function css(template: TemplateStringsArray, ...params: string[]) {
+-  let out = "";
+-
+-  for (let i = 0; i < template.length; i++) {
+-    out += template[i];
+-    if (i < params.length) {
+-      out += String(params[i]);
+-    }
+-  }
+-
+-  return out;
+-}
+-
+-const CSS = css`${gfm.CSS}
+-
+-.markdown-body h1,
+-.markdown-body h2,
+-.markdown-body h3,
+-.markdown-body h4,
+-.markdown-body h5,
+-.markdown-body h6,
+-.markdown-body ul,
+-.markdown-body ol,
+-.markdown-body p,
+-.markdown-body details,
+-.markdown-body blockquote {
+-  margin-left: 1rem;
+-  margin-right: 1rem;
+-}
+-
+-.markdown-body blockquote p {
+-  margin-left: 0
+-}
+-
+-.markdown-body .admonition {
+-  padding: 1rem;
+-}
+-.markdown-body .admonition-header {
+-  font-weight: bold;
+-  display: flex;
+-  align-items: center;
+-  font-size: 1rem;
+-  padding-bottom: .5rem;
+-}
+-.markdown-body .admonition .icon {
+-  display: inline-flex;
+-  margin-right: .25rem;
+-  width: 1.2em;
+-  height: 1.2em;
+-}
+-.markdown-body blockquote.warn {
+-  border-color: #ff9100;
+-  background: #F0900525;
+-}
+-
+-.markdown-body .admonition .fenced-code {
+-  margin-left: 0;
+-  margin-right: 0;
+-  border: 1px solid #d9d2d2;
+-  border-radius: .5rem .5rem .25rem .25rem;
+-}
+-
+-.markdown-body .admonition .highlight {
+-  margin-bottom: 0;
+-}
+-
+-.markdown-body .admonition.tip .admonition-header {
+-  color: rgb(0, 148, 0);
+-}
+-.markdown-body .admonition.tip {
+-  background-color: rgb(230, 246, 230);
+-  border-color: rgb(0, 148, 0);
+-}
+-.markdown-body .admonition.info .admonition-header {
+-  color: rgb(25 146 184);
+-}
+-.markdown-body .admonition.info {
+-  background-color: rgb(238, 249, 253);
+-  border-color: rgb(25 146 184);
+-}
+-.markdown-body .admonition.warn .admonition-header {
+-  color: #dd6f04;
+-}
+-.markdown-body .admonition.warn {
+-  background-color: #F0900525;
+-  border-color: #ff9100;
+-}
+-
+-@media screen and (min-width: 768px) {
+-  .markdown-body .fenced-code,
+-  .markdown-body table {
+-    margin-left: 1rem;
+-    margin-right: 1rem;
+-  }
+-
+-  .markdown-body details .fenced-code {
+-    margin-left: 0;
+-    margin-right: 0;
+-  }
+-}
+-
+-ol.nested {
+-	counter-reset: item;
+-}
+-
+-ol.nested li {
+-	display: block;
+-}
+-
+-ol.nested li:before {
+-	font-feature-settings: "kern" 1, "tnum" 1;
+-	-webkit-font-feature-settings: "kern" 1, "tnum" 1;
+-	-ms-font-feature-settings: "kern" 1, "tnum" 1;
+-	-moz-font-feature-settings: "kern" 1, "tnum" 1;
+-	content: counters(item, ".") ". ";
+-	counter-increment: item;
+-}
+-
+-.markdown-body ul {
+-  list-style: disc;
+-}
+-
+-.markdown-body ol {
+-  list-style: numeric;
+-}
+-
+-.markdown-body .md-anchor {
+-  color: inherit;
+-  text-decoration: none !important;
+-}
+-.markdown-body .md-anchor span {
+-  color: var(--color-accent-fg);
+-  display: inline-block;
+-  margin-left: .25rem;
+-  opacity: 0;
+-  visibility: hidden;
+-}
+-.markdown-body .md-anchor:hover span {
+-  opacity: 1;
+-  visibility: visible;
+-}
+-
+-.markdown-body .highlight {
+-  border: 1px solid #eaeef1;
+-  border-radius: .5rem;
+-}
+-
+-.toggle:checked + .toggled {
+-	display: block;
+-}
+-
+-.fenced-code {
+-  margin-bottom: 1rem; 
+-}
+-.fenced-code pre {
+-  margin-bottom: 0;
+-}
+-.fenced-code-header {
+-  border-top-left-radius: .5rem;
+-  border-top-right-radius: .5rem;
+-  padding: 0.5rem;
+-  background: #eaeef1;
+-  display: flex;
+-  align-items: center;
+-  justify-content: space-between;
+-}
+-.fenced-code-header + pre {
+-  border-top-left-radius: 0 !important;
+-  border-top-right-radius: 0 !important;
+-}
+-.fenced-code-title {
+-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+-    "Liberation Mono", "Courier New", monospace;
+-  font-size: .8125rem;
+-  line-height: 1;
+-}
+-
+-.highlight-source-yml .atrule {
+-  color: var(--color-prettylights-syntax-entity);
+-}
+-.highlight-source-yml .string {
+-  color: var(--color-prettylights-syntax-string);
+-}
+-`;
+-
+-export const handler: Handlers = {
+-  GET: () => {
+-    return new Response(CSS, {
+-      headers: {
+-        "content-type": "text/css",
+-        "cache-control": "public, max-age=31536000, immutable",
+-      },
+-    });
+-  },
+-};
+diff --git a/www/static/markdown.css b/www/static/markdown.css
+new file mode 100644
+index 00000000000..c18fca41de5
+--- /dev/null
++++ b/www/static/markdown.css
+@@ -0,0 +1,752 @@
++:root {
++  --color-canvas-default-transparent: rgba(255, 255, 255, 0);
++  --color-prettylights-syntax-comment: #6e7781;
++  --color-prettylights-syntax-constant: #0550ae;
++  --color-prettylights-syntax-entity: #8250df;
++  --color-prettylights-syntax-storage-modifier-import: #24292f;
++  --color-prettylights-syntax-entity-tag: #116329;
++  --color-prettylights-syntax-keyword: #cf222e;
++  --color-prettylights-syntax-string: #0a3069;
++  --color-prettylights-syntax-variable: #953800;
++  --color-prettylights-syntax-string-regexp: #116329;
++  --color-prettylights-syntax-markup-deleted-text: #82071e;
++  --color-prettylights-syntax-markup-deleted-bg: #ffebe9;
++  --color-prettylights-syntax-markup-inserted-text: #116329;
++  --color-prettylights-syntax-markup-inserted-bg: #dafbe1;
++  --color-prettylights-syntax-constant-other-reference-link: #0a3069;
++  --color-fg-default: #24292f;
++  --color-fg-muted: #57606a;
++  --color-canvas-default: #fff;
++  --color-canvas-subtle: #f6f8fa;
++  --color-border-default: #d0d7de;
++  --color-border-muted: #d8dee4;
++  --color-neutral-muted: rgba(175, 184, 193, 0.2);
++  --color-accent-fg: #0969da;
++  --color-accent-emphasis: #0969da;
++  --color-danger-fg: #cf222e;
++}
++
++.markdown-body {
++  word-wrap: break-word;
++  font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Noto Sans, Helvetica,
++    Arial, sans-serif, Apple Color Emoji, Segoe UI Emoji;
++  font-size: 16px;
++  line-height: 1.5;
++}
++.markdown-body:before {
++  content: "";
++  display: table;
++}
++.markdown-body:after {
++  clear: both;
++  content: "";
++  display: table;
++}
++.markdown-body > :first-child {
++  margin-top: 0 !important;
++}
++.markdown-body > :last-child {
++  margin-bottom: 0 !important;
++}
++.markdown-body a:not([href]) {
++  color: inherit;
++  text-decoration: none;
++}
++.markdown-body .absent {
++  color: var(--color-danger-fg);
++}
++.markdown-body .anchor {
++  float: left;
++  margin-left: -20px;
++  padding-right: 4px;
++  line-height: 1;
++}
++.markdown-body .anchor:focus {
++  outline: none;
++}
++.markdown-body p,
++.markdown-body blockquote,
++.markdown-body ul,
++.markdown-body ol,
++.markdown-body dl,
++.markdown-body table,
++.markdown-body pre,
++.markdown-body details {
++  margin-top: 0;
++  margin-bottom: 16px;
++}
++.markdown-body hr {
++  height: 0.25em;
++  background-color: var(--color-border-default);
++  border: 0;
++  margin: 24px 0;
++  padding: 0;
++}
++.markdown-body blockquote {
++  color: var(--color-fg-muted);
++  border-left: 0.25em solid var(--color-border-default);
++  padding: 0 1em;
++}
++.markdown-body blockquote > :first-child {
++  margin-top: 0;
++}
++.markdown-body blockquote > :last-child {
++  margin-bottom: 0;
++}
++.markdown-body h1,
++.markdown-body h2,
++.markdown-body h3,
++.markdown-body h4,
++.markdown-body h5,
++.markdown-body h6 {
++  font-weight: var(--base-text-weight-semibold, 600);
++  margin-top: 24px;
++  margin-bottom: 16px;
++  line-height: 1.25;
++}
++.markdown-body h1 .octicon-link,
++.markdown-body h2 .octicon-link,
++.markdown-body h3 .octicon-link,
++.markdown-body h4 .octicon-link,
++.markdown-body h5 .octicon-link,
++.markdown-body h6 .octicon-link {
++  color: var(--color-fg-default);
++  vertical-align: middle;
++  visibility: hidden;
++}
++.markdown-body h1:hover .anchor,
++.markdown-body h2:hover .anchor,
++.markdown-body h3:hover .anchor,
++.markdown-body h4:hover .anchor,
++.markdown-body h5:hover .anchor,
++.markdown-body h6:hover .anchor {
++  text-decoration: none;
++}
++.markdown-body h1:hover .anchor .octicon-link,
++.markdown-body h2:hover .anchor .octicon-link,
++.markdown-body h3:hover .anchor .octicon-link,
++.markdown-body h4:hover .anchor .octicon-link,
++.markdown-body h5:hover .anchor .octicon-link,
++.markdown-body h6:hover .anchor .octicon-link {
++  visibility: visible;
++}
++.markdown-body h1 tt,
++.markdown-body h1 code,
++.markdown-body h2 tt,
++.markdown-body h2 code,
++.markdown-body h3 tt,
++.markdown-body h3 code,
++.markdown-body h4 tt,
++.markdown-body h4 code,
++.markdown-body h5 tt,
++.markdown-body h5 code,
++.markdown-body h6 tt,
++.markdown-body h6 code {
++  font-size: inherit;
++  padding: 0 0.2em;
++}
++.markdown-body h1 {
++  border-bottom: 1px solid var(--color-border-muted);
++  padding-bottom: 0.3em;
++  font-size: 2em;
++}
++.markdown-body h2 {
++  border-bottom: 1px solid var(--color-border-muted);
++  padding-bottom: 0.3em;
++  font-size: 1.5em;
++}
++.markdown-body h3 {
++  font-size: 1.25em;
++}
++.markdown-body h4 {
++  font-size: 1em;
++}
++.markdown-body h5 {
++  font-size: 0.875em;
++}
++.markdown-body h6 {
++  color: var(--color-fg-muted);
++  font-size: 0.85em;
++}
++.markdown-body summary h1,
++.markdown-body summary h2,
++.markdown-body summary h3,
++.markdown-body summary h4,
++.markdown-body summary h5,
++.markdown-body summary h6 {
++  display: inline-block;
++}
++.markdown-body summary h1 .anchor,
++.markdown-body summary h2 .anchor,
++.markdown-body summary h3 .anchor,
++.markdown-body summary h4 .anchor,
++.markdown-body summary h5 .anchor,
++.markdown-body summary h6 .anchor {
++  margin-left: -40px;
++}
++.markdown-body summary h1,
++.markdown-body summary h2 {
++  border-bottom: 0;
++  padding-bottom: 0;
++}
++.markdown-body ul,
++.markdown-body ol {
++  padding-left: 2em;
++}
++.markdown-body ul.no-list,
++.markdown-body ol.no-list {
++  padding: 0;
++  list-style-type: none;
++}
++.markdown-body ol[type="a"] {
++  list-style-type: lower-alpha;
++}
++.markdown-body ol[type="A"] {
++  list-style-type: upper-alpha;
++}
++.markdown-body ol[type="i"] {
++  list-style-type: lower-roman;
++}
++.markdown-body ol[type="I"] {
++  list-style-type: upper-roman;
++}
++.markdown-body ol[type="1"] {
++  list-style-type: decimal;
++}
++.markdown-body div > ol:not([type]) {
++  list-style-type: decimal;
++}
++.markdown-body ul ul,
++.markdown-body ul ol,
++.markdown-body ol ol,
++.markdown-body ol ul {
++  margin-top: 0;
++  margin-bottom: 0;
++}
++.markdown-body li > p {
++  margin-top: 16px;
++}
++.markdown-body li + li {
++  margin-top: 0.25em;
++}
++.markdown-body dl {
++  padding: 0;
++}
++.markdown-body dl dt {
++  font-size: 1em;
++  font-style: italic;
++  font-weight: var(--base-text-weight-semibold, 600);
++  margin-top: 16px;
++  padding: 0;
++}
++.markdown-body dl dd {
++  margin-bottom: 16px;
++  padding: 0 16px;
++}
++.markdown-body table {
++  width: 100%;
++  width: -webkit-max-content;
++  width: -webkit-max-content;
++  width: max-content;
++  max-width: 100%;
++  display: block;
++  overflow: auto;
++}
++.markdown-body table th {
++  font-weight: var(--base-text-weight-semibold, 600);
++}
++.markdown-body table th,
++.markdown-body table td {
++  border: 1px solid var(--color-border-default);
++  padding: 6px 13px;
++}
++.markdown-body table td > :last-child {
++  margin-bottom: 0;
++}
++.markdown-body table tr {
++  background-color: var(--color-canvas-default);
++  border-top: 1px solid var(--color-border-muted);
++}
++.markdown-body table tr:nth-child(2n) {
++  background-color: var(--color-canvas-subtle);
++}
++.markdown-body table img {
++  background-color: transparent;
++}
++.markdown-body img {
++  max-width: 100%;
++  box-sizing: content-box;
++  background-color: var(--color-canvas-default);
++}
++.markdown-body img[align="right"] {
++  padding-left: 20px;
++}
++.markdown-body img[align="left"] {
++  padding-right: 20px;
++}
++.markdown-body .emoji {
++  max-width: none;
++  vertical-align: text-top;
++  background-color: transparent;
++}
++.markdown-body span.frame {
++  display: block;
++  overflow: hidden;
++}
++.markdown-body span.frame > span {
++  float: left;
++  width: auto;
++  border: 1px solid var(--color-border-default);
++  margin: 13px 0 0;
++  padding: 7px;
++  display: block;
++  overflow: hidden;
++}
++.markdown-body span.frame span img {
++  float: left;
++  display: block;
++}
++.markdown-body span.frame span span {
++  clear: both;
++  color: var(--color-fg-default);
++  padding: 5px 0 0;
++  display: block;
++}
++.markdown-body span.align-center {
++  clear: both;
++  display: block;
++  overflow: hidden;
++}
++.markdown-body span.align-center > span {
++  text-align: center;
++  margin: 13px auto 0;
++  display: block;
++  overflow: hidden;
++}
++.markdown-body span.align-center span img {
++  text-align: center;
++  margin: 0 auto;
++}
++.markdown-body span.align-right {
++  clear: both;
++  display: block;
++  overflow: hidden;
++}
++.markdown-body span.align-right > span {
++  text-align: right;
++  margin: 13px 0 0;
++  display: block;
++  overflow: hidden;
++}
++.markdown-body span.align-right span img {
++  text-align: right;
++  margin: 0;
++}
++.markdown-body span.float-left {
++  float: left;
++  margin-right: 13px;
++  display: block;
++  overflow: hidden;
++}
++.markdown-body span.float-left span {
++  margin: 13px 0 0;
++}
++.markdown-body span.float-right {
++  float: right;
++  margin-left: 13px;
++  display: block;
++  overflow: hidden;
++}
++.markdown-body span.float-right > span {
++  text-align: right;
++  margin: 13px auto 0;
++  display: block;
++  overflow: hidden;
++}
++.markdown-body code,
++.markdown-body tt {
++  white-space: break-spaces;
++  background-color: var(--color-neutral-muted);
++  border-radius: 6px;
++  margin: 0;
++  padding: 0.2em 0.4em;
++  font-size: 85%;
++}
++.markdown-body code br,
++.markdown-body tt br {
++  display: none;
++}
++.markdown-body del code {
++  -webkit-text-decoration: inherit;
++  -webkit-text-decoration: inherit;
++  text-decoration: inherit;
++}
++.markdown-body samp {
++  font-size: 85%;
++}
++.markdown-body pre {
++  word-wrap: normal;
++}
++.markdown-body pre code {
++  font-size: 100%;
++}
++.markdown-body pre > code {
++  word-break: normal;
++  white-space: pre;
++  background: 0 0;
++  border: 0;
++  margin: 0;
++  padding: 0;
++}
++.markdown-body .highlight {
++  margin-bottom: 16px;
++}
++.markdown-body .highlight pre {
++  word-break: normal;
++  margin-bottom: 0;
++}
++.markdown-body .highlight pre,
++.markdown-body pre {
++  background-color: var(--color-canvas-subtle);
++  border-radius: 6px;
++  padding: 16px;
++  font-size: 85%;
++  line-height: 1.45;
++  overflow: auto;
++}
++.markdown-body pre code,
++.markdown-body pre tt {
++  max-width: auto;
++  line-height: inherit;
++  word-wrap: normal;
++  background-color: transparent;
++  border: 0;
++  margin: 0;
++  padding: 0;
++  display: inline;
++  overflow: visible;
++}
++.markdown-body .csv-data td,
++.markdown-body .csv-data th {
++  text-align: left;
++  white-space: nowrap;
++  padding: 5px;
++  font-size: 12px;
++  line-height: 1;
++  overflow: hidden;
++}
++.markdown-body .csv-data .blob-num {
++  text-align: right;
++  background: var(--color-canvas-default);
++  border: 0;
++  padding: 10px 8px 9px;
++}
++.markdown-body .csv-data tr {
++  border-top: 0;
++}
++.markdown-body .csv-data th {
++  font-weight: var(--base-text-weight-semibold, 600);
++  background: var(--color-canvas-subtle);
++  border-top: 0;
++}
++.markdown-body [data-footnote-ref]:before {
++  content: "[";
++}
++.markdown-body [data-footnote-ref]:after {
++  content: "]";
++}
++.markdown-body .footnotes {
++  color: var(--color-fg-muted);
++  border-top: 1px solid var(--color-border-default);
++  font-size: 12px;
++}
++.markdown-body .footnotes ol {
++  padding-left: 16px;
++}
++.markdown-body .footnotes ol ul {
++  margin-top: 16px;
++  padding-left: 16px;
++  display: inline-block;
++}
++.markdown-body .footnotes li {
++  position: relative;
++}
++.markdown-body .footnotes li:target:before {
++  pointer-events: none;
++  content: "";
++  border: 2px solid var(--color-accent-emphasis);
++  border-radius: 6px;
++  position: absolute;
++  top: -8px;
++  bottom: -8px;
++  left: -24px;
++  right: -8px;
++}
++.markdown-body .footnotes li:target {
++  color: var(--color-fg-default);
++}
++.markdown-body .footnotes .data-footnote-backref g-emoji {
++  font-family: monospace;
++}
++.markdown-body {
++  background-color: var(--color-canvas-default);
++  color: var(--color-fg-default);
++}
++.markdown-body a {
++  color: var(--color-accent-fg);
++  text-decoration: none;
++}
++.markdown-body a:hover {
++  text-decoration: underline;
++}
++.markdown-body img[align="center"] {
++  margin: 0 auto;
++}
++.markdown-body iframe {
++  background-color: #fff;
++  border: 0;
++  margin-bottom: 16px;
++}
++.markdown-body svg.octicon {
++  fill: currentColor;
++}
++.markdown-body .anchor > .octicon {
++  display: inline;
++}
++.markdown-body figcaption {
++  text-align: center;
++  padding-top: 2px;
++}
++.markdown-body .highlight .token.keyword,
++.gfm-highlight .token.keyword {
++  color: var(--color-prettylights-syntax-keyword);
++}
++.markdown-body .highlight .token.tag .token.class-name,
++.markdown-body .highlight .token.tag .token.script .token.punctuation,
++.gfm-highlight .token.tag .token.class-name,
++.gfm-highlight .token.tag .token.script .token.punctuation {
++  color: var(--color-prettylights-syntax-storage-modifier-import);
++}
++.markdown-body .highlight .token.operator,
++.markdown-body .highlight .token.number,
++.markdown-body .highlight .token.boolean,
++.markdown-body .highlight .token.tag .token.punctuation,
++.markdown-body .highlight .token.tag .token.script .token.script-punctuation,
++.markdown-body .highlight .token.tag .token.attr-name,
++.gfm-highlight .token.operator,
++.gfm-highlight .token.number,
++.gfm-highlight .token.boolean,
++.gfm-highlight .token.tag .token.punctuation,
++.gfm-highlight .token.tag .token.script .token.script-punctuation,
++.gfm-highlight .token.tag .token.attr-name {
++  color: var(--color-prettylights-syntax-constant);
++}
++.markdown-body .highlight .token.function,
++.gfm-highlight .token.function {
++  color: var(--color-prettylights-syntax-entity);
++}
++.markdown-body .highlight .token.string,
++.gfm-highlight .token.string {
++  color: var(--color-prettylights-syntax-string);
++}
++.markdown-body .highlight .token.comment,
++.gfm-highlight .token.comment {
++  color: var(--color-prettylights-syntax-comment);
++}
++.markdown-body .highlight .token.class-name,
++.gfm-highlight .token.class-name {
++  color: var(--color-prettylights-syntax-variable);
++}
++.markdown-body .highlight .token.regex,
++.gfm-highlight .token.regex {
++  color: var(--color-prettylights-syntax-string);
++}
++.markdown-body .highlight .token.regex .regex-delimiter,
++.gfm-highlight .token.regex .regex-delimiter {
++  color: var(--color-prettylights-syntax-constant);
++}
++.markdown-body .highlight .token.tag .token.tag,
++.markdown-body .highlight .token.property,
++.gfm-highlight .token.tag .token.tag,
++.gfm-highlight .token.property {
++  color: var(--color-prettylights-syntax-entity-tag);
++}
++.markdown-body .highlight .token.deleted,
++.gfm-highlight .token.deleted {
++  color: var(--color-prettylights-syntax-markup-deleted-text);
++  background-color: var(--color-prettylights-syntax-markup-deleted-bg);
++}
++.markdown-body .highlight .token.inserted,
++.gfm-highlight .token.inserted {
++  color: var(--color-prettylights-syntax-markup-inserted-text);
++  background-color: var(--color-prettylights-syntax-markup-inserted-bg);
++}
++
++.markdown-body h1,
++.markdown-body h2,
++.markdown-body h3,
++.markdown-body h4,
++.markdown-body h5,
++.markdown-body h6,
++.markdown-body ul,
++.markdown-body ol,
++.markdown-body p,
++.markdown-body details,
++.markdown-body blockquote {
++  margin-left: 1rem;
++  margin-right: 1rem;
++}
++
++.markdown-body blockquote p {
++  margin-left: 0;
++}
++
++.markdown-body .admonition {
++  padding: 1rem;
++}
++.markdown-body .admonition-header {
++  font-weight: bold;
++  display: flex;
++  align-items: center;
++  font-size: 1rem;
++  padding-bottom: 0.5rem;
++}
++.markdown-body .admonition .icon {
++  display: inline-flex;
++  margin-right: 0.25rem;
++  width: 1.2em;
++  height: 1.2em;
++}
++.markdown-body blockquote.warn {
++  border-color: #ff9100;
++  background: #f0900525;
++}
++
++.markdown-body .admonition .fenced-code {
++  margin-left: 0;
++  margin-right: 0;
++  border: 1px solid #d9d2d2;
++  border-radius: 0.5rem 0.5rem 0.25rem 0.25rem;
++}
++
++.markdown-body .admonition .highlight {
++  margin-bottom: 0;
++}
++
++.markdown-body .admonition.tip .admonition-header {
++  color: rgb(0, 148, 0);
++}
++.markdown-body .admonition.tip {
++  background-color: rgb(230, 246, 230);
++  border-color: rgb(0, 148, 0);
++}
++.markdown-body .admonition.info .admonition-header {
++  color: rgb(25 146 184);
++}
++.markdown-body .admonition.info {
++  background-color: rgb(238, 249, 253);
++  border-color: rgb(25 146 184);
++}
++.markdown-body .admonition.warn .admonition-header {
++  color: #dd6f04;
++}
++.markdown-body .admonition.warn {
++  background-color: #f0900525;
++  border-color: #ff9100;
++}
++
++@media screen and (min-width: 768px) {
++  .markdown-body .fenced-code,
++  .markdown-body table {
++    margin-left: 1rem;
++    margin-right: 1rem;
++  }
++
++  .markdown-body details .fenced-code {
++    margin-left: 0;
++    margin-right: 0;
++  }
++}
++
++ol.nested {
++  counter-reset: item;
++}
++
++ol.nested li {
++  display: block;
++}
++
++ol.nested li:before {
++  font-feature-settings: "kern" 1, "tnum" 1;
++  -webkit-font-feature-settings: "kern" 1, "tnum" 1;
++  -ms-font-feature-settings: "kern" 1, "tnum" 1;
++  -moz-font-feature-settings: "kern" 1, "tnum" 1;
++  content: counters(item, ".") ". ";
++  counter-increment: item;
++}
++
++.markdown-body ul {
++  list-style: disc;
++}
++
++.markdown-body ol {
++  list-style: numeric;
++}
++
++.markdown-body .md-anchor {
++  color: inherit;
++  text-decoration: none !important;
++}
++.markdown-body .md-anchor span {
++  color: var(--color-accent-fg);
++  display: inline-block;
++  margin-left: 0.25rem;
++  opacity: 0;
++  visibility: hidden;
++}
++.markdown-body .md-anchor:hover span {
++  opacity: 1;
++  visibility: visible;
++}
++
++.markdown-body .highlight {
++  border: 1px solid #eaeef1;
++  border-radius: 0.5rem;
++}
++
++.toggle:checked + .toggled {
++  display: block;
++}
++
++.fenced-code {
++  margin-bottom: 1rem;
++}
++.fenced-code pre {
++  margin-bottom: 0;
++}
++.fenced-code-header {
++  border-top-left-radius: 0.5rem;
++  border-top-right-radius: 0.5rem;
++  padding: 0.5rem;
++  background: #eaeef1;
++  display: flex;
++  align-items: center;
++  justify-content: space-between;
++}
++.fenced-code-header + pre {
++  border-top-left-radius: 0 !important;
++  border-top-right-radius: 0 !important;
++}
++.fenced-code-title {
++  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
++    "Liberation Mono", "Courier New", monospace;
++  font-size: 0.8125rem;
++  line-height: 1;
++}
++
++.highlight-source-yml .atrule {
++  color: var(--color-prettylights-syntax-entity);
++}
++.highlight-source-yml .string {
++  color: var(--color-prettylights-syntax-string);
++}
+diff --git a/www/utils/markdown.ts b/www/utils/markdown.ts
+index 64f587049c6..5136f5fa233 100644
+--- a/www/utils/markdown.ts
++++ b/www/utils/markdown.ts
+@@ -1,4 +1,3 @@
+-export * as gfm from "https://deno.land/x/gfm@0.2.5/mod.ts";
+ import "https://esm.sh/prismjs@1.29.0/components/prism-jsx.js?no-check";
+ import "https://esm.sh/prismjs@1.29.0/components/prism-typescript.js?no-check";
+ import "https://esm.sh/prismjs@1.29.0/components/prism-tsx.js?no-check";

@@ -1,0 +1,1889 @@
+diff --git a/.vscode/import_map.json b/.vscode/import_map.json
+index b3854afd917..dae2d6771a7 100644
+--- a/.vscode/import_map.json
++++ b/.vscode/import_map.json
+@@ -6,13 +6,13 @@
+     "$fresh/": "../",
+     "twind": "https://esm.sh/twind@0.16.19",
+     "twind/": "https://esm.sh/twind@0.16.19/",
+-    "preact": "https://esm.sh/preact@10.18.1",
+-    "preact/": "https://esm.sh/preact@10.18.1/",
+-    "@preact/signals": "https://esm.sh/*@preact/signals@1.2.1",
+-    "@preact/signals-core": "https://esm.sh/@preact/signals-core@1.5.0",
++    "preact": "https://esm.sh/preact@10.19.6",
++    "preact/": "https://esm.sh/preact@10.19.6/",
++    "@preact/signals": "https://esm.sh/*@preact/signals@1.2.2",
++    "@preact/signals-core": "https://esm.sh/@preact/signals-core@1.5.1",
+     "@preact/signals-core@1.2.3": "https://esm.sh/@preact/signals-core@1.2.3",
+     "@preact/signals-core@1.3.0": "https://esm.sh/@preact/signals-core@1.3.0",
+-    "$std/": "https://deno.land/std@0.211.0/",
++    "$std/": "https://deno.land/std@0.216.0/",
+     "$ga4": "https://raw.githubusercontent.com/denoland/ga4/main/mod.ts",
+     "$marked-mangle": "https://esm.sh/marked-mangle@1.0.1",
+     "$fresh-testing-library": "https://deno.land/x/fresh_testing_library@0.11.1/mod.ts",
+diff --git a/demo/deno.json b/demo/deno.json
+index bb20667989b..e9038f24776 100644
+--- a/demo/deno.json
++++ b/demo/deno.json
+@@ -5,10 +5,10 @@
+   },
+   "imports": {
+     "$fresh/": "../",
+-    "preact": "https://esm.sh/preact@10.15.1",
+-    "preact/": "https://esm.sh/preact@10.15.1/",
+-    "@preact/signals": "https://esm.sh/*@preact/signals@1.1.3",
+-    "@preact/signals-core": "https://esm.sh/@preact/signals-core@1.2.3"
++    "preact": "https://esm.sh/preact@10.19.6",
++    "preact/": "https://esm.sh/preact@10.19.6/",
++    "@preact/signals": "https://esm.sh/*@preact/signals@1.2.2",
++    "@preact/signals-core": "https://esm.sh/@preact/signals-core@1.5.1"
+   },
+   "compilerOptions": {
+     "jsx": "react-jsx",
+diff --git a/docs/latest/concepts/plugins.md b/docs/latest/concepts/plugins.md
+index bef0e8d4543..e0f8c1e1357 100644
+--- a/docs/latest/concepts/plugins.md
++++ b/docs/latest/concepts/plugins.md
+@@ -33,8 +33,7 @@ this does not matter, but for some plugins it may.
+ ## Creating a plugin
+ 
+ Fresh plugins are in essence a collection of hooks that allow the plugin to hook
+-into various systems inside of Fresh. Currently only a `render` hook is
+-available (explained below).
++into various systems inside of Fresh.
+ 
+ A Fresh plugin is just a JavaScript object that conforms to the
+ [Plugin](https://deno.land/x/fresh/server.ts?s=Plugin) interface. The only
+diff --git a/docs/latest/concepts/routing.md b/docs/latest/concepts/routing.md
+index 7aa73fe5a98..374c20bb38e 100644
+--- a/docs/latest/concepts/routing.md
++++ b/docs/latest/concepts/routing.md
+@@ -81,9 +81,9 @@ can only have one `_layout` file.
+ ```
+ 
+ We can solve this problem with route groups. A route group is a folder which has
+-a name that is wrapped in braces. For example `(pages)` would be considered a
+-route and so would be `(marketing)`. This enables us to group related routes in
+-a folder and use a different `_layout` file for each group.
++a name that is wrapped in parentheses. For example `(pages)` would be considered
++a route group and so would `(marketing)`. This enables us to group related
++routes in a folder and use a different `_layout` file for each group.
+ 
+ ```txt Project structure
+ └── routes
+diff --git a/docs/latest/examples/dealing-with-cors.md b/docs/latest/examples/dealing-with-cors.md
+index 4fec6ce6b95..17b24119110 100644
+--- a/docs/latest/examples/dealing-with-cors.md
++++ b/docs/latest/examples/dealing-with-cors.md
+@@ -47,18 +47,18 @@ deal with "preflight requests". Let's imagine you're trying to support a
+ ```ts routes/_middleware.ts
+ import { FreshContext } from "$fresh/server.ts";
+ 
+-export async function handler(_req: Request, ctx: FreshContext) {
+-  if (_req.method == "OPTIONS") {
++export async function handler(req: Request, ctx: FreshContext) {
++  if (req.method == "OPTIONS") {
+     const resp = new Response(null, {
+       status: 204,
+     });
+-    const origin = _req.headers.get("Origin") || "*";
++    const origin = req.headers.get("Origin") || "*";
+     const headers = resp.headers;
+     headers.set("Access-Control-Allow-Origin", origin);
+     headers.set("Access-Control-Allow-Methods", "DELETE");
+     return resp;
+   }
+-  const origin = _req.headers.get("Origin") || "*";
++  const origin = req.headers.get("Origin") || "*";
+   const resp = await ctx.next();
+   const headers = resp.headers;
+ 
+diff --git a/docs/latest/examples/migrating-to-tailwind.md b/docs/latest/examples/migrating-to-tailwind.md
+index e4ac0854d27..15f9cbfdc48 100644
+--- a/docs/latest/examples/migrating-to-tailwind.md
++++ b/docs/latest/examples/migrating-to-tailwind.md
+@@ -83,8 +83,8 @@ export default {
+ +   "nodeModulesDir": true,
+     "imports": {
+       "$fresh/": "https://deno.land/x/fresh@1.5.2/",
+-      "preact": "https://esm.sh/preact@10.19.2",
+-      "preact/": "https://esm.sh/preact@10.19.2/",
++      "preact": "https://esm.sh/preact@10.19.6",
++      "preact/": "https://esm.sh/preact@10.19.6/",
+ -     "twind": "https://esm.sh/twind@0.16.19",
+ -     "twind/": "https://esm.sh/twind@0.16.19/",
+ +     "tailwindcss": "npm:tailwindcss@3.4.1",
+diff --git a/docs/latest/examples/rendering-raw-html.md b/docs/latest/examples/rendering-raw-html.md
+new file mode 100644
+index 00000000000..d03f9a1025e
+--- /dev/null
++++ b/docs/latest/examples/rendering-raw-html.md
+@@ -0,0 +1,83 @@
++---
++description: |
++  How to render raw HTML in Fresh.
++---
++
++Text content in Fresh is always escaped, whether serverside rendered or rendered
++in islands. While this generally desired, it can create issues in certain
++situations.
++
++## Warning
++
++The TL;DR is to use Preact's `dangerouslySetInnerHTML`. As the name implies, it
++should not be used lightly.
++
++Setting arbitrary HTML can be dangerous. Make sure you trust the source.
++Rendering user-supplied HTML to the DOM makes your site vulnerable to cross-
++site scripting. The markup must first be sanitizied, or better yet, something
++you trust.
++
++## Example: Rendering JSON-LD
++
++Suppose we need to add some microdata markup to a page. The following will
++result in **escaped characters, and will not work**:
++
++```tsx
++const json = `
++{
++  "@context": "http://schema.org",
++  "@type": "PostalAddress",
++  "streetAddress": "8888 University Drive",
++  "addressLocality": "Burnaby",
++  "addressRegion": "British Columbia"
++}
++`;
++
++export default function JsonLd() {
++  return <script type="application/ld+json">{json}</script>;
++}
++```
++
++Instead, we can use `dangerouslySetInnerHTML`:
++
++```tsx
++export default function JsonLd() {
++  return (
++    <script
++      type="application/ld+json"
++      dangerouslySetInnerHTML={{ __html: json }}
++    />
++  );
++}
++```
++
++## Another example: Code highlighting
++
++Syntax highlighters parse strings into HTML tags, allowing them to be
++individually styled with CSS. We can build a simple Preact syntax highlighter
++like so:
++
++```tsx
++import Prism from "https://esm.sh/prismjs@1.29.0";
++
++interface Props {
++  code: string;
++  lang: string;
++}
++
++export default function Code({ code, lang }: Props) {
++  const parsed = Prism.highlight(code, Prism.languages[lang], lang);
++
++  return (
++    <pre data-lang={lang} className={`language-${lang}`}>
++      <code
++        dangerouslySetInnerHTML={{
++          __html: parsed,
++        }}
++      />
++    </pre>
++  );
++}
++```
++
++Of course, we will also have to add some CSS to make this look nice.
+diff --git a/docs/latest/examples/using-fresh-canary-version.md b/docs/latest/examples/using-fresh-canary-version.md
+index 99815d59a56..409939bb792 100644
+--- a/docs/latest/examples/using-fresh-canary-version.md
++++ b/docs/latest/examples/using-fresh-canary-version.md
+@@ -22,8 +22,8 @@ instead this one particular commit? Just make the following changes to your
+    "imports": {
+ -    "$fresh/": "https://deno.land/x/fresh@1.2.0/",
+ +    "$fresh/": "https://raw.githubusercontent.com/denoland/fresh/the-particular-commit-hash-here/",
+-     "preact": "https://esm.sh/preact@10.15.1",
+-     "preact/": "https://esm.sh/preact@10.15.1/",
++     "preact": "https://esm.sh/preact@10.19.6",
++     "preact/": "https://esm.sh/preact@10.19.6/",
+ ```
+ 
+ ### Forked Fresh
+@@ -39,8 +39,8 @@ been merged yet (at the time of writing this):
+    "imports": {
+ -    "$fresh/": "https://deno.land/x/fresh@1.2.0/",
+ +    "$fresh/": "https://raw.githubusercontent.com/deer/fresh/state_in_props/",
+-     "preact": "https://esm.sh/preact@10.15.1",
+-     "preact/": "https://esm.sh/preact@10.15.1/",
++     "preact": "https://esm.sh/preact@10.19.6",
++     "preact/": "https://esm.sh/preact@10.19.6/",
+ ```
+ 
+ ## Creating a new project
+diff --git a/docs/toc.ts b/docs/toc.ts
+index a254c412cca..609f2b118ef 100644
+--- a/docs/toc.ts
++++ b/docs/toc.ts
+@@ -90,6 +90,7 @@ const toc: RawTableOfContents = {
+           ["creating-a-crud-api", "Creating a CRUD API", "link:latest"],
+           ["handling-complex-routes", "Handling complex routes", "link:latest"],
+           ["rendering-markdown", "Rendering markdown", "link:latest"],
++          ["rendering-raw-html", "Rendering raw HTML", "link:latest"],
+           [
+             "sharing-state-between-islands",
+             "Sharing state between islands",
+@@ -160,6 +161,7 @@ const toc: RawTableOfContents = {
+           ["creating-a-crud-api", "Creating a CRUD API"],
+           ["handling-complex-routes", "Handling complex routes"],
+           ["rendering-markdown", "Rendering markdown"],
++          ["rendering-raw-html", "Rendering raw HTML"],
+           ["sharing-state-between-islands", "Sharing state between islands"],
+           ["using-csp", "Using CSP"],
+           ["active-links", "Styling active links"],
+diff --git a/plugins/tailwind.ts b/plugins/tailwind.ts
+index 8383d7debed..8668bbace77 100644
+--- a/plugins/tailwind.ts
++++ b/plugins/tailwind.ts
+@@ -1,7 +1,7 @@
+ import { Plugin, PluginMiddleware, ResolvedFreshConfig } from "../server.ts";
+-import type postcss from "npm:postcss@8.4.33";
+-import * as path from "https://deno.land/std@0.207.0/path/mod.ts";
+-import { walk } from "https://deno.land/std@0.207.0/fs/walk.ts";
++import type postcss from "npm:postcss@8.4.35";
++import * as path from "https://deno.land/std@0.216.0/path/mod.ts";
++import { walk } from "https://deno.land/std@0.216.0/fs/walk.ts";
+ import { TailwindPluginOptions } from "./tailwind/types.ts";
+ 
+ async function initTailwind(
+diff --git a/plugins/tailwind/compiler.ts b/plugins/tailwind/compiler.ts
+index f75500def28..f1c08e1dd1d 100644
+--- a/plugins/tailwind/compiler.ts
++++ b/plugins/tailwind/compiler.ts
+@@ -1,9 +1,9 @@
+ import { ResolvedFreshConfig } from "../../server.ts";
+ import tailwindCss, { Config } from "tailwindcss";
+-import postcss from "npm:postcss@8.4.33";
++import postcss from "npm:postcss@8.4.35";
+ import cssnano from "npm:cssnano@6.0.3";
+ import autoprefixer from "npm:autoprefixer@10.4.17";
+-import * as path from "https://deno.land/std@0.207.0/path/mod.ts";
++import * as path from "https://deno.land/std@0.216.0/path/mod.ts";
+ import { TailwindPluginOptions } from "./types.ts";
+ 
+ const CONFIG_EXTENSIONS = ["ts", "js", "mjs"];
+diff --git a/src/build/deps.ts b/src/build/deps.ts
+index 8931a146e92..a23100149da 100644
+--- a/src/build/deps.ts
++++ b/src/build/deps.ts
+@@ -4,7 +4,7 @@ export {
+   join,
+   relative,
+   toFileUrl,
+-} from "https://deno.land/std@0.211.0/path/mod.ts";
+-export { escape as regexpEscape } from "https://deno.land/std@0.211.0/regexp/escape.ts";
+-export { denoPlugins } from "https://deno.land/x/esbuild_deno_loader@0.8.5/mod.ts";
+-export { assertEquals } from "https://deno.land/std@0.211.0/assert/mod.ts";
++} from "https://deno.land/std@0.216.0/path/mod.ts";
++export { escape as regexpEscape } from "https://deno.land/std@0.216.0/regexp/escape.ts";
++export { denoPlugins } from "jsr:@luca/esbuild-deno-loader@0.10.3";
++export { assertEquals } from "https://deno.land/std@0.216.0/assert/mod.ts";
+diff --git a/src/build/esbuild.ts b/src/build/esbuild.ts
+index 75cf74cef35..51e36e4b978 100644
+--- a/src/build/esbuild.ts
++++ b/src/build/esbuild.ts
+@@ -2,7 +2,7 @@ import {
+   type BuildOptions,
+   type OnLoadOptions,
+   type Plugin,
+-} from "https://deno.land/x/esbuild@v0.19.11/mod.js";
++} from "https://deno.land/x/esbuild@v0.20.2/mod.js";
+ import { denoPlugins, fromFileUrl, regexpEscape, relative } from "./deps.ts";
+ import { Builder, BuildSnapshot } from "./mod.ts";
+ 
+@@ -23,6 +23,30 @@ export interface EsbuildBuilderOptions {
+   basePath?: string;
+ }
+ 
++let esbuild: typeof import("https://deno.land/x/esbuild@v0.20.2/mod.js");
++
++export async function initializeEsbuild() {
++  esbuild =
++    // deno-lint-ignore no-deprecated-deno-api
++    Deno.run === undefined ||
++      Deno.env.get("FRESH_ESBUILD_LOADER") === "portable"
++      ? await import("https://deno.land/x/esbuild@v0.20.2/wasm.js")
++      : await import("https://deno.land/x/esbuild@v0.20.2/mod.js");
++  const esbuildWasmURL =
++    new URL("./esbuild_v0.20.2.wasm", import.meta.url).href;
++
++  // deno-lint-ignore no-deprecated-deno-api
++  if (Deno.run === undefined) {
++    await esbuild.initialize({
++      wasmURL: esbuildWasmURL,
++      worker: false,
++    });
++  } else {
++    await esbuild.initialize({});
++  }
++  return esbuild;
++}
++
+ export class EsbuildBuilder implements Builder {
+   #options: EsbuildBuilderOptions;
+ 
+@@ -34,25 +58,7 @@ export class EsbuildBuilder implements Builder {
+     const opts = this.#options;
+ 
+     // Lazily initialize esbuild
+-    // @deno-types="https://deno.land/x/esbuild@v0.19.4/mod.d.ts"
+-    const esbuild =
+-      // deno-lint-ignore no-deprecated-deno-api
+-      Deno.run === undefined ||
+-        Deno.env.get("FRESH_ESBUILD_LOADER") === "portable"
+-        ? await import("https://deno.land/x/esbuild@v0.19.11/wasm.js")
+-        : await import("https://deno.land/x/esbuild@v0.19.11/mod.js");
+-    const esbuildWasmURL =
+-      new URL("./esbuild_v0.19.11.wasm", import.meta.url).href;
+-
+-    // deno-lint-ignore no-deprecated-deno-api
+-    if (Deno.run === undefined) {
+-      await esbuild.initialize({
+-        wasmURL: esbuildWasmURL,
+-        worker: false,
+-      });
+-    } else {
+-      await esbuild.initialize({});
+-    }
++    const esbuild = await initializeEsbuild();
+ 
+     try {
+       const absWorkingDir = opts.absoluteWorkingDir;
+@@ -129,7 +135,7 @@ export class EsbuildBuilder implements Builder {
+ 
+       return new EsbuildSnapshot(files, dependencies);
+     } finally {
+-      esbuild.stop();
++      await esbuild.stop();
+     }
+   }
+ }
+diff --git a/src/build/esbuild_v0.19.11.wasm b/src/build/esbuild_v0.20.2.wasm
+similarity index 68%
+rename from src/build/esbuild_v0.19.11.wasm
+rename to src/build/esbuild_v0.20.2.wasm
+index 6b208de4df8..8ff72c225b2 100644
+Binary files a/src/build/esbuild_v0.19.11.wasm and b/src/build/esbuild_v0.20.2.wasm differ
+diff --git a/src/dev/deps.ts b/src/dev/deps.ts
+index 8370454adcb..707aad328e8 100644
+--- a/src/dev/deps.ts
++++ b/src/dev/deps.ts
+@@ -7,26 +7,26 @@ export {
+   join,
+   relative,
+   resolve,
+-  SEP,
++  SEPARATOR,
+   toFileUrl,
+-} from "https://deno.land/std@0.211.0/path/mod.ts";
+-export { normalize } from "https://deno.land/std@0.211.0/path/posix/mod.ts";
+-export { DAY, WEEK } from "https://deno.land/std@0.211.0/datetime/constants.ts";
+-export * as colors from "https://deno.land/std@0.211.0/fmt/colors.ts";
++} from "https://deno.land/std@0.216.0/path/mod.ts";
++export { normalize } from "https://deno.land/std@0.216.0/path/posix/mod.ts";
++export { DAY, WEEK } from "https://deno.land/std@0.216.0/datetime/constants.ts";
++export * as colors from "https://deno.land/std@0.216.0/fmt/colors.ts";
+ export {
+   walk,
+   type WalkEntry,
+   WalkError,
+-} from "https://deno.land/std@0.211.0/fs/walk.ts";
+-export { parse } from "https://deno.land/std@0.211.0/flags/mod.ts";
++} from "https://deno.land/std@0.216.0/fs/walk.ts";
++export { parse } from "https://deno.land/std@0.216.0/flags/mod.ts";
+ export {
+-  gte,
+-  lt,
++  greaterOrEqual,
++  lessThan,
+   parse as semverParse,
+-} from "https://deno.land/std@0.211.0/semver/mod.ts";
+-export { emptyDir, existsSync } from "https://deno.land/std@0.211.0/fs/mod.ts";
+-export * as JSONC from "https://deno.land/std@0.211.0/jsonc/mod.ts";
+-export { assertEquals } from "https://deno.land/std@0.211.0/assert/mod.ts";
++} from "https://deno.land/std@0.216.0/semver/mod.ts";
++export { emptyDir, existsSync } from "https://deno.land/std@0.216.0/fs/mod.ts";
++export * as JSONC from "https://deno.land/std@0.216.0/jsonc/mod.ts";
++export { assertEquals } from "https://deno.land/std@0.216.0/assert/mod.ts";
+ 
+ // ts-morph
+-export { Node, Project } from "https://deno.land/x/ts_morph@20.0.0/mod.ts";
++export { Node, Project } from "https://deno.land/x/ts_morph@21.0.1/mod.ts";
+diff --git a/src/dev/imports.ts b/src/dev/imports.ts
+index 14689364cc2..e1eeb09f27f 100644
+--- a/src/dev/imports.ts
++++ b/src/dev/imports.ts
+@@ -1,10 +1,10 @@
+-export const RECOMMENDED_PREACT_VERSION = "10.19.2";
+-export const RECOMMENDED_PREACT_SIGNALS_VERSION = "1.2.1";
+-export const RECOMMENDED_PREACT_SIGNALS_CORE_VERSION = "1.5.0";
++export const RECOMMENDED_PREACT_VERSION = "10.19.6";
++export const RECOMMENDED_PREACT_SIGNALS_VERSION = "1.2.2";
++export const RECOMMENDED_PREACT_SIGNALS_CORE_VERSION = "1.5.1";
+ export const RECOMMENDED_TWIND_CORE_VERSION = "1.1.3";
+ export const RECOMMENDED_TWIND_PRESET_AUTOPREFIX_VERSION = "1.0.7";
+ export const RECOMMENDED_TWIND_PRESET_TAILWIND_VERSION = "1.1.4";
+-export const RECOMMENDED_STD_VERSION = "0.211.0";
++export const RECOMMENDED_STD_VERSION = "0.216.0";
+ export const RECOMMENDED_TAILIWIND_VERSION = "3.4.1";
+ 
+ export function freshImports(imports: Record<string, string>) {
+diff --git a/src/dev/mod.ts b/src/dev/mod.ts
+index 68fc6a85364..d2d47bb3624 100644
+--- a/src/dev/mod.ts
++++ b/src/dev/mod.ts
+@@ -1,4 +1,11 @@
+-import { gte, join, relative, semverParse, walk, WalkEntry } from "./deps.ts";
++import {
++  greaterOrEqual,
++  join,
++  relative,
++  semverParse,
++  walk,
++  WalkEntry,
++} from "./deps.ts";
+ export { generate, type Manifest } from "./manifest.ts";
+ import { generate, type Manifest } from "./manifest.ts";
+ import { error } from "./error.ts";
+@@ -7,7 +14,12 @@ const TEST_FILE_PATTERN = /[._]test\.(?:[tj]sx?|[mc][tj]s)$/;
+ 
+ export function ensureMinDenoVersion() {
+   // Check that the minimum supported Deno version is being used.
+-  if (!gte(semverParse(Deno.version.deno), semverParse(MIN_DENO_VERSION))) {
++  if (
++    !greaterOrEqual(
++      semverParse(Deno.version.deno),
++      semverParse(MIN_DENO_VERSION),
++    )
++  ) {
+     let message =
+       `Deno version ${MIN_DENO_VERSION} or higher is required. Please update Deno.\n\n`;
+ 
+diff --git a/src/dev/update_check.ts b/src/dev/update_check.ts
+index b59c0b0f727..a20cf23e78e 100644
+--- a/src/dev/update_check.ts
++++ b/src/dev/update_check.ts
+@@ -1,4 +1,4 @@
+-import { colors, join, lt, semverParse } from "./deps.ts";
++import { colors, join, lessThan, semverParse } from "./deps.ts";
+ 
+ export interface CheckFile {
+   last_checked: string;
+@@ -118,7 +118,7 @@ export async function updateCheck(
+   if (
+     (!checkFile.last_shown ||
+       Date.now() >= new Date(checkFile.last_shown).getTime() + interval) &&
+-    lt(currentVersion, latestVersion)
++    lessThan(currentVersion, latestVersion)
+   ) {
+     checkFile.last_shown = new Date().toISOString();
+ 
+diff --git a/src/server/boot.ts b/src/server/boot.ts
+index c94af6c9036..7b2b84f9aba 100644
+--- a/src/server/boot.ts
++++ b/src/server/boot.ts
+@@ -9,8 +9,10 @@ export async function startServer(
+   if (!opts.onListen) {
+     opts.onListen = (params) => {
+       const pathname = opts.basePath + "/";
++      const https = !!(opts.key && opts.cert);
++      const protocol = https ? "https:" : "http:";
+       const address = colors.cyan(
+-        `http://localhost:${params.port}${pathname}`,
++        `${protocol}//localhost:${params.port}${pathname}`,
+       );
+       const localLabel = colors.bold("Local:");
+ 
+diff --git a/src/server/compose.ts b/src/server/compose.ts
+index cdf4ab5e0b9..ea62e40cb09 100644
+--- a/src/server/compose.ts
++++ b/src/server/compose.ts
+@@ -1,4 +1,4 @@
+-import { SEP } from "./deps.ts";
++import { SEPARATOR } from "./deps.ts";
+ import { ErrorHandler, FinalHandler, RouteResult, withBase } from "./router.ts";
+ import {
+   BaseRoute,
+@@ -10,7 +10,7 @@ import {
+ export const ROOT_BASE_ROUTE = toBaseRoute("/");
+ 
+ export function toBaseRoute(input: string): BaseRoute {
+-  input = input.replaceAll(SEP, "/");
++  input = input.replaceAll(SEPARATOR, "/");
+ 
+   if (input.endsWith("_layout")) {
+     input = input.slice(0, -"_layout".length);
+diff --git a/src/server/context.ts b/src/server/context.ts
+index 8bdcee4c2f6..72d1b2b4507 100644
+--- a/src/server/context.ts
++++ b/src/server/context.ts
+@@ -1,4 +1,4 @@
+-import { contentType, extname, SEP, STATUS_CODE } from "./deps.ts";
++import { contentType, extname, SEPARATOR, STATUS_CODE } from "./deps.ts";
+ import * as router from "./router.ts";
+ import { FreshConfig, FreshContext, Manifest } from "./mod.ts";
+ import {
+@@ -44,7 +44,7 @@ import { loadAotSnapshot } from "../build/aot_snapshot.ts";
+ import { ErrorOverlay } from "./error_overlay.tsx";
+ import { withBase } from "./router.ts";
+ import { PARTIAL_SEARCH_PARAM } from "../constants.ts";
+-import TailwindErrorPage from "$fresh/src/server/tailwind_aot_error_page.tsx";
++import TailwindErrorPage from "./tailwind_aot_error_page.tsx";
+ 
+ const DEFAULT_CONN_INFO: ServeHandlerInfo = {
+   localAddr: { transport: "tcp", hostname: "localhost", port: 8080 },
+@@ -353,7 +353,7 @@ export class ServerContext {
+       const { localUrl, path, size, contentType, etag } of this.#extractResult
+         .staticFiles
+     ) {
+-      staticRoutes[path.replaceAll(SEP, "/")] = {
++      staticRoutes[path.replaceAll(SEPARATOR, "/")] = {
+         baseRoute: toBaseRoute(path),
+         methods: {
+           "HEAD": this.#staticFileHandler(
+@@ -785,10 +785,10 @@ function sendResponse(
+   },
+ ) {
+   const [body, uuid, csp] = resp;
+-  const headers: Record<string, string> = {
++  const headers: Headers = new Headers({
+     "content-type": "text/html; charset=utf-8",
+     "x-fresh-uuid": uuid,
+-  };
++  });
+ 
+   if (csp) {
+     if (options.isDev) {
+@@ -799,24 +799,25 @@ function sendResponse(
+     }
+     const directive = serializeCSPDirectives(csp.directives);
+     if (csp.reportOnly) {
+-      headers["content-security-policy-report-only"] = directive;
++      headers.set("content-security-policy-report-only", directive);
+     } else {
+-      headers["content-security-policy"] = directive;
++      headers.set("content-security-policy", directive);
+     }
+   }
+ 
+   if (options.headers) {
+     if (Array.isArray(options.headers)) {
+-      for (let i = 0; i < options.headers.length; i++) {
+-        const item = options.headers[i];
+-        headers[item[0]] = item[1];
++      for (const [key, value] of options.headers) {
++        headers.append(key, value);
+       }
+     } else if (options.headers instanceof Headers) {
+       options.headers.forEach((value, key) => {
+-        headers[key] = value;
++        headers.append(key, value);
+       });
+     } else {
+-      Object.assign(headers, options.headers);
++      for (const [key, value] of Object.entries(options.headers)) {
++        headers.append(key, value);
++      }
+     }
+   }
+ 
+diff --git a/src/server/deps.ts b/src/server/deps.ts
+index 12e5a3c7ba8..41d883cfa5b 100644
+--- a/src/server/deps.ts
++++ b/src/server/deps.ts
+@@ -6,30 +6,30 @@ export {
+   fromFileUrl,
+   isAbsolute,
+   join,
+-  SEP,
++  SEPARATOR,
+   toFileUrl,
+-} from "https://deno.land/std@0.211.0/path/mod.ts";
+-export { walk } from "https://deno.land/std@0.211.0/fs/walk.ts";
+-export * as colors from "https://deno.land/std@0.211.0/fmt/colors.ts";
++} from "https://deno.land/std@0.216.0/path/mod.ts";
++export { walk } from "https://deno.land/std@0.216.0/fs/walk.ts";
++export * as colors from "https://deno.land/std@0.216.0/fmt/colors.ts";
+ export {
+   type Handler as ServeHandler,
+   serve,
+-} from "https://deno.land/std@0.211.0/http/server.ts";
+-export { STATUS_CODE } from "https://deno.land/std@0.211.0/http/status.ts";
++} from "https://deno.land/std@0.216.0/http/server.ts";
++export { STATUS_CODE } from "https://deno.land/std@0.216.0/http/status.ts";
+ export {
+   contentType,
+-} from "https://deno.land/std@0.211.0/media_types/content_type.ts";
+-export { encodeHex } from "https://deno.land/std@0.211.0/encoding/hex.ts";
+-export { escape } from "https://deno.land/std@0.211.0/regexp/escape.ts";
+-export * as JSONC from "https://deno.land/std@0.211.0/jsonc/mod.ts";
++} from "https://deno.land/std@0.216.0/media_types/content_type.ts";
++export { encodeHex } from "https://deno.land/std@0.216.0/encoding/hex.ts";
++export { escape } from "https://deno.land/std@0.216.0/regexp/escape.ts";
++export * as JSONC from "https://deno.land/std@0.216.0/jsonc/mod.ts";
+ export { renderToString } from "https://esm.sh/*preact-render-to-string@6.3.1";
+ export {
+   assertEquals,
+   assertThrows,
+-} from "https://deno.land/std@0.211.0/assert/mod.ts";
++} from "https://deno.land/std@0.216.0/assert/mod.ts";
+ export {
+   isIdentifierChar,
+   isIdentifierStart,
+ } from "https://esm.sh/@babel/helper-validator-identifier@7.22.20";
+-export { normalize } from "https://deno.land/std@0.211.0/path/posix/mod.ts";
+-export { assertSnapshot } from "https://deno.land/std@0.211.0/testing/snapshot.ts";
++export { normalize } from "https://deno.land/std@0.216.0/path/posix/mod.ts";
++export { assertSnapshot } from "https://deno.land/std@0.216.0/testing/snapshot.ts";
+diff --git a/src/server/fs_extract.ts b/src/server/fs_extract.ts
+index ef32620a327..3a0cca339cf 100644
+--- a/src/server/fs_extract.ts
++++ b/src/server/fs_extract.ts
+@@ -26,7 +26,7 @@ import {
+   dirname,
+   extname,
+   join,
+-  SEP,
++  SEPARATOR,
+   toFileUrl,
+   walk,
+ } from "./deps.ts";
+@@ -111,7 +111,7 @@ export async function extractRoutes(
+     const path = url.substring(baseUrl.length + "routes".length);
+     let baseRoute = path.substring(1, path.length - extname(path).length);
+     baseRoute = join(state.config.basePath.slice(1), baseRoute).replaceAll(
+-      SEP,
++      SEPARATOR,
+       "/",
+     );
+     const name = baseRoute.replace(/\//g, "-");
+diff --git a/src/server/render.ts b/src/server/render.ts
+index 86a269c47a3..6feed668cf8 100644
+--- a/src/server/render.ts
++++ b/src/server/render.ts
+@@ -358,6 +358,7 @@ export async function render<Data>(
+     dependenciesFn: opts.dependenciesFn,
+     styles: ctx.styles,
+     pluginRenderResults: renderResults,
++    basePath,
+   });
+ 
+   // Append error overlay in dev mode
+diff --git a/src/server/rendering/fresh_tags.tsx b/src/server/rendering/fresh_tags.tsx
+index baad2a7d36d..07b3612c59e 100644
+--- a/src/server/rendering/fresh_tags.tsx
++++ b/src/server/rendering/fresh_tags.tsx
+@@ -23,6 +23,7 @@ export function renderFreshTags(
+     dependenciesFn: (path: string) => string[];
+     styles: string[];
+     pluginRenderResults: [Plugin, PluginRenderResult][];
++    basePath: string;
+   },
+ ) {
+   const { isPartial } = renderState;
+@@ -41,7 +42,7 @@ export function renderFreshTags(
+ 
+   const preloadSet = new Set<string>();
+   function addImport(path: string): string {
+-    const url = bundleAssetUrl(`/${path}`);
++    const url = opts.basePath + bundleAssetUrl(`/${path}`);
+     if (!isPartial) {
+       preloadSet.add(url);
+       for (const depPath of opts.dependenciesFn(path)) {
+@@ -170,7 +171,7 @@ export function renderFreshTags(
+     );
+     const nonce = renderState.csp ? ` nonce="${renderState.getNonce()}` : "";
+     opts.bodyHtml +=
+-      `<script id="__FRSH_PARTIAL_DATA_${renderState.renderUuid}" type="application/json"${nonce}">${escapedData}</script>`;
++      `<script id="__FRSH_PARTIAL_DATA_${renderState.renderUuid}" type="application/json"${nonce}>${escapedData}</script>`;
+   }
+   if (script !== "") {
+     opts.bodyHtml +=
+diff --git a/src/server/rendering/preact_hooks.ts b/src/server/rendering/preact_hooks.ts
+index 48266d87f0a..d935daddf33 100644
+--- a/src/server/rendering/preact_hooks.ts
++++ b/src/server/rendering/preact_hooks.ts
+@@ -11,7 +11,7 @@ import {
+ } from "preact";
+ import { assetHashingHook } from "../../runtime/utils.ts";
+ import { Partial, PartialProps } from "../../runtime/Partial.tsx";
+-import { join, renderToString, SEP } from "../deps.ts";
++import { join, renderToString, SEPARATOR } from "../deps.ts";
+ import { RenderState } from "./state.ts";
+ import { Island } from "../types.ts";
+ import {
+@@ -238,7 +238,7 @@ options.vnode = (vnode) => {
+ 
+         if (url.startsWith("/") && current?.basePath) {
+           const joinedPath = join("/", current.basePath, url).replaceAll(
+-            SEP,
++            SEPARATOR,
+             "/",
+           );
+           out.push(leading + joinedPath + trailing);
+diff --git a/src/server/rendering/template.tsx b/src/server/rendering/template.tsx
+index b8ce647f178..1755fc8c2e9 100644
+--- a/src/server/rendering/template.tsx
++++ b/src/server/rendering/template.tsx
+@@ -11,7 +11,7 @@ import {
+ } from "preact";
+ import { HEAD_CONTEXT } from "../../runtime/head.ts";
+ import { CSP_CONTEXT } from "../../runtime/csp.ts";
+-import { withBase } from "$fresh/src/server/router.ts";
++import { withBase } from "../router.ts";
+ 
+ export function renderHtml(state: RenderState) {
+   setRenderState(state);
+diff --git a/tests/base_path_test.ts b/tests/base_path_test.ts
+index 20533552250..76435c1496b 100644
+--- a/tests/base_path_test.ts
++++ b/tests/base_path_test.ts
+@@ -4,6 +4,8 @@ import {
+   assertMatch,
+   assertStringIncludes,
+   delay,
++  Page,
++  Project,
+   puppeteer,
+   STATUS_CODE,
+ } from "./deps.ts";
+@@ -150,6 +152,46 @@ Deno.test("island tests", async (t) => {
+   );
+ });
+ 
++Deno.test("assets prefixed dev", async (t) => {
++  await withPageName(
++    "./tests/fixture_base_path/dev.ts",
++    async (page, address) => {
++      await page.goto(`${address}/islands`);
++
++      await t.step("ensure every preload link is prefixed", async () => {
++        await checkPreloadLinks(page, "/foo/bar");
++      });
++
++      await t.step("ensure every script link is prefixed", async () => {
++        await checkScriptSrcs(page, "/foo/bar");
++      });
++
++      await t.step("ensure inline content is prefixed", async () => {
++        await checkInlineScripts(page, "/foo/bar");
++      });
++    },
++  );
++});
++
++Deno.test("assets prefixed main", async (t) => {
++  await withPageName(
++    "./tests/fixture_base_path/main.ts",
++    async (page, address) => {
++      await page.goto(`${address}/islands`);
++
++      await t.step("ensure every preload link is prefixed", async () => {
++        await checkPreloadLinks(page, "/foo/bar");
++      });
++
++      // no script sent out, because dev sends out dev_client.js
++
++      await t.step("ensure inline content is prefixed", async () => {
++        await checkInlineScripts(page, "/foo/bar");
++      });
++    },
++  );
++});
++
+ Deno.test("renders error boundary", async () => {
+   await withPageName(
+     "./tests/fixture_base_path/main.ts",
+@@ -247,3 +289,62 @@ Deno.test("TailwindCSS - middleware only css", async () => {
+     { loadConfig: true },
+   );
+ });
++
++function extractImportUrls(scriptContent: string): string[] {
++  const project = new Project({
++    useInMemoryFileSystem: true,
++  });
++
++  const sourceFile = project.createSourceFile("script.js", scriptContent);
++
++  const importDeclarations = sourceFile.getImportDeclarations();
++
++  return importDeclarations.map((importDeclaration) =>
++    importDeclaration.getModuleSpecifierValue()
++  );
++}
++
++async function checkPreloadLinks(page: Page, basePath: string) {
++  const preloadLinks: string[] = await page.$$eval(
++    'link[rel="modulepreload"]',
++    (links) => links.map((link) => link.getAttribute("href")),
++  );
++  assert(preloadLinks.length > 0, "No preload links found");
++  preloadLinks.forEach((href) => {
++    assert(
++      href.startsWith(basePath),
++      `Preload link ${href} does not include the correct base path`,
++    );
++  });
++}
++
++async function checkScriptSrcs(page: Page, basePath: string) {
++  const scriptSrcs: string[] = await page.$$eval(
++    "script[src]",
++    (scripts) => scripts.map((script) => script.getAttribute("src")),
++  );
++  assert(scriptSrcs.length > 0, "No script srcs found");
++  scriptSrcs.forEach((src) => {
++    assert(
++      src.startsWith(basePath),
++      `Script src ${src} does not include the correct base path`,
++    );
++  });
++}
++
++async function checkInlineScripts(page: Page, basePath: string) {
++  const inlineScripts = await page.$$eval(
++    "script:not([src])",
++    (scripts) => scripts.map((script) => script.textContent),
++  );
++  assert(inlineScripts.length > 0, "No inline scripts found");
++  inlineScripts.forEach((scriptContent) => {
++    const importUrls = extractImportUrls(scriptContent);
++    importUrls.forEach((url) => {
++      assert(
++        url.startsWith(basePath),
++        `Import URL ${url} does not include the correct base path`,
++      );
++    });
++  });
++}
+diff --git a/tests/deps.ts b/tests/deps.ts
+index 9d7199350cf..388537becd1 100644
+--- a/tests/deps.ts
++++ b/tests/deps.ts
+@@ -15,13 +15,13 @@ export {
+   assertRejects,
+   assertStringIncludes,
+   assertThrows,
+-} from "https://deno.land/std@0.211.0/assert/mod.ts";
+-export { assertSnapshot } from "https://deno.land/std@0.211.0/testing/snapshot.ts";
++} from "https://deno.land/std@0.216.0/assert/mod.ts";
++export { assertSnapshot } from "https://deno.land/std@0.216.0/testing/snapshot.ts";
+ export {
+   TextLineStream,
+-} from "https://deno.land/std@0.211.0/streams/text_line_stream.ts";
+-export { delay } from "https://deno.land/std@0.211.0/async/delay.ts";
+-export { retry } from "https://deno.land/std@0.211.0/async/retry.ts";
++} from "https://deno.land/std@0.216.0/streams/text_line_stream.ts";
++export { delay } from "https://deno.land/std@0.216.0/async/delay.ts";
++export { retry } from "https://deno.land/std@0.216.0/async/retry.ts";
+ export {
+   default as puppeteer,
+   Page,
+@@ -31,10 +31,10 @@ export {
+   DOMParser,
+   HTMLElement,
+   HTMLMetaElement,
+-} from "https://esm.sh/linkedom@0.15.1";
++} from "https://esm.sh/linkedom@0.16.8";
+ export { defineConfig, type Preset } from "https://esm.sh/@twind/core@1.1.3";
+ export { default as presetTailwind } from "https://esm.sh/@twind/preset-tailwind@1.1.4";
+-export { copy } from "https://deno.land/std@0.211.0/fs/mod.ts";
++export { copy } from "https://deno.land/std@0.216.0/fs/mod.ts";
+ export {
+   basename,
+   dirname,
+@@ -42,10 +42,11 @@ export {
+   fromFileUrl,
+   join,
+   relative,
+-  SEP,
++  SEPARATOR,
+   toFileUrl,
+-} from "https://deno.land/std@0.211.0/path/mod.ts";
+-export * as JSONC from "https://deno.land/std@0.211.0/jsonc/mod.ts";
+-export * as colors from "https://deno.land/std@0.211.0/fmt/colors.ts";
+-export { STATUS_CODE } from "https://deno.land/std@0.211.0/http/status.ts";
+-export { stripAnsiCode } from "https://deno.land/std@0.211.0/fmt/colors.ts";
++} from "https://deno.land/std@0.216.0/path/mod.ts";
++export * as JSONC from "https://deno.land/std@0.216.0/jsonc/mod.ts";
++export * as colors from "https://deno.land/std@0.216.0/fmt/colors.ts";
++export { STATUS_CODE } from "https://deno.land/std@0.216.0/http/status.ts";
++export { stripAnsiCode } from "https://deno.land/std@0.216.0/fmt/colors.ts";
++export { Project } from "https://deno.land/x/ts_morph@21.0.1/mod.ts";
+diff --git a/tests/fixture/deno.json b/tests/fixture/deno.json
+index 72ead789486..08d632a0647 100644
+--- a/tests/fixture/deno.json
++++ b/tests/fixture/deno.json
+@@ -2,8 +2,8 @@
+   "lock": false,
+   "imports": {
+     "$fresh/": "../../",
+-    "preact": "https://esm.sh/preact@10.15.1",
+-    "preact/": "https://esm.sh/preact@10.15.1/",
++    "preact": "https://esm.sh/preact@10.19.6",
++    "preact/": "https://esm.sh/preact@10.19.6/",
+     "@preact/signals": "https://esm.sh/*@preact/signals@1.1.5",
+     "@preact/signals-core": "https://esm.sh/@preact/signals-core@1.3.1"
+   },
+diff --git a/tests/fixture/routes/_middleware.ts b/tests/fixture/routes/_middleware.ts
+index 4c5a0749944..bb417a524ba 100644
+--- a/tests/fixture/routes/_middleware.ts
++++ b/tests/fixture/routes/_middleware.ts
+@@ -1,13 +1,13 @@
+ import { FreshContext, MiddlewareHandler } from "$fresh/server.ts";
+ 
+ // cors middleware
+-async function corsHandler(_req: Request, ctx: FreshContext) {
+-  if (_req.method == "OPTIONS") {
++async function corsHandler(req: Request, ctx: FreshContext) {
++  if (req.method == "OPTIONS") {
+     return new Response(null, {
+       status: 204,
+     });
+   }
+-  const origin = _req.headers.get("Origin") || "*";
++  const origin = req.headers.get("Origin") || "*";
+   const resp = await ctx.next();
+   const headers = resp.headers;
+ 
+diff --git a/tests/fixture/routes/ctx_config.tsx b/tests/fixture/routes/ctx_config.tsx
+index 01ee1339df3..0a570136126 100644
+--- a/tests/fixture/routes/ctx_config.tsx
++++ b/tests/fixture/routes/ctx_config.tsx
+@@ -1,10 +1,10 @@
+ import { defineRoute } from "$fresh/server.ts";
+-import { relative, SEP } from "$fresh/tests/deps.ts";
++import { relative, SEPARATOR } from "$fresh/tests/deps.ts";
+ 
+ export default defineRoute((_req, ctx) => {
+   const value = JSON.stringify(ctx, (key, value) => {
+     if (key === "outDir" || key == "staticDir") {
+-      return relative(Deno.cwd(), value).split(SEP).join("/");
++      return relative(Deno.cwd(), value).split(SEPARATOR).join("/");
+     }
+     if (typeof value === "function") return value.constructor.name;
+     if (value === undefined) return "<undefined>";
+diff --git a/tests/fixture/routes/ctx_config_props.tsx b/tests/fixture/routes/ctx_config_props.tsx
+index 5f06bae7567..e2b7c04f852 100644
+--- a/tests/fixture/routes/ctx_config_props.tsx
++++ b/tests/fixture/routes/ctx_config_props.tsx
+@@ -1,10 +1,10 @@
+ import { PageProps } from "$fresh/server.ts";
+-import { relative, SEP } from "../../deps.ts";
++import { relative, SEPARATOR } from "../../deps.ts";
+ 
+ export default function Page(props: PageProps) {
+   const value = JSON.stringify(props, (key, value) => {
+     if (key === "outDir" || key == "staticDir") {
+-      return relative(Deno.cwd(), value).split(SEP).join("/");
++      return relative(Deno.cwd(), value).split(SEPARATOR).join("/");
+     }
+     if (typeof value === "function") return value.constructor.name;
+     if (value === undefined) return "<undefined>";
+diff --git a/tests/fixture_base_path/deno.json b/tests/fixture_base_path/deno.json
+index 8c3bdc24237..66bd2109e0b 100644
+--- a/tests/fixture_base_path/deno.json
++++ b/tests/fixture_base_path/deno.json
+@@ -5,8 +5,8 @@
+   },
+   "imports": {
+     "$fresh/": "../../",
+-    "preact": "https://esm.sh/preact@10.15.1",
+-    "preact/": "https://esm.sh/preact@10.15.1/",
++    "preact": "https://esm.sh/preact@10.19.6",
++    "preact/": "https://esm.sh/preact@10.19.6/",
+     "@preact/signals": "https://esm.sh/*@preact/signals@1.2.2",
+     "@preact/signals-core": "https://esm.sh/@preact/signals-core@1.5.0",
+     "preact-render-to-string": "https://esm.sh/*preact-render-to-string@6.1.0",
+diff --git a/tests/fixture_base_path_build/deno.json b/tests/fixture_base_path_build/deno.json
+index 6e495542eda..96456a20573 100644
+--- a/tests/fixture_base_path_build/deno.json
++++ b/tests/fixture_base_path_build/deno.json
+@@ -2,8 +2,8 @@
+   "lock": false,
+   "imports": {
+     "$fresh/": "../../",
+-    "preact": "https://esm.sh/preact@10.15.1",
+-    "preact/": "https://esm.sh/preact@10.15.1/",
++    "preact": "https://esm.sh/preact@10.19.6",
++    "preact/": "https://esm.sh/preact@10.19.6/",
+     "tailwindcss": "npm:tailwindcss@3.4.1"
+   },
+   "compilerOptions": {
+diff --git a/tests/fixture_base_path_config/deno.json b/tests/fixture_base_path_config/deno.json
+index 6e495542eda..96456a20573 100644
+--- a/tests/fixture_base_path_config/deno.json
++++ b/tests/fixture_base_path_config/deno.json
+@@ -2,8 +2,8 @@
+   "lock": false,
+   "imports": {
+     "$fresh/": "../../",
+-    "preact": "https://esm.sh/preact@10.15.1",
+-    "preact/": "https://esm.sh/preact@10.15.1/",
++    "preact": "https://esm.sh/preact@10.19.6",
++    "preact/": "https://esm.sh/preact@10.19.6/",
+     "tailwindcss": "npm:tailwindcss@3.4.1"
+   },
+   "compilerOptions": {
+diff --git a/tests/fixture_build/deno.json b/tests/fixture_build/deno.json
+index fe6caa19a39..5bdbd2c8825 100644
+--- a/tests/fixture_build/deno.json
++++ b/tests/fixture_build/deno.json
+@@ -2,8 +2,8 @@
+   "lock": false,
+   "imports": {
+     "$fresh/": "../../",
+-    "preact": "https://esm.sh/preact@10.15.1",
+-    "preact/": "https://esm.sh/preact@10.15.1/",
++    "preact": "https://esm.sh/preact@10.19.6",
++    "preact/": "https://esm.sh/preact@10.19.6/",
+     "@preact/signals": "https://esm.sh/*@preact/signals@1.1.3",
+     "@preact/signals-core": "https://esm.sh/@preact/signals-core@1.2.3"
+   },
+diff --git a/tests/fixture_build_out_dir/deno.json b/tests/fixture_build_out_dir/deno.json
+index 9d782057e20..b4a0d489bd2 100644
+--- a/tests/fixture_build_out_dir/deno.json
++++ b/tests/fixture_build_out_dir/deno.json
+@@ -2,8 +2,8 @@
+   "lock": false,
+   "imports": {
+     "$fresh/": "../../",
+-    "preact": "https://esm.sh/preact@10.15.1",
+-    "preact/": "https://esm.sh/preact@10.15.1/",
++    "preact": "https://esm.sh/preact@10.19.6",
++    "preact/": "https://esm.sh/preact@10.19.6/",
+     "preact-render-to-string": "https://esm.sh/*preact-render-to-string@6.2.0",
+     "@preact/signals": "https://esm.sh/*@preact/signals@1.1.3",
+     "@preact/signals-core": "https://esm.sh/@preact/signals-core@1.2.3"
+diff --git a/tests/fixture_build_out_dir_sub/deno.json b/tests/fixture_build_out_dir_sub/deno.json
+index 9d782057e20..b4a0d489bd2 100644
+--- a/tests/fixture_build_out_dir_sub/deno.json
++++ b/tests/fixture_build_out_dir_sub/deno.json
+@@ -2,8 +2,8 @@
+   "lock": false,
+   "imports": {
+     "$fresh/": "../../",
+-    "preact": "https://esm.sh/preact@10.15.1",
+-    "preact/": "https://esm.sh/preact@10.15.1/",
++    "preact": "https://esm.sh/preact@10.19.6",
++    "preact/": "https://esm.sh/preact@10.19.6/",
+     "preact-render-to-string": "https://esm.sh/*preact-render-to-string@6.2.0",
+     "@preact/signals": "https://esm.sh/*@preact/signals@1.1.3",
+     "@preact/signals-core": "https://esm.sh/@preact/signals-core@1.2.3"
+diff --git a/tests/fixture_build_out_dir_sub2/deno.json b/tests/fixture_build_out_dir_sub2/deno.json
+index 9d782057e20..b4a0d489bd2 100644
+--- a/tests/fixture_build_out_dir_sub2/deno.json
++++ b/tests/fixture_build_out_dir_sub2/deno.json
+@@ -2,8 +2,8 @@
+   "lock": false,
+   "imports": {
+     "$fresh/": "../../",
+-    "preact": "https://esm.sh/preact@10.15.1",
+-    "preact/": "https://esm.sh/preact@10.15.1/",
++    "preact": "https://esm.sh/preact@10.19.6",
++    "preact/": "https://esm.sh/preact@10.19.6/",
+     "preact-render-to-string": "https://esm.sh/*preact-render-to-string@6.2.0",
+     "@preact/signals": "https://esm.sh/*@preact/signals@1.1.3",
+     "@preact/signals-core": "https://esm.sh/@preact/signals-core@1.2.3"
+diff --git a/tests/fixture_build_static/deno.json b/tests/fixture_build_static/deno.json
+index fe6caa19a39..5bdbd2c8825 100644
+--- a/tests/fixture_build_static/deno.json
++++ b/tests/fixture_build_static/deno.json
+@@ -2,8 +2,8 @@
+   "lock": false,
+   "imports": {
+     "$fresh/": "../../",
+-    "preact": "https://esm.sh/preact@10.15.1",
+-    "preact/": "https://esm.sh/preact@10.15.1/",
++    "preact": "https://esm.sh/preact@10.19.6",
++    "preact/": "https://esm.sh/preact@10.19.6/",
+     "@preact/signals": "https://esm.sh/*@preact/signals@1.1.3",
+     "@preact/signals-core": "https://esm.sh/@preact/signals-core@1.2.3"
+   },
+diff --git a/tests/fixture_build_sub_dir/deno.json b/tests/fixture_build_sub_dir/deno.json
+index 9d782057e20..b4a0d489bd2 100644
+--- a/tests/fixture_build_sub_dir/deno.json
++++ b/tests/fixture_build_sub_dir/deno.json
+@@ -2,8 +2,8 @@
+   "lock": false,
+   "imports": {
+     "$fresh/": "../../",
+-    "preact": "https://esm.sh/preact@10.15.1",
+-    "preact/": "https://esm.sh/preact@10.15.1/",
++    "preact": "https://esm.sh/preact@10.19.6",
++    "preact/": "https://esm.sh/preact@10.19.6/",
+     "preact-render-to-string": "https://esm.sh/*preact-render-to-string@6.2.0",
+     "@preact/signals": "https://esm.sh/*@preact/signals@1.1.3",
+     "@preact/signals-core": "https://esm.sh/@preact/signals-core@1.2.3"
+diff --git a/tests/fixture_build_target/deno.json b/tests/fixture_build_target/deno.json
+index 9d782057e20..b4a0d489bd2 100644
+--- a/tests/fixture_build_target/deno.json
++++ b/tests/fixture_build_target/deno.json
+@@ -2,8 +2,8 @@
+   "lock": false,
+   "imports": {
+     "$fresh/": "../../",
+-    "preact": "https://esm.sh/preact@10.15.1",
+-    "preact/": "https://esm.sh/preact@10.15.1/",
++    "preact": "https://esm.sh/preact@10.19.6",
++    "preact/": "https://esm.sh/preact@10.19.6/",
+     "preact-render-to-string": "https://esm.sh/*preact-render-to-string@6.2.0",
+     "@preact/signals": "https://esm.sh/*@preact/signals@1.1.3",
+     "@preact/signals-core": "https://esm.sh/@preact/signals-core@1.2.3"
+diff --git a/tests/fixture_config/deno.json b/tests/fixture_config/deno.json
+index 9d782057e20..b4a0d489bd2 100644
+--- a/tests/fixture_config/deno.json
++++ b/tests/fixture_config/deno.json
+@@ -2,8 +2,8 @@
+   "lock": false,
+   "imports": {
+     "$fresh/": "../../",
+-    "preact": "https://esm.sh/preact@10.15.1",
+-    "preact/": "https://esm.sh/preact@10.15.1/",
++    "preact": "https://esm.sh/preact@10.19.6",
++    "preact/": "https://esm.sh/preact@10.19.6/",
+     "preact-render-to-string": "https://esm.sh/*preact-render-to-string@6.2.0",
+     "@preact/signals": "https://esm.sh/*@preact/signals@1.1.3",
+     "@preact/signals-core": "https://esm.sh/@preact/signals-core@1.2.3"
+diff --git a/tests/fixture_custom_500/deno.json b/tests/fixture_custom_500/deno.json
+index 95bc3f0cefe..b45fc7f2bdd 100644
+--- a/tests/fixture_custom_500/deno.json
++++ b/tests/fixture_custom_500/deno.json
+@@ -2,8 +2,8 @@
+   "lock": false,
+   "imports": {
+     "$fresh/": "../../",
+-    "preact": "https://esm.sh/preact@10.15.1",
+-    "preact/": "https://esm.sh/preact@10.15.1/"
++    "preact": "https://esm.sh/preact@10.19.6",
++    "preact/": "https://esm.sh/preact@10.19.6/"
+   },
+   "compilerOptions": {
+     "jsx": "react-jsx",
+diff --git a/tests/fixture_error/deno.json b/tests/fixture_error/deno.json
+index 95bc3f0cefe..b45fc7f2bdd 100644
+--- a/tests/fixture_error/deno.json
++++ b/tests/fixture_error/deno.json
+@@ -2,8 +2,8 @@
+   "lock": false,
+   "imports": {
+     "$fresh/": "../../",
+-    "preact": "https://esm.sh/preact@10.15.1",
+-    "preact/": "https://esm.sh/preact@10.15.1/"
++    "preact": "https://esm.sh/preact@10.19.6",
++    "preact/": "https://esm.sh/preact@10.19.6/"
+   },
+   "compilerOptions": {
+     "jsx": "react-jsx",
+diff --git a/tests/fixture_group_index/deno.json b/tests/fixture_group_index/deno.json
+index 2b2fa78e147..5cfd9f0be67 100644
+--- a/tests/fixture_group_index/deno.json
++++ b/tests/fixture_group_index/deno.json
+@@ -2,8 +2,8 @@
+   "lock": false,
+   "imports": {
+     "$fresh/": "../../",
+-    "preact": "https://esm.sh/preact@10.15.1",
+-    "preact/": "https://esm.sh/preact@10.15.1/",
++    "preact": "https://esm.sh/preact@10.19.6",
++    "preact/": "https://esm.sh/preact@10.19.6/",
+     "preact-render-to-string": "https://esm.sh/*preact-render-to-string@6.2.1"
+   },
+   "compilerOptions": {
+diff --git a/tests/fixture_hmr/deno.json b/tests/fixture_hmr/deno.json
+index 2b73c6793f3..0d31f0f3c44 100644
+--- a/tests/fixture_hmr/deno.json
++++ b/tests/fixture_hmr/deno.json
+@@ -2,8 +2,8 @@
+   "lock": false,
+   "imports": {
+     "$fresh/": "../../",
+-    "preact": "https://esm.sh/preact@10.15.1",
+-    "preact/": "https://esm.sh/preact@10.15.1/",
++    "preact": "https://esm.sh/preact@10.19.6",
++    "preact/": "https://esm.sh/preact@10.19.6/",
+     "preact-render-to-string": "https://esm.sh/*preact-render-to-string@6.2.1",
+     "@preact/signals": "https://esm.sh/*@preact/signals@1.1.5",
+     "@preact/signals-core": "https://esm.sh/@preact/signals-core@1.3.1"
+diff --git a/tests/fixture_invalid_handlers/deno.json b/tests/fixture_invalid_handlers/deno.json
+index 95bc3f0cefe..b45fc7f2bdd 100644
+--- a/tests/fixture_invalid_handlers/deno.json
++++ b/tests/fixture_invalid_handlers/deno.json
+@@ -2,8 +2,8 @@
+   "lock": false,
+   "imports": {
+     "$fresh/": "../../",
+-    "preact": "https://esm.sh/preact@10.15.1",
+-    "preact/": "https://esm.sh/preact@10.15.1/"
++    "preact": "https://esm.sh/preact@10.19.6",
++    "preact/": "https://esm.sh/preact@10.19.6/"
+   },
+   "compilerOptions": {
+     "jsx": "react-jsx",
+diff --git a/tests/fixture_island_nesting/deno.json b/tests/fixture_island_nesting/deno.json
+index 752aae1f035..b03a8fb7e89 100644
+--- a/tests/fixture_island_nesting/deno.json
++++ b/tests/fixture_island_nesting/deno.json
+@@ -5,8 +5,8 @@
+   },
+   "imports": {
+     "$fresh/": "../../",
+-    "preact": "https://esm.sh/preact@10.16.0",
+-    "preact/": "https://esm.sh/preact@10.16.0/",
++    "preact": "https://esm.sh/preact@10.19.6",
++    "preact/": "https://esm.sh/preact@10.19.6/",
+     "@preact/signals": "https://esm.sh/*@preact/signals@1.1.3",
+     "@preact/signals-core": "https://esm.sh/@preact/signals-core@1.2.3"
+   },
+diff --git a/tests/fixture_islands_multiple/deno.json b/tests/fixture_islands_multiple/deno.json
+index 4353235bd4c..d0cd861796c 100644
+--- a/tests/fixture_islands_multiple/deno.json
++++ b/tests/fixture_islands_multiple/deno.json
+@@ -2,8 +2,8 @@
+   "lock": false,
+   "imports": {
+     "$fresh/": "../../",
+-    "preact": "https://esm.sh/preact@10.19.2",
+-    "preact/": "https://esm.sh/preact@10.19.2/",
++    "preact": "https://esm.sh/preact@10.19.6",
++    "preact/": "https://esm.sh/preact@10.19.6/",
+     "@preact/signals": "https://esm.sh/*@preact/signals@1.2.2",
+     "@preact/signals-core": "https://esm.sh/@preact/signals-core@1.5.0"
+   },
+diff --git a/tests/fixture_jsx_pragma/deno.json b/tests/fixture_jsx_pragma/deno.json
+index 90d404c135c..4578df377f5 100644
+--- a/tests/fixture_jsx_pragma/deno.json
++++ b/tests/fixture_jsx_pragma/deno.json
+@@ -2,7 +2,7 @@
+   "lock": false,
+   "imports": {
+     "$fresh/": "../../",
+-    "preact": "https://esm.sh/preact@10.15.1",
+-    "preact/": "https://esm.sh/preact@10.15.1/"
++    "preact": "https://esm.sh/preact@10.19.6",
++    "preact/": "https://esm.sh/preact@10.19.6/"
+   }
+ }
+diff --git a/tests/fixture_jsx_precompile/deno.json b/tests/fixture_jsx_precompile/deno.json
+index b6a9e4441d6..d564891117b 100644
+--- a/tests/fixture_jsx_precompile/deno.json
++++ b/tests/fixture_jsx_precompile/deno.json
+@@ -6,7 +6,7 @@
+   },
+   "imports": {
+     "$fresh/": "../../",
+-    "preact": "https://esm.sh/preact@10.19.2",
+-    "preact/": "https://esm.sh/preact@10.19.2/"
++    "preact": "https://esm.sh/preact@10.19.6",
++    "preact/": "https://esm.sh/preact@10.19.6/"
+   }
+ }
+diff --git a/tests/fixture_npm/deno.json b/tests/fixture_npm/deno.json
+index fe6caa19a39..5bdbd2c8825 100644
+--- a/tests/fixture_npm/deno.json
++++ b/tests/fixture_npm/deno.json
+@@ -2,8 +2,8 @@
+   "lock": false,
+   "imports": {
+     "$fresh/": "../../",
+-    "preact": "https://esm.sh/preact@10.15.1",
+-    "preact/": "https://esm.sh/preact@10.15.1/",
++    "preact": "https://esm.sh/preact@10.19.6",
++    "preact/": "https://esm.sh/preact@10.19.6/",
+     "@preact/signals": "https://esm.sh/*@preact/signals@1.1.3",
+     "@preact/signals-core": "https://esm.sh/@preact/signals-core@1.2.3"
+   },
+diff --git a/tests/fixture_partials/deno.json b/tests/fixture_partials/deno.json
+index c4df017779e..b36ab79a97e 100644
+--- a/tests/fixture_partials/deno.json
++++ b/tests/fixture_partials/deno.json
+@@ -7,8 +7,8 @@
+     "$fresh/": "../../",
+     "twind": "https://esm.sh/twind@0.16.19",
+     "twind/": "https://esm.sh/twind@0.16.19/",
+-    "preact": "https://esm.sh/preact@10.15.1",
+-    "preact/": "https://esm.sh/preact@10.15.1/",
++    "preact": "https://esm.sh/preact@10.19.6",
++    "preact/": "https://esm.sh/preact@10.19.6/",
+     "preact-render-to-string": "https://esm.sh/*preact-render-to-string@6.1.0",
+     "@preact/signals": "https://esm.sh/*@preact/signals@1.1.3",
+     "@preact/signals-core": "https://esm.sh/@preact/signals-core@1.2.3"
+diff --git a/tests/fixture_plugin/deno.json b/tests/fixture_plugin/deno.json
+index 95bc3f0cefe..b45fc7f2bdd 100644
+--- a/tests/fixture_plugin/deno.json
++++ b/tests/fixture_plugin/deno.json
+@@ -2,8 +2,8 @@
+   "lock": false,
+   "imports": {
+     "$fresh/": "../../",
+-    "preact": "https://esm.sh/preact@10.15.1",
+-    "preact/": "https://esm.sh/preact@10.15.1/"
++    "preact": "https://esm.sh/preact@10.19.6",
++    "preact/": "https://esm.sh/preact@10.19.6/"
+   },
+   "compilerOptions": {
+     "jsx": "react-jsx",
+diff --git a/tests/fixture_plugin_error/deno.json b/tests/fixture_plugin_error/deno.json
+index 3c18115db76..46f176e12c4 100644
+--- a/tests/fixture_plugin_error/deno.json
++++ b/tests/fixture_plugin_error/deno.json
+@@ -2,8 +2,8 @@
+   "lock": false,
+   "imports": {
+     "$fresh/": "../../",
+-    "preact": "https://esm.sh/preact@10.15.1",
+-    "preact/": "https://esm.sh/preact@10.15.1/",
++    "preact": "https://esm.sh/preact@10.19.6",
++    "preact/": "https://esm.sh/preact@10.19.6/",
+     "preact-render-to-string": "https://esm.sh/*preact-render-to-string@6.2.1",
+     "@preact/signals": "https://esm.sh/*@preact/signals@1.1.3",
+     "@preact/signals-core": "https://esm.sh/@preact/signals-core@1.2.3",
+diff --git a/tests/fixture_plugin_html/deno.json b/tests/fixture_plugin_html/deno.json
+index 95bc3f0cefe..b45fc7f2bdd 100644
+--- a/tests/fixture_plugin_html/deno.json
++++ b/tests/fixture_plugin_html/deno.json
+@@ -2,8 +2,8 @@
+   "lock": false,
+   "imports": {
+     "$fresh/": "../../",
+-    "preact": "https://esm.sh/preact@10.15.1",
+-    "preact/": "https://esm.sh/preact@10.15.1/"
++    "preact": "https://esm.sh/preact@10.19.6",
++    "preact/": "https://esm.sh/preact@10.19.6/"
+   },
+   "compilerOptions": {
+     "jsx": "react-jsx",
+diff --git a/tests/fixture_plugin_lifecycle/deno.json b/tests/fixture_plugin_lifecycle/deno.json
+index 2b2fa78e147..5cfd9f0be67 100644
+--- a/tests/fixture_plugin_lifecycle/deno.json
++++ b/tests/fixture_plugin_lifecycle/deno.json
+@@ -2,8 +2,8 @@
+   "lock": false,
+   "imports": {
+     "$fresh/": "../../",
+-    "preact": "https://esm.sh/preact@10.15.1",
+-    "preact/": "https://esm.sh/preact@10.15.1/",
++    "preact": "https://esm.sh/preact@10.19.6",
++    "preact/": "https://esm.sh/preact@10.19.6/",
+     "preact-render-to-string": "https://esm.sh/*preact-render-to-string@6.2.1"
+   },
+   "compilerOptions": {
+diff --git a/tests/fixture_plugin_middleware/deno.json b/tests/fixture_plugin_middleware/deno.json
+index 95bc3f0cefe..b45fc7f2bdd 100644
+--- a/tests/fixture_plugin_middleware/deno.json
++++ b/tests/fixture_plugin_middleware/deno.json
+@@ -2,8 +2,8 @@
+   "lock": false,
+   "imports": {
+     "$fresh/": "../../",
+-    "preact": "https://esm.sh/preact@10.15.1",
+-    "preact/": "https://esm.sh/preact@10.15.1/"
++    "preact": "https://esm.sh/preact@10.19.6",
++    "preact/": "https://esm.sh/preact@10.19.6/"
+   },
+   "compilerOptions": {
+     "jsx": "react-jsx",
+diff --git a/tests/fixture_plugin_resolved_dev/deno.json b/tests/fixture_plugin_resolved_dev/deno.json
+index 2b2fa78e147..5cfd9f0be67 100644
+--- a/tests/fixture_plugin_resolved_dev/deno.json
++++ b/tests/fixture_plugin_resolved_dev/deno.json
+@@ -2,8 +2,8 @@
+   "lock": false,
+   "imports": {
+     "$fresh/": "../../",
+-    "preact": "https://esm.sh/preact@10.15.1",
+-    "preact/": "https://esm.sh/preact@10.15.1/",
++    "preact": "https://esm.sh/preact@10.19.6",
++    "preact/": "https://esm.sh/preact@10.19.6/",
+     "preact-render-to-string": "https://esm.sh/*preact-render-to-string@6.2.1"
+   },
+   "compilerOptions": {
+diff --git a/tests/fixture_render/deno.json b/tests/fixture_render/deno.json
+index 2b2fa78e147..2336a845d51 100644
+--- a/tests/fixture_render/deno.json
++++ b/tests/fixture_render/deno.json
+@@ -1,9 +1,12 @@
+ {
+   "lock": false,
++  "tasks": {
++    "start": "deno run -A --watch=static/,routes/ dev.ts"
++  },
+   "imports": {
+     "$fresh/": "../../",
+-    "preact": "https://esm.sh/preact@10.15.1",
+-    "preact/": "https://esm.sh/preact@10.15.1/",
++    "preact": "https://esm.sh/preact@10.19.6",
++    "preact/": "https://esm.sh/preact@10.19.6/",
+     "preact-render-to-string": "https://esm.sh/*preact-render-to-string@6.2.1"
+   },
+   "compilerOptions": {
+diff --git a/tests/fixture_render/fresh.gen.ts b/tests/fixture_render/fresh.gen.ts
+index d21d8729763..7c17cec94b1 100644
+--- a/tests/fixture_render/fresh.gen.ts
++++ b/tests/fixture_render/fresh.gen.ts
+@@ -2,6 +2,7 @@
+ // This file SHOULD be checked into source version control.
+ // This file is automatically updated during development when running `dev.ts`.
+ 
++import * as $cookiePasser from "./routes/cookiePasser.tsx";
+ import * as $head_style from "./routes/head_style.tsx";
+ import * as $header_arr from "./routes/header_arr.tsx";
+ import * as $header_instance from "./routes/header_instance.tsx";
+@@ -12,6 +13,7 @@ import { type Manifest } from "$fresh/server.ts";
+ 
+ const manifest = {
+   routes: {
++    "./routes/cookiePasser.tsx": $cookiePasser,
+     "./routes/head_style.tsx": $head_style,
+     "./routes/header_arr.tsx": $header_arr,
+     "./routes/header_instance.tsx": $header_instance,
+diff --git a/tests/fixture_render/routes/cookiePasser.tsx b/tests/fixture_render/routes/cookiePasser.tsx
+new file mode 100644
+index 00000000000..6936283e247
+--- /dev/null
++++ b/tests/fixture_render/routes/cookiePasser.tsx
+@@ -0,0 +1,18 @@
++import { FreshContext, Handlers } from "$fresh/server.ts";
++
++export const handler: Handlers = {
++  async GET(_req: Request, ctx: FreshContext) {
++    const headers = new Headers();
++    headers.append("Set-Cookie", "foo=bar");
++    headers.append("Set-Cookie", "baz=1234");
++    return await ctx.render({}, { headers });
++  },
++};
++
++export default function Home() {
++  return (
++    <div>
++      hello
++    </div>
++  );
++}
+diff --git a/tests/fixture_render_error/deno.json b/tests/fixture_render_error/deno.json
+index 95bc3f0cefe..b45fc7f2bdd 100644
+--- a/tests/fixture_render_error/deno.json
++++ b/tests/fixture_render_error/deno.json
+@@ -2,8 +2,8 @@
+   "lock": false,
+   "imports": {
+     "$fresh/": "../../",
+-    "preact": "https://esm.sh/preact@10.15.1",
+-    "preact/": "https://esm.sh/preact@10.15.1/"
++    "preact": "https://esm.sh/preact@10.19.6",
++    "preact/": "https://esm.sh/preact@10.19.6/"
+   },
+   "compilerOptions": {
+     "jsx": "react-jsx",
+diff --git a/tests/fixture_route_analysis/deno.json b/tests/fixture_route_analysis/deno.json
+index 528977fefa3..e6444fc84e7 100644
+--- a/tests/fixture_route_analysis/deno.json
++++ b/tests/fixture_route_analysis/deno.json
+@@ -6,8 +6,8 @@
+   },
+   "imports": {
+     "$fresh/": "../../",
+-    "preact": "https://esm.sh/preact@10.15.1",
+-    "preact/": "https://esm.sh/preact@10.15.1/",
++    "preact": "https://esm.sh/preact@10.19.6",
++    "preact/": "https://esm.sh/preact@10.19.6/",
+     "@preact/signals": "https://esm.sh/*@preact/signals@1.1.3",
+     "@preact/signals-core": "https://esm.sh/*@preact/signals-core@1.2.3",
+     "$std/": "https://deno.land/std@0.211.0/"
+diff --git a/tests/fixture_router_ignore_files/deno.json b/tests/fixture_router_ignore_files/deno.json
+index 2b73c6793f3..0d31f0f3c44 100644
+--- a/tests/fixture_router_ignore_files/deno.json
++++ b/tests/fixture_router_ignore_files/deno.json
+@@ -2,8 +2,8 @@
+   "lock": false,
+   "imports": {
+     "$fresh/": "../../",
+-    "preact": "https://esm.sh/preact@10.15.1",
+-    "preact/": "https://esm.sh/preact@10.15.1/",
++    "preact": "https://esm.sh/preact@10.19.6",
++    "preact/": "https://esm.sh/preact@10.19.6/",
+     "preact-render-to-string": "https://esm.sh/*preact-render-to-string@6.2.1",
+     "@preact/signals": "https://esm.sh/*@preact/signals@1.1.5",
+     "@preact/signals-core": "https://esm.sh/@preact/signals-core@1.3.1"
+diff --git a/tests/fixture_server_components/deno.json b/tests/fixture_server_components/deno.json
+index 6f39b459f1d..310b92c69f5 100644
+--- a/tests/fixture_server_components/deno.json
++++ b/tests/fixture_server_components/deno.json
+@@ -7,8 +7,8 @@
+     "$fresh/": "../../",
+     "twind": "https://esm.sh/twind@0.16.19",
+     "twind/": "https://esm.sh/twind@0.16.19/",
+-    "preact": "https://esm.sh/preact@10.15.1",
+-    "preact/": "https://esm.sh/preact@10.15.1/",
++    "preact": "https://esm.sh/preact@10.19.6",
++    "preact/": "https://esm.sh/preact@10.19.6/",
+     "@preact/signals": "https://esm.sh/*@preact/signals@1.1.3",
+     "@preact/signals-core": "https://esm.sh/@preact/signals-core@1.2.3"
+   },
+diff --git a/tests/fixture_server_components/routes/context/[id].tsx b/tests/fixture_server_components/routes/context/[id].tsx
+index a92e28c4448..7a4a4034167 100644
+--- a/tests/fixture_server_components/routes/context/[id].tsx
++++ b/tests/fixture_server_components/routes/context/[id].tsx
+@@ -1,11 +1,11 @@
+ import { RouteContext } from "../../../../server.ts";
+-import { delay, relative, SEP } from "../../../deps.ts";
++import { delay, relative, SEPARATOR } from "../../../deps.ts";
+ 
+ export default async function Foo(_req: Request, context: RouteContext) {
+   await delay(1);
+   const value = JSON.stringify(context, (key, value) => {
+     if (key === "outDir" || key == "staticDir") {
+-      return relative(Deno.cwd(), value).split(SEP).join("/");
++      return relative(Deno.cwd(), value).split(SEPARATOR).join("/");
+     } else if (key === "entrypoints") {
+       return {};
+     }
+diff --git a/tests/fixture_static/deno.json b/tests/fixture_static/deno.json
+index 2b2fa78e147..5cfd9f0be67 100644
+--- a/tests/fixture_static/deno.json
++++ b/tests/fixture_static/deno.json
+@@ -2,8 +2,8 @@
+   "lock": false,
+   "imports": {
+     "$fresh/": "../../",
+-    "preact": "https://esm.sh/preact@10.15.1",
+-    "preact/": "https://esm.sh/preact@10.15.1/",
++    "preact": "https://esm.sh/preact@10.19.6",
++    "preact/": "https://esm.sh/preact@10.19.6/",
+     "preact-render-to-string": "https://esm.sh/*preact-render-to-string@6.2.1"
+   },
+   "compilerOptions": {
+diff --git a/tests/fixture_tailwind/deno.json b/tests/fixture_tailwind/deno.json
+index 6e495542eda..96456a20573 100644
+--- a/tests/fixture_tailwind/deno.json
++++ b/tests/fixture_tailwind/deno.json
+@@ -2,8 +2,8 @@
+   "lock": false,
+   "imports": {
+     "$fresh/": "../../",
+-    "preact": "https://esm.sh/preact@10.15.1",
+-    "preact/": "https://esm.sh/preact@10.15.1/",
++    "preact": "https://esm.sh/preact@10.19.6",
++    "preact/": "https://esm.sh/preact@10.19.6/",
+     "tailwindcss": "npm:tailwindcss@3.4.1"
+   },
+   "compilerOptions": {
+diff --git a/tests/fixture_tailwind_build/deno.json b/tests/fixture_tailwind_build/deno.json
+index 6e495542eda..96456a20573 100644
+--- a/tests/fixture_tailwind_build/deno.json
++++ b/tests/fixture_tailwind_build/deno.json
+@@ -2,8 +2,8 @@
+   "lock": false,
+   "imports": {
+     "$fresh/": "../../",
+-    "preact": "https://esm.sh/preact@10.15.1",
+-    "preact/": "https://esm.sh/preact@10.15.1/",
++    "preact": "https://esm.sh/preact@10.19.6",
++    "preact/": "https://esm.sh/preact@10.19.6/",
+     "tailwindcss": "npm:tailwindcss@3.4.1"
+   },
+   "compilerOptions": {
+diff --git a/tests/fixture_tailwind_build_2/deno.json b/tests/fixture_tailwind_build_2/deno.json
+index 6e495542eda..96456a20573 100644
+--- a/tests/fixture_tailwind_build_2/deno.json
++++ b/tests/fixture_tailwind_build_2/deno.json
+@@ -2,8 +2,8 @@
+   "lock": false,
+   "imports": {
+     "$fresh/": "../../",
+-    "preact": "https://esm.sh/preact@10.15.1",
+-    "preact/": "https://esm.sh/preact@10.15.1/",
++    "preact": "https://esm.sh/preact@10.19.6",
++    "preact/": "https://esm.sh/preact@10.19.6/",
+     "tailwindcss": "npm:tailwindcss@3.4.1"
+   },
+   "compilerOptions": {
+diff --git a/tests/fixture_tailwind_config/deno.json b/tests/fixture_tailwind_config/deno.json
+index 6e495542eda..96456a20573 100644
+--- a/tests/fixture_tailwind_config/deno.json
++++ b/tests/fixture_tailwind_config/deno.json
+@@ -2,8 +2,8 @@
+   "lock": false,
+   "imports": {
+     "$fresh/": "../../",
+-    "preact": "https://esm.sh/preact@10.15.1",
+-    "preact/": "https://esm.sh/preact@10.15.1/",
++    "preact": "https://esm.sh/preact@10.19.6",
++    "preact/": "https://esm.sh/preact@10.19.6/",
+     "tailwindcss": "npm:tailwindcss@3.4.1"
+   },
+   "compilerOptions": {
+diff --git a/tests/fixture_twind_app/deno.json b/tests/fixture_twind_app/deno.json
+index 6f39b459f1d..310b92c69f5 100644
+--- a/tests/fixture_twind_app/deno.json
++++ b/tests/fixture_twind_app/deno.json
+@@ -7,8 +7,8 @@
+     "$fresh/": "../../",
+     "twind": "https://esm.sh/twind@0.16.19",
+     "twind/": "https://esm.sh/twind@0.16.19/",
+-    "preact": "https://esm.sh/preact@10.15.1",
+-    "preact/": "https://esm.sh/preact@10.15.1/",
++    "preact": "https://esm.sh/preact@10.19.6",
++    "preact/": "https://esm.sh/preact@10.19.6/",
+     "@preact/signals": "https://esm.sh/*@preact/signals@1.1.3",
+     "@preact/signals-core": "https://esm.sh/@preact/signals-core@1.2.3"
+   },
+diff --git a/tests/render_test.ts b/tests/render_test.ts
+index 66356b65aa2..703fb155905 100644
+--- a/tests/render_test.ts
++++ b/tests/render_test.ts
+@@ -32,19 +32,25 @@ Deno.test("doesn't leak data across renderers", async () => {
+   await Promise.all(promises);
+ });
+ 
+-Deno.test("render headers passed to ctx.render()", async () => {
++Deno.test("render headers passed to ctx.render()", async (t) => {
+   await withFakeServe("./tests/fixture_render/main.ts", async (server) => {
+-    let res = await server.get("/header_arr");
+-    assertEquals(res.headers.get("x-foo"), "Hello world!");
+-    await res.body?.cancel();
++    await t.step("header_arr", async () => {
++      const res = await server.get("/header_arr");
++      assertEquals(res.headers.get("x-foo"), "Hello world!");
++      await res.body?.cancel();
++    });
+ 
+-    res = await server.get("/header_obj");
+-    assertEquals(res.headers.get("x-foo"), "Hello world!");
+-    await res.body?.cancel();
++    await t.step("header_obj", async () => {
++      const res = await server.get("/header_obj");
++      assertEquals(res.headers.get("x-foo"), "Hello world!");
++      await res.body?.cancel();
++    });
+ 
+-    res = await server.get("/header_instance");
+-    assertEquals(res.headers.get("x-foo"), "Hello world!");
+-    await res.body?.cancel();
++    await t.step("header_instance", async () => {
++      const res = await server.get("/header_instance");
++      assertEquals(res.headers.get("x-foo"), "Hello world!");
++      await res.body?.cancel();
++    });
+   });
+ });
+ 
+@@ -87,3 +93,12 @@ Deno.test("Ensure manifest has valid specifiers", async () => {
+     },
+   );
+ });
++
++Deno.test("render multiple set-cookie headers passed to ctx.render()", async () => {
++  await withFakeServe("./tests/fixture_render/dev.ts", async (server) => {
++    const res = await server.get("/cookiePasser");
++    const cookies = res.headers.getSetCookie();
++    assertEquals(cookies, ["foo=bar", "baz=1234"]);
++    await res.body?.cancel();
++  });
++});
+diff --git a/tests/www/components/gallery/LinkButton.test.tsx b/tests/www/components/gallery/LinkButton.test.tsx
+index 446a2ec2b24..e491fb62fd0 100644
+--- a/tests/www/components/gallery/LinkButton.test.tsx
++++ b/tests/www/components/gallery/LinkButton.test.tsx
+@@ -8,7 +8,7 @@ import {
+ import { cleanup, fireEvent, render, setup } from "$fresh-testing-library";
+ import { afterEach, beforeAll, describe, it } from "$std/testing/bdd.ts";
+ import LinkButton from "../../../../www/components/gallery/LinkButton.tsx";
+-import IconHeart from "https://deno.land/x/tabler_icons_tsx@0.0.3/tsx/heart.tsx";
++import IconHeart from "https://deno.land/x/tabler_icons_tsx@0.0.6/tsx/heart.tsx";
+ 
+ describe("components/gallery/LinkButton.tsx", () => {
+   beforeAll(setup);
+diff --git a/versions.json b/versions.json
+index d25f17d1091..7f51b3fc72f 100644
+--- a/versions.json
++++ b/versions.json
+@@ -1,4 +1,5 @@
+ [
++  "1.6.6",
+   "1.6.5",
+   "1.6.4",
+   "1.6.3",
+diff --git a/www/components/gallery/Carousel.tsx b/www/components/gallery/Carousel.tsx
+index f55ef458437..9cca73e880f 100644
+--- a/www/components/gallery/Carousel.tsx
++++ b/www/components/gallery/Carousel.tsx
+@@ -1,8 +1,8 @@
+ import { asset } from "$fresh/runtime.ts";
+ import { useSignal } from "@preact/signals";
+ import { useEffect, useRef } from "preact/hooks";
+-import IconCircleChevronsRight from "https://deno.land/x/tabler_icons_tsx@0.0.3/tsx/circle-chevrons-right.tsx";
+-import IconCircleChevronsLeft from "https://deno.land/x/tabler_icons_tsx@0.0.3/tsx/circle-chevrons-left.tsx";
++import IconCircleChevronsRight from "https://deno.land/x/tabler_icons_tsx@0.0.6/tsx/circle-chevrons-right.tsx";
++import IconCircleChevronsLeft from "https://deno.land/x/tabler_icons_tsx@0.0.6/tsx/circle-chevrons-left.tsx";
+ 
+ const SLIDE_DATA = [
+   {
+diff --git a/www/components/gallery/Features.tsx b/www/components/gallery/Features.tsx
+index 969f651279f..4addb0cb3e1 100644
+--- a/www/components/gallery/Features.tsx
++++ b/www/components/gallery/Features.tsx
+@@ -1,7 +1,7 @@
+-import IconAlarm from "https://deno.land/x/tabler_icons_tsx@0.0.3/tsx/alarm.tsx";
+-import IconAirBalloon from "https://deno.land/x/tabler_icons_tsx@0.0.3/tsx/air-balloon.tsx";
+-import IconArmchair from "https://deno.land/x/tabler_icons_tsx@0.0.3/tsx/armchair.tsx";
+-import IconChevronRight from "https://deno.land/x/tabler_icons_tsx@0.0.3/tsx/chevron-right.tsx";
++import IconAlarm from "https://deno.land/x/tabler_icons_tsx@0.0.6/tsx/alarm.tsx";
++import IconAirBalloon from "https://deno.land/x/tabler_icons_tsx@0.0.6/tsx/air-balloon.tsx";
++import IconArmchair from "https://deno.land/x/tabler_icons_tsx@0.0.6/tsx/armchair.tsx";
++import IconChevronRight from "https://deno.land/x/tabler_icons_tsx@0.0.6/tsx/chevron-right.tsx";
+ 
+ export default function Features() {
+   const featureItems = [
+diff --git a/www/components/gallery/Footer.tsx b/www/components/gallery/Footer.tsx
+index db94cd66549..c7599c9abd6 100644
+--- a/www/components/gallery/Footer.tsx
++++ b/www/components/gallery/Footer.tsx
+@@ -1,5 +1,5 @@
+-import LemonIcon from "https://deno.land/x/tabler_icons_tsx@0.0.3/tsx/lemon-2.tsx";
+-import BrandGithub from "https://deno.land/x/tabler_icons_tsx@0.0.3/tsx/brand-github.tsx";
++import LemonIcon from "https://deno.land/x/tabler_icons_tsx@0.0.6/tsx/lemon-2.tsx";
++import BrandGithub from "https://deno.land/x/tabler_icons_tsx@0.0.6/tsx/brand-github.tsx";
+ 
+ export default function Footer() {
+   const menus = [
+diff --git a/www/components/gallery/Header.tsx b/www/components/gallery/Header.tsx
+index efb35f816eb..d4e5142e052 100644
+--- a/www/components/gallery/Header.tsx
++++ b/www/components/gallery/Header.tsx
+@@ -1,4 +1,4 @@
+-import LemonIcon from "https://deno.land/x/tabler_icons_tsx@0.0.3/tsx/lemon-2.tsx";
++import LemonIcon from "https://deno.land/x/tabler_icons_tsx@0.0.6/tsx/lemon-2.tsx";
+ 
+ type Props = {
+   active: string;
+diff --git a/www/components/gallery/Hero.tsx b/www/components/gallery/Hero.tsx
+index 128b5093455..9d489dc7568 100644
+--- a/www/components/gallery/Hero.tsx
++++ b/www/components/gallery/Hero.tsx
+@@ -1,4 +1,4 @@
+-import IconChevronRight from "https://deno.land/x/tabler_icons_tsx@0.0.3/tsx/chevron-right.tsx";
++import IconChevronRight from "https://deno.land/x/tabler_icons_tsx@0.0.6/tsx/chevron-right.tsx";
+ 
+ export default function Hero() {
+   return (
+diff --git a/www/deno.json b/www/deno.json
+index 555a1c2c9e5..9b666e084a3 100644
+--- a/www/deno.json
++++ b/www/deno.json
+@@ -8,13 +8,13 @@
+   },
+   "imports": {
+     "$fresh/": "../",
+-    "preact": "https://esm.sh/preact@10.15.1",
+-    "preact/": "https://esm.sh/preact@10.15.1/",
+-    "@preact/signals": "https://esm.sh/*@preact/signals@1.1.3",
+-    "@preact/signals-core": "https://esm.sh/@preact/signals-core@1.2.3",
+-    "$std/": "https://deno.land/std@0.211.0/",
++    "preact": "https://esm.sh/preact@10.19.6",
++    "preact/": "https://esm.sh/preact@10.19.6/",
++    "@preact/signals": "https://esm.sh/*@preact/signals@1.2.2",
++    "@preact/signals-core": "https://esm.sh/@preact/signals-core@1.5.1",
++    "$std/": "https://deno.land/std@0.216.0/",
+     "$ga4": "https://raw.githubusercontent.com/denoland/ga4/main/mod.ts",
+-    "$marked-mangle": "https://esm.sh/marked-mangle@1.0.1",
++    "$marked-mangle": "https://esm.sh/marked-mangle@1.1.7",
+     "$fresh-testing-library": "https://deno.land/x/fresh_testing_library@0.8.0/mod.ts",
+     "$fresh-testing-library/": "https://deno.land/x/fresh_testing_library@0.8.0/",
+     "tailwindcss": "npm:tailwindcss@3.4.1",
+diff --git a/www/islands/ComponentGallery.tsx b/www/islands/ComponentGallery.tsx
+index 629c8561d3a..dad1001d3e0 100644
+--- a/www/islands/ComponentGallery.tsx
++++ b/www/islands/ComponentGallery.tsx
+@@ -8,8 +8,8 @@ import Hero from "../components/gallery/Hero.tsx";
+ import Features from "../components/gallery/Features.tsx";
+ import Carousel from "../components/gallery/Carousel.tsx";
+ import { ComponentChildren } from "preact";
+-import IconHappy from "https://deno.land/x/tabler_icons_tsx@0.0.3/tsx/mood-crazy-happy.tsx";
+-import IconHeart from "https://deno.land/x/tabler_icons_tsx@0.0.3/tsx/heart.tsx";
++import IconHappy from "https://deno.land/x/tabler_icons_tsx@0.0.6/tsx/mood-crazy-happy.tsx";
++import IconHeart from "https://deno.land/x/tabler_icons_tsx@0.0.6/tsx/heart.tsx";
+ import Background from "../components/gallery/Background.tsx";
+ import CodeBox from "../components/gallery/CodeBox.tsx";
+ 
+diff --git a/www/islands/TableOfContents.tsx b/www/islands/TableOfContents.tsx
+index 8cb74b858ea..f8d390e4066 100644
+--- a/www/islands/TableOfContents.tsx
++++ b/www/islands/TableOfContents.tsx
+@@ -17,6 +17,8 @@ function setActiveLink(
+     `a[href="#${id}"]`,
+   ) as HTMLElement;
+ 
++  if (tocLink === null) return;
++
+   tocLink.classList.add("active");
+ 
+   const rect = tocLink
+@@ -62,8 +64,10 @@ export function TableOfContents({ headings }: TableOfContentsProps) {
+         const id = headings[i].id;
+         const tocLink = container.querySelector(
+           `a[href="#${id}"]`,
+-        ) as HTMLElement;
+-        tocLink.classList.remove("active");
++        );
++        if (tocLink !== null) {
++          tocLink.classList.remove("active");
++        }
+       }
+ 
+       let activeIdx = visibleList.indexOf(true);
+diff --git a/www/routes/docs/[...slug].tsx b/www/routes/docs/[...slug].tsx
+index 143fbdc99e7..6d080b0b9c3 100644
+--- a/www/routes/docs/[...slug].tsx
++++ b/www/routes/docs/[...slug].tsx
+@@ -159,7 +159,8 @@ export default function DocsPage(props: PageProps<Data>) {
+         <meta name="view-transition" content="same-origin" />
+       </Head>
+       <div class="flex flex-col min-h-screen mx-auto max-w-screen-2xl">
+-        <div class="flex-1 " f-client-nav>
++        {/* Disable partial navigation until this bug in Preact is fixed https://github.com/preactjs/preact/pull/4287 */}
++        <div class="flex-1 " f-client-nav={false}>
+           <div class=" md:flex">
+             <nav class="w-[18rem] flex-shrink-0 hidden md:block px-4">
+               <DocsSidebar
+@@ -197,7 +198,7 @@ export default function DocsPage(props: PageProps<Data>) {
+                   <div class="flex gap-6 md:gap-8 xl:gap-[8%] flex-col xl:flex-row md:mx-8 lg:mx-16 2xl:mx-0 lg:justify-end">
+                     <TableOfContents headings={headings} />
+ 
+-                    <div class="lg:order-1 min-w-0 max-w-3xl">
++                    <div class="lg:order-1 min-w-0 max-w-3xl w-full">
+                       <h1 class="text-4xl text-gray-900 tracking-tight font-bold md:mt-0 px-4 md:px-0 mb-4">
+                         {page.title}
+                       </h1>
+diff --git a/www/utils/screenshot.ts b/www/utils/screenshot.ts
+index 3e32e84d891..e2816eaecc3 100644
+--- a/www/utils/screenshot.ts
++++ b/www/utils/screenshot.ts
+@@ -1,6 +1,6 @@
+ import puppeteer from "https://deno.land/x/puppeteer@16.2.0/mod.ts";
+-import { Image } from "https://deno.land/x/imagescript@1.2.15/mod.ts";
+-import { join } from "https://deno.land/std@0.211.0/path/mod.ts";
++import { Image } from "https://deno.land/x/imagescript@1.2.17/mod.ts";
++import { join } from "https://deno.land/std@0.216.0/path/mod.ts";
+ 
+ const url = Deno.args[0];
+ const id = Deno.args[1];

@@ -1,0 +1,917 @@
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+index 89d128fd..f72fe3e3 100644
+--- a/.github/workflows/ci.yml
++++ b/.github/workflows/ci.yml
+@@ -12,7 +12,7 @@ jobs:
+       - name: Setup Deno
+         uses: denoland/setup-deno@v1
+         with:
+-          deno-version: 1.17.3
++          deno-version: v1.x
+       
+       - name: Format
+         run: deno fmt --check
+@@ -37,7 +37,7 @@ jobs:
+ 
+       - name: Run tests without typechecking
+         id: no_typecheck
+-        uses: mathiasvr/command-output@v1
++        uses: mathiasvr/command-output@v2.0.0
+         with:
+           run: docker-compose run no_check_tests
+         continue-on-error: true
+@@ -45,7 +45,7 @@ jobs:
+       - name: Report no typechecking tests status
+         id: no_typecheck_status
+         if: steps.no_typecheck.outcome == 'success'
+-        run: echo "::set-output name=status::success"
++        run: echo "name=status::success" >> $GITHUB_OUTPUT
+     outputs:
+       no_typecheck: ${{ steps.no_typecheck.outputs.stdout }}
+       no_typecheck_status: ${{ steps.no_typecheck_status.outputs.status }}
+@@ -56,7 +56,7 @@ jobs:
+     steps:
+       - name: Set no-typecheck fail comment
+         if: ${{ needs.test.outputs.no_typecheck_status != 'success' && github.event_name == 'push' }}
+-        uses: peter-evans/commit-comment@v1
++        uses: peter-evans/commit-comment@v3
+         with:
+           body: |
+             # No typecheck tests failure
+diff --git a/Dockerfile b/Dockerfile
+index d86fddd5..c3bcd7c1 100644
+--- a/Dockerfile
++++ b/Dockerfile
+@@ -1,9 +1,9 @@
+-FROM denoland/deno:alpine-1.17.3
++FROM denoland/deno:alpine-1.40.3
+ WORKDIR /app
+ 
+ # Install wait utility
+ USER root
+-ADD https://github.com/ufoscout/docker-compose-wait/releases/download/2.8.0/wait /wait
++ADD https://github.com/ufoscout/docker-compose-wait/releases/download/2.12.1/wait /wait
+ RUN chmod +x /wait
+ 
+ USER deno
+diff --git a/README.md b/README.md
+index 1301454c..7e439982 100644
+--- a/README.md
++++ b/README.md
+@@ -3,7 +3,7 @@
+ ![Build Status](https://img.shields.io/github/workflow/status/denodrivers/postgres/ci?label=Build&logo=github&style=flat-square)
+ [![Discord server](https://img.shields.io/discord/768918486575480863?color=blue&label=Ask%20for%20help%20here&logo=discord&style=flat-square)](https://discord.gg/HEdTCvZUSf)
+ [![Manual](https://img.shields.io/github/v/release/denodrivers/postgres?color=orange&label=Manual&logo=deno&style=flat-square)](https://deno-postgres.com)
+-[![Documentation](https://img.shields.io/github/v/release/denodrivers/postgres?color=yellow&label=Documentation&logo=deno&style=flat-square)](https://doc.deno.land/https/deno.land/x/postgres@v0.16.1/mod.ts)
++[![Documentation](https://img.shields.io/github/v/release/denodrivers/postgres?color=yellow&label=Documentation&logo=deno&style=flat-square)](https://doc.deno.land/https/deno.land/x/postgres@v0.17.1/mod.ts)
+ [![License](https://img.shields.io/github/license/denodrivers/postgres?color=yellowgreen&label=License&style=flat-square)](LICENSE)
+ 
+ A lightweight PostgreSQL driver for Deno focused on user experience
+@@ -16,7 +16,7 @@ A lightweight PostgreSQL driver for Deno focused on user experience
+ 
+ ```ts
+ // deno run --allow-net --allow-read mod.ts
+-import { Client } from "https://deno.land/x/postgres@v0.16.1/mod.ts";
++import { Client } from "https://deno.land/x/postgres@v0.17.1/mod.ts";
+ 
+ const client = new Client({
+   user: "user",
+@@ -32,8 +32,8 @@ await client.connect();
+ }
+ 
+ {
+-  const result = await client.queryArray
+-    `SELECT ID, NAME FROM PEOPLE WHERE ID = ${1}`;
++  const result = await client
++    .queryArray`SELECT ID, NAME FROM PEOPLE WHERE ID = ${1}`;
+   console.log(result.rows); // [[1, 'Carlos']]
+ }
+ 
+@@ -43,8 +43,8 @@ await client.connect();
+ }
+ 
+ {
+-  const result = await client.queryObject
+-    `SELECT ID, NAME FROM PEOPLE WHERE ID = ${1}`;
++  const result = await client
++    .queryObject`SELECT ID, NAME FROM PEOPLE WHERE ID = ${1}`;
+   console.log(result.rows); // [{id: 1, name: 'Carlos'}]
+ }
+ 
+diff --git a/connection/connection_params.ts b/connection/connection_params.ts
+index d9a3fb82..38c46711 100644
+--- a/connection/connection_params.ts
++++ b/connection/connection_params.ts
+@@ -360,7 +360,7 @@ export function createParams(
+         if (parsed_host.protocol === "file:") {
+           host = fromFileUrl(parsed_host);
+         } else {
+-          throw new ConnectionParamsError(
++          throw new Error(
+             "The provided host is not a file path",
+           );
+         }
+diff --git a/connection/scram.ts b/connection/scram.ts
+index 33130936..b197035c 100644
+--- a/connection/scram.ts
++++ b/connection/scram.ts
+@@ -110,7 +110,7 @@ async function deriveKeySignatures(
+       salt,
+     },
+     pbkdf2_password,
+-    { name: "HMAC", hash: "SHA-256" },
++    { name: "HMAC", hash: "SHA-256", length: 256 },
+     false,
+     ["sign"],
+   );
+diff --git a/deps.ts b/deps.ts
+index f22f0426..1a00ff91 100644
+--- a/deps.ts
++++ b/deps.ts
+@@ -1,20 +1,20 @@
+-export * as base64 from "https://deno.land/std@0.141.0/encoding/base64.ts";
+-export * as hex from "https://deno.land/std@0.141.0/encoding/hex.ts";
+-export * as date from "https://deno.land/std@0.141.0/datetime/mod.ts";
++export * as base64 from "https://deno.land/std@0.160.0/encoding/base64.ts";
++export * as hex from "https://deno.land/std@0.160.0/encoding/hex.ts";
++export * as date from "https://deno.land/std@0.160.0/datetime/mod.ts";
+ export {
+   BufReader,
+   BufWriter,
+-} from "https://deno.land/std@0.141.0/io/buffer.ts";
+-export { copy } from "https://deno.land/std@0.141.0/bytes/mod.ts";
+-export { crypto } from "https://deno.land/std@0.141.0/crypto/mod.ts";
++} from "https://deno.land/std@0.160.0/io/buffer.ts";
++export { copy } from "https://deno.land/std@0.160.0/bytes/mod.ts";
++export { crypto } from "https://deno.land/std@0.160.0/crypto/mod.ts";
+ export {
+   type Deferred,
+   deferred,
+   delay,
+-} from "https://deno.land/std@0.141.0/async/mod.ts";
+-export { bold, yellow } from "https://deno.land/std@0.141.0/fmt/colors.ts";
++} from "https://deno.land/std@0.160.0/async/mod.ts";
++export { bold, yellow } from "https://deno.land/std@0.160.0/fmt/colors.ts";
+ export {
+   fromFileUrl,
+   isAbsolute,
+   join as joinPath,
+-} from "https://deno.land/std@0.141.0/path/mod.ts";
++} from "https://deno.land/std@0.160.0/path/mod.ts";
+diff --git a/docker-compose.yml b/docker-compose.yml
+index 94e483c3..93c0f17a 100644
+--- a/docker-compose.yml
++++ b/docker-compose.yml
+@@ -63,7 +63,7 @@ services:
+     build: .
+     # Name the image to be reused in no_check_tests
+     image: postgres/tests
+-    command: sh -c "/wait && deno test --unstable -A --jobs"
++    command: sh -c "/wait && deno test --unstable -A --parallel --check"
+     depends_on:
+       - postgres_clear
+       - postgres_md5
+@@ -74,7 +74,7 @@ services:
+ 
+   no_check_tests:
+     image: postgres/tests
+-    command: sh -c "/wait && deno test --unstable -A --jobs --no-check"
++    command: sh -c "/wait && deno test --unstable -A --parallel --no-check"
+     depends_on:
+       - tests
+     environment:
+diff --git a/docs/README.md b/docs/README.md
+index ab29561b..2135eb05 100644
+--- a/docs/README.md
++++ b/docs/README.md
+@@ -3,7 +3,7 @@
+ ![Build Status](https://img.shields.io/github/workflow/status/denodrivers/postgres/ci?label=Build&logo=github&style=flat-square)
+ [![Discord server](https://img.shields.io/discord/768918486575480863?color=blue&label=Ask%20for%20help%20here&logo=discord&style=flat-square)](https://discord.gg/HEdTCvZUSf)
+ ![Manual](https://img.shields.io/github/v/release/denodrivers/postgres?color=orange&label=Manual&logo=deno&style=flat-square)
+-[![Documentation](https://img.shields.io/github/v/release/denodrivers/postgres?color=yellow&label=Documentation&logo=deno&style=flat-square)](https://doc.deno.land/https/deno.land/x/postgres@v0.16.1/mod.ts)
++[![Documentation](https://img.shields.io/github/v/release/denodrivers/postgres?color=yellow&label=Documentation&logo=deno&style=flat-square)](https://doc.deno.land/https/deno.land/x/postgres@v0.17.1/mod.ts)
+ ![License](https://img.shields.io/github/license/denodrivers/postgres?color=yellowgreen&label=License&style=flat-square)
+ 
+ `deno-postgres` is a lightweight PostgreSQL driver for Deno focused on user
+@@ -11,7 +11,7 @@ experience. It provides abstractions for most common operations such as typed
+ queries, prepared statements, connection pools and transactions.
+ 
+ ```ts
+-import { Client } from "https://deno.land/x/postgres@v0.16.1/mod.ts";
++import { Client } from "https://deno.land/x/postgres@v0.17.1/mod.ts";
+ 
+ const client = new Client({
+   user: "user",
+@@ -38,7 +38,7 @@ All `deno-postgres` clients provide the following options to authenticate and
+ manage your connections
+ 
+ ```ts
+-import { Client } from "https://deno.land/x/postgres@v0.16.1/mod.ts";
++import { Client } from "https://deno.land/x/postgres@v0.17.1/mod.ts";
+ 
+ let config;
+ 
+@@ -337,7 +337,7 @@ TLS encrypted connections.
+ 
+ #### About invalid and custom TLS certificates
+ 
+-There is a miriad of factors you have to take into account when using a
++There is a myriad of factors you have to take into account when using a
+ certificate to encrypt your connection that, if not taken care of, can render
+ your certificate invalid.
+ 
+@@ -628,16 +628,16 @@ prepared statements with a nice and clear syntax for your queries
+ 
+ ```ts
+ {
+-  const result = await client.queryArray
+-    `SELECT ID, NAME FROM PEOPLE WHERE AGE > ${10} AND AGE < ${20}`;
++  const result = await client
++    .queryArray`SELECT ID, NAME FROM PEOPLE WHERE AGE > ${10} AND AGE < ${20}`;
+   console.log(result.rows);
+ }
+ 
+ {
+   const min = 10;
+   const max = 20;
+-  const result = await client.queryObject
+-    `SELECT ID, NAME FROM PEOPLE WHERE AGE > ${min} AND AGE < ${max}`;
++  const result = await client
++    .queryObject`SELECT ID, NAME FROM PEOPLE WHERE AGE > ${min} AND AGE < ${max}`;
+   console.log(result.rows);
+ }
+ ```
+@@ -686,8 +686,8 @@ await client.queryArray`UPDATE TABLE X SET Y = 0 WHERE Z = ${my_id}`;
+ // Invalid attempt to replace an specifier
+ const my_table = "IMPORTANT_TABLE";
+ const my_other_id = 41;
+-await client.queryArray
+-  `DELETE FROM ${my_table} WHERE MY_COLUMN = ${my_other_id};`;
++await client
++  .queryArray`DELETE FROM ${my_table} WHERE MY_COLUMN = ${my_other_id};`;
+ ```
+ 
+ ### Specifying result type
+@@ -706,8 +706,9 @@ intellisense
+ }
+ 
+ {
+-  const array_result = await client.queryArray<[number, string]>
+-    `SELECT ID, NAME FROM PEOPLE WHERE ID = ${17}`;
++  const array_result = await client.queryArray<
++    [number, string]
++  >`SELECT ID, NAME FROM PEOPLE WHERE ID = ${17}`;
+   // [number, string]
+   const person = array_result.rows[0];
+ }
+@@ -721,8 +722,9 @@ intellisense
+ }
+ 
+ {
+-  const object_result = await client.queryObject<{ id: number; name: string }>
+-    `SELECT ID, NAME FROM PEOPLE WHERE ID = ${17}`;
++  const object_result = await client.queryObject<
++    { id: number; name: string }
++  >`SELECT ID, NAME FROM PEOPLE WHERE ID = ${17}`;
+   // {id: number, name: string}
+   const person = object_result.rows[0];
+ }
+@@ -1037,8 +1039,8 @@ const transaction = client_1.createTransaction("transaction_1");
+ 
+ await transaction.begin();
+ 
+-await transaction.queryArray
+-  `CREATE TABLE TEST_RESULTS (USER_ID INTEGER, GRADE NUMERIC(10,2))`;
++await transaction
++  .queryArray`CREATE TABLE TEST_RESULTS (USER_ID INTEGER, GRADE NUMERIC(10,2))`;
+ await transaction.queryArray`CREATE TABLE GRADUATED_STUDENTS (USER_ID INTEGER)`;
+ 
+ // This operation takes several minutes
+@@ -1087,16 +1089,18 @@ following levels of transaction isolation:
+   await transaction.begin();
+   // This locks the current value of IMPORTANT_TABLE
+   // Up to this point, all other external changes will be included
+-  const { rows: query_1 } = await transaction.queryObject<{ password: string }>
+-    `SELECT PASSWORD FROM IMPORTANT_TABLE WHERE ID = ${my_id}`;
++  const { rows: query_1 } = await transaction.queryObject<
++    { password: string }
++  >`SELECT PASSWORD FROM IMPORTANT_TABLE WHERE ID = ${my_id}`;
+   const password_1 = rows[0].password;
+ 
+   // Concurrent operation executed by a different user in a different part of the code
+-  await client_2.queryArray
+-    `UPDATE IMPORTANT_TABLE SET PASSWORD = 'something_else' WHERE ID = ${the_same_id}`;
++  await client_2
++    .queryArray`UPDATE IMPORTANT_TABLE SET PASSWORD = 'something_else' WHERE ID = ${the_same_id}`;
+ 
+-  const { rows: query_2 } = await transaction.queryObject<{ password: string }>
+-    `SELECT PASSWORD FROM IMPORTANT_TABLE WHERE ID = ${my_id}`;
++  const { rows: query_2 } = await transaction.queryObject<
++    { password: string }
++  >`SELECT PASSWORD FROM IMPORTANT_TABLE WHERE ID = ${my_id}`;
+   const password_2 = rows[0].password;
+ 
+   // Database state is not updated while the transaction is ongoing
+@@ -1124,18 +1128,19 @@ following levels of transaction isolation:
+   await transaction.begin();
+   // This locks the current value of IMPORTANT_TABLE
+   // Up to this point, all other external changes will be included
+-  await transaction.queryObject<{ password: string }>
+-    `SELECT PASSWORD FROM IMPORTANT_TABLE WHERE ID = ${my_id}`;
++  await transaction.queryObject<
++    { password: string }
++  >`SELECT PASSWORD FROM IMPORTANT_TABLE WHERE ID = ${my_id}`;
+ 
+   // Concurrent operation executed by a different user in a different part of the code
+-  await client_2.queryArray
+-    `UPDATE IMPORTANT_TABLE SET PASSWORD = 'something_else' WHERE ID = ${the_same_id}`;
++  await client_2
++    .queryArray`UPDATE IMPORTANT_TABLE SET PASSWORD = 'something_else' WHERE ID = ${the_same_id}`;
+ 
+   // This statement will throw
+   // Target was modified outside of the transaction
+   // User may not be aware of the changes
+-  await transaction.queryArray
+-    `UPDATE IMPORTANT_TABLE SET PASSWORD = 'shiny_new_password' WHERE ID = ${the_same_id}`;
++  await transaction
++    .queryArray`UPDATE IMPORTANT_TABLE SET PASSWORD = 'shiny_new_password' WHERE ID = ${the_same_id}`;
+ 
+   // Transaction is aborted, no need to end it
+ 
+diff --git a/query/decoders.ts b/query/decoders.ts
+index 3199e844..c5435836 100644
+--- a/query/decoders.ts
++++ b/query/decoders.ts
+@@ -23,7 +23,7 @@ const HEX = 16;
+ const HEX_PREFIX_REGEX = /^\\x/;
+ const TIMEZONE_RE = /([Z+-])(\d{2})?:?(\d{2})?:?(\d{2})?/;
+ 
+-export function decodeBigint(value: string): BigInt {
++export function decodeBigint(value: string): bigint {
+   return BigInt(value);
+ }
+ 
+@@ -43,7 +43,7 @@ export function decodeBox(value: string): Box {
+   const [a, b] = value.match(/\(.*?\)/g) || [];
+ 
+   return {
+-    a: decodePoint(a),
++    a: decodePoint(a || ""),
+     b: decodePoint(b),
+   };
+ }
+@@ -224,7 +224,7 @@ export function decodeLineSegment(value: string): LineSegment {
+     .match(/\(.*?\)/g) || [];
+ 
+   return {
+-    a: decodePoint(a),
++    a: decodePoint(a || ""),
+     b: decodePoint(b),
+   };
+ }
+diff --git a/query/query.ts b/query/query.ts
+index 4a442c01..e58aa85a 100644
+--- a/query/query.ts
++++ b/query/query.ts
+@@ -28,15 +28,14 @@ export type QueryArguments = unknown[] | Record<string, unknown>;
+ 
+ const commandTagRegexp = /^([A-Za-z]+)(?: (\d+))?(?: (\d+))?/;
+ 
+-type CommandType = (
++type CommandType =
+   | "INSERT"
+   | "DELETE"
+   | "UPDATE"
+   | "SELECT"
+   | "MOVE"
+   | "FETCH"
+-  | "COPY"
+-);
++  | "COPY";
+ 
+ export enum ResultType {
+   ARRAY,
+diff --git a/query/transaction.ts b/query/transaction.ts
+index 137f249a..a5088cfd 100644
+--- a/query/transaction.ts
++++ b/query/transaction.ts
+@@ -281,9 +281,11 @@ export class Transaction {
+     const chain = options?.chain ?? false;
+ 
+     if (!this.#committed) {
+-      this.#committed = true;
+       try {
+         await this.queryArray(`COMMIT ${chain ? "AND CHAIN" : ""}`);
++        if (!chain) {
++          this.#committed = true;
++        }
+       } catch (e) {
+         if (e instanceof PostgresError) {
+           throw new TransactionError(this.name, e);
+@@ -336,8 +338,9 @@ export class Transaction {
+   async getSnapshot(): Promise<string> {
+     this.#assertTransactionOpen();
+ 
+-    const { rows } = await this.queryObject<{ snapshot: string }>
+-      `SELECT PG_EXPORT_SNAPSHOT() AS SNAPSHOT;`;
++    const { rows } = await this.queryObject<
++      { snapshot: string }
++    >`SELECT PG_EXPORT_SNAPSHOT() AS SNAPSHOT;`;
+     return rows[0].snapshot;
+   }
+ 
+diff --git a/query/types.ts b/query/types.ts
+index 9234cec4..2d6b77f1 100644
+--- a/query/types.ts
++++ b/query/types.ts
+@@ -70,7 +70,7 @@ export type Polygon = Point[];
+ /**
+  * https://www.postgresql.org/docs/14/datatype-oid.html
+  */
+-export type TID = [BigInt, BigInt];
++export type TID = [bigint, bigint];
+ 
+ /**
+  * Additional to containing normal dates, they can contain 'Infinity'
+diff --git a/tests/README.md b/tests/README.md
+index 4f2403c5..4cd45602 100644
+--- a/tests/README.md
++++ b/tests/README.md
+@@ -10,7 +10,7 @@ need to modify the configuration.
+ From within the project directory, run:
+ 
+ ```
+-deno test --allow-read --allow-net
++deno test --allow-read --allow-net --allow-env
+ ```
+ 
+ ## Docker Configuration
+diff --git a/tests/config.ts b/tests/config.ts
+index d2569146..fbd2b45f 100644
+--- a/tests/config.ts
++++ b/tests/config.ts
+@@ -1,5 +1,5 @@
+ import { ClientConfiguration } from "../connection/connection_params.ts";
+-import config_file1 from "./config.json" assert { type: "json" };
++import config_file1 from "./config.json" with { type: "json" };
+ 
+ type TcpConfiguration = Omit<ClientConfiguration, "connection"> & {
+   host_type: "tcp";
+diff --git a/tests/connection_params_test.ts b/tests/connection_params_test.ts
+index 44b69aea..d5138784 100644
+--- a/tests/connection_params_test.ts
++++ b/tests/connection_params_test.ts
+@@ -478,7 +478,7 @@ Deno.test("Throws when TLS options and socket type are specified", () => {
+ });
+ 
+ Deno.test("Throws when host is a URL and host type is socket", () => {
+-  assertThrows(
++  const error = assertThrows(
+     () =>
+       createParams({
+         database: "some_db",
+@@ -486,23 +486,25 @@ Deno.test("Throws when host is a URL and host type is socket", () => {
+         host_type: "socket",
+         user: "some_user",
+       }),
+-    (e: unknown) => {
+-      if (!(e instanceof ConnectionParamsError)) {
+-        throw new Error(`Unexpected error: ${e}`);
+-      }
+-
+-      const expected_message = "The provided host is not a file path";
+-
+-      if (
+-        typeof e?.cause?.message !== "string" ||
+-        !e.cause.message.includes(expected_message)
+-      ) {
+-        throw new Error(
+-          `Expected error message to include "${expected_message}"`,
+-        );
+-      }
+-    },
+   );
++
++  if (!(error instanceof ConnectionParamsError)) {
++    throw new Error(`Unexpected error: ${error}`);
++  }
++
++  if (!(error.cause instanceof Error)) {
++    throw new Error(`Expected cause for error`);
++  }
++
++  const expected_message = "The provided host is not a file path";
++  if (
++    typeof error.cause.message !== "string" ||
++    !error.cause.message.includes(expected_message)
++  ) {
++    throw new Error(
++      `Expected error cause to include "${expected_message}"`,
++    );
++  }
+ });
+ 
+ Deno.test("Escapes spaces on option values", () => {
+diff --git a/tests/connection_test.ts b/tests/connection_test.ts
+index 8ba6cf2d..11fe426a 100644
+--- a/tests/connection_test.ts
++++ b/tests/connection_test.ts
+@@ -370,9 +370,6 @@ Deno.test("Closes connection on bad TLS availability verification", async functi
+     new URL("./workers/postgres_server.ts", import.meta.url).href,
+     {
+       type: "module",
+-      deno: {
+-        namespace: true,
+-      },
+     },
+   );
+ 
+@@ -437,9 +434,6 @@ async function mockReconnection(attempts: number) {
+     new URL("./workers/postgres_server.ts", import.meta.url).href,
+     {
+       type: "module",
+-      deno: {
+-        namespace: true,
+-      },
+     },
+   );
+ 
+@@ -668,8 +662,9 @@ Deno.test("Options are passed to the database on connection", async () => {
+     await client.connect();
+ 
+     try {
+-      const { rows: result } = await client.queryObject<{ setting: string }>
+-        `SELECT SETTING FROM PG_SETTINGS WHERE NAME = 'geqo'`;
++      const { rows: result } = await client.queryObject<
++        { setting: string }
++      >`SELECT SETTING FROM PG_SETTINGS WHERE NAME = 'geqo'`;
+ 
+       assertEquals(result.length, 1);
+       assertEquals(result[0].setting, "off");
+@@ -689,8 +684,9 @@ Deno.test("Options are passed to the database on connection", async () => {
+     await client.connect();
+ 
+     try {
+-      const { rows: result } = await client.queryObject<{ setting: string }>
+-        `SELECT SETTING FROM PG_SETTINGS WHERE NAME = 'geqo'`;
++      const { rows: result } = await client.queryObject<
++        { setting: string }
++      >`SELECT SETTING FROM PG_SETTINGS WHERE NAME = 'geqo'`;
+ 
+       assertEquals(result.length, 1);
+       assertEquals(result[0].setting, "on");
+diff --git a/tests/data_types_test.ts b/tests/data_types_test.ts
+index d88cdb2d..d2741f3c 100644
+--- a/tests/data_types_test.ts
++++ b/tests/data_types_test.ts
+@@ -1174,8 +1174,8 @@ Deno.test(
+ Deno.test(
+   "json",
+   testClient(async (client) => {
+-    const result = await client.queryArray
+-      `SELECT JSON_BUILD_OBJECT( 'X', '1' )`;
++    const result = await client
++      .queryArray`SELECT JSON_BUILD_OBJECT( 'X', '1' )`;
+ 
+     assertEquals(result.rows[0], [{ X: "1" }]);
+   }),
+diff --git a/tests/query_client_test.ts b/tests/query_client_test.ts
+index 46773b3c..46ec5a05 100644
+--- a/tests/query_client_test.ts
++++ b/tests/query_client_test.ts
+@@ -339,8 +339,8 @@ Deno.test(
+ Deno.test(
+   "Handles parameter status messages on array query",
+   withClient(async (client) => {
+-    const { rows: result_1 } = await client.queryArray
+-      `SET TIME ZONE 'HongKong'`;
++    const { rows: result_1 } = await client
++      .queryArray`SET TIME ZONE 'HongKong'`;
+ 
+     assertEquals(result_1, []);
+ 
+@@ -358,8 +358,8 @@ Deno.test(
+   withClient(async (client) => {
+     const result = 10;
+ 
+-    await client.queryArray
+-      `CREATE OR REPLACE FUNCTION PG_TEMP.CHANGE_TIMEZONE(RES INTEGER) RETURNS INT AS $$
++    await client
++      .queryArray`CREATE OR REPLACE FUNCTION PG_TEMP.CHANGE_TIMEZONE(RES INTEGER) RETURNS INT AS $$
+ 			BEGIN
+ 			SET TIME ZONE 'HongKong';
+ 			END;
+@@ -374,8 +374,8 @@ Deno.test(
+       "control reached end of function without RETURN",
+     );
+ 
+-    await client.queryArray
+-      `CREATE OR REPLACE FUNCTION PG_TEMP.CHANGE_TIMEZONE(RES INTEGER) RETURNS INT AS $$
++    await client
++      .queryArray`CREATE OR REPLACE FUNCTION PG_TEMP.CHANGE_TIMEZONE(RES INTEGER) RETURNS INT AS $$
+ 			BEGIN
+ 			SET TIME ZONE 'HongKong';
+ 			RETURN RES;
+@@ -395,8 +395,8 @@ Deno.test(
+ Deno.test(
+   "Handles parameter status after error",
+   withClient(async (client) => {
+-    await client.queryArray
+-      `CREATE OR REPLACE FUNCTION PG_TEMP.CHANGE_TIMEZONE() RETURNS INT AS $$
++    await client
++      .queryArray`CREATE OR REPLACE FUNCTION PG_TEMP.CHANGE_TIMEZONE() RETURNS INT AS $$
+ 			BEGIN
+ 			SET TIME ZONE 'HongKong';
+ 			END;
+@@ -453,8 +453,8 @@ Deno.test(
+   "Handling of debug notices",
+   withClient(async (client) => {
+     // Create temporary function
+-    await client.queryArray
+-      `CREATE OR REPLACE FUNCTION PG_TEMP.CREATE_NOTICE () RETURNS INT AS $$ BEGIN RAISE NOTICE 'NOTICED'; RETURN (SELECT 1); END; $$ LANGUAGE PLPGSQL;`;
++    await client
++      .queryArray`CREATE OR REPLACE FUNCTION PG_TEMP.CREATE_NOTICE () RETURNS INT AS $$ BEGIN RAISE NOTICE 'NOTICED'; RETURN (SELECT 1); END; $$ LANGUAGE PLPGSQL;`;
+ 
+     const { rows, warnings } = await client.queryArray(
+       "SELECT * FROM PG_TEMP.CREATE_NOTICE();",
+@@ -483,8 +483,8 @@ Deno.test(
+ Deno.test(
+   "Handling of messages between data fetching",
+   withClient(async (client) => {
+-    await client.queryArray
+-      `CREATE OR REPLACE FUNCTION PG_TEMP.MESSAGE_BETWEEN_DATA(MESSAGE VARCHAR) RETURNS VARCHAR AS $$
++    await client
++      .queryArray`CREATE OR REPLACE FUNCTION PG_TEMP.MESSAGE_BETWEEN_DATA(MESSAGE VARCHAR) RETURNS VARCHAR AS $$
+ 			BEGIN
+ 			RAISE NOTICE '%', MESSAGE;
+ 			RETURN MESSAGE;
+@@ -522,8 +522,9 @@ Deno.test(
+ Deno.test(
+   "nativeType",
+   withClient(async (client) => {
+-    const result = await client.queryArray<[Date]>
+-      `SELECT '2019-02-10T10:30:40.005+04:30'::TIMESTAMPTZ`;
++    const result = await client.queryArray<
++      [Date]
++    >`SELECT '2019-02-10T10:30:40.005+04:30'::TIMESTAMPTZ`;
+     const row = result.rows[0];
+ 
+     const expectedDate = Date.UTC(2019, 1, 10, 6, 0, 40, 5);
+@@ -535,8 +536,8 @@ Deno.test(
+ Deno.test(
+   "Binary data is parsed correctly",
+   withClient(async (client) => {
+-    const { rows: result_1 } = await client.queryArray
+-      `SELECT E'foo\\\\000\\\\200\\\\\\\\\\\\377'::BYTEA`;
++    const { rows: result_1 } = await client
++      .queryArray`SELECT E'foo\\\\000\\\\200\\\\\\\\\\\\377'::BYTEA`;
+ 
+     const expectedBytes = new Uint8Array([102, 111, 111, 0, 128, 92, 255]);
+ 
+@@ -554,8 +555,8 @@ Deno.test(
+   "Result object metadata",
+   withClient(async (client) => {
+     await client.queryArray`CREATE TEMP TABLE METADATA (VALUE INTEGER)`;
+-    await client.queryArray
+-      `INSERT INTO METADATA VALUES (100), (200), (300), (400), (500), (600)`;
++    await client
++      .queryArray`INSERT INTO METADATA VALUES (100), (200), (300), (400), (500), (600)`;
+ 
+     let result;
+ 
+@@ -636,8 +637,9 @@ Deno.test(
+   withClient(async (client) => {
+     const [value_1, value_2] = ["A", "B"];
+ 
+-    const { rows } = await client.queryArray<[string, string]>
+-      `SELECT ${value_1}, ${value_2}`;
++    const { rows } = await client.queryArray<
++      [string, string]
++    >`SELECT ${value_1}, ${value_2}`;
+ 
+     assertEquals(rows[0], [value_1, value_2]);
+   }),
+@@ -845,8 +847,9 @@ Deno.test(
+   withClient(async (client) => {
+     const value = { x: "A", y: "B" };
+ 
+-    const { rows } = await client.queryObject<{ x: string; y: string }>
+-      `SELECT ${value.x} AS x, ${value.y} AS y`;
++    const { rows } = await client.queryObject<
++      { x: string; y: string }
++    >`SELECT ${value.x} AS x, ${value.y} AS y`;
+ 
+     assertEquals(rows[0], value);
+   }),
+@@ -867,16 +870,18 @@ Deno.test(
+     await transaction.queryArray`CREATE TEMP TABLE TEST (X INTEGER)`;
+     const savepoint = await transaction.savepoint("table_creation");
+     await transaction.queryArray`INSERT INTO TEST (X) VALUES (1)`;
+-    const query_1 = await transaction.queryObject<{ x: number }>
+-      `SELECT X FROM TEST`;
++    const query_1 = await transaction.queryObject<
++      { x: number }
++    >`SELECT X FROM TEST`;
+     assertEquals(
+       query_1.rows[0].x,
+       1,
+       "Operation was not executed inside transaction",
+     );
+     await transaction.rollback(savepoint);
+-    const query_2 = await transaction.queryObject<{ x: number }>
+-      `SELECT X FROM TEST`;
++    const query_2 = await transaction.queryObject<
++      { x: number }
++    >`SELECT X FROM TEST`;
+     assertEquals(
+       query_2.rowCount,
+       0,
+@@ -900,8 +905,8 @@ Deno.test(
+ 
+     const data = 1;
+     {
+-      const { rows: result } = await transaction.queryArray
+-        `SELECT ${data}::INTEGER`;
++      const { rows: result } = await transaction
++        .queryArray`SELECT ${data}::INTEGER`;
+       assertEquals(result[0], [data]);
+     }
+     {
+@@ -935,14 +940,16 @@ Deno.test(
+     await transaction_rr.begin();
+ 
+     // This locks the current value of the test table
+-    await transaction_rr.queryObject<{ x: number }>
+-      `SELECT X FROM FOR_TRANSACTION_TEST`;
++    await transaction_rr.queryObject<
++      { x: number }
++    >`SELECT X FROM FOR_TRANSACTION_TEST`;
+ 
+     // Modify data outside the transaction
+     await client_2.queryArray`UPDATE FOR_TRANSACTION_TEST SET X = 2`;
+ 
+-    const { rows: query_1 } = await client_2.queryObject<{ x: number }>
+-      `SELECT X FROM FOR_TRANSACTION_TEST`;
++    const { rows: query_1 } = await client_2.queryObject<
++      { x: number }
++    >`SELECT X FROM FOR_TRANSACTION_TEST`;
+     assertEquals(query_1, [{ x: 2 }]);
+ 
+     const { rows: query_2 } = await transaction_rr.queryObject<
+@@ -956,8 +963,9 @@ Deno.test(
+ 
+     await transaction_rr.commit();
+ 
+-    const { rows: query_3 } = await client_1.queryObject<{ x: number }>
+-      `SELECT X FROM FOR_TRANSACTION_TEST`;
++    const { rows: query_3 } = await client_1.queryObject<
++      { x: number }
++    >`SELECT X FROM FOR_TRANSACTION_TEST`;
+     assertEquals(
+       query_3,
+       [{ x: 2 }],
+@@ -986,8 +994,9 @@ Deno.test(
+     await transaction_rr.begin();
+ 
+     // This locks the current value of the test table
+-    await transaction_rr.queryObject<{ x: number }>
+-      `SELECT X FROM FOR_TRANSACTION_TEST`;
++    await transaction_rr.queryObject<
++      { x: number }
++    >`SELECT X FROM FOR_TRANSACTION_TEST`;
+ 
+     // Modify data outside the transaction
+     await client_2.queryArray`UPDATE FOR_TRANSACTION_TEST SET X = 2`;
+@@ -999,8 +1008,9 @@ Deno.test(
+       "A serializable transaction should throw if the data read in the transaction has been modified externally",
+     );
+ 
+-    const { rows: query_3 } = await client_1.queryObject<{ x: number }>
+-      `SELECT X FROM FOR_TRANSACTION_TEST`;
++    const { rows: query_3 } = await client_1.queryObject<
++      { x: number }
++    >`SELECT X FROM FOR_TRANSACTION_TEST`;
+     assertEquals(
+       query_3,
+       [{ x: 2 }],
+@@ -1048,14 +1058,16 @@ Deno.test(
+     await transaction_1.begin();
+ 
+     // This locks the current value of the test table
+-    await transaction_1.queryObject<{ x: number }>
+-      `SELECT X FROM FOR_TRANSACTION_TEST`;
++    await transaction_1.queryObject<
++      { x: number }
++    >`SELECT X FROM FOR_TRANSACTION_TEST`;
+ 
+     // Modify data outside the transaction
+     await client_2.queryArray`UPDATE FOR_TRANSACTION_TEST SET X = 2`;
+ 
+-    const { rows: query_1 } = await transaction_1.queryObject<{ x: number }>
+-      `SELECT X FROM FOR_TRANSACTION_TEST`;
++    const { rows: query_1 } = await transaction_1.queryObject<
++      { x: number }
++    >`SELECT X FROM FOR_TRANSACTION_TEST`;
+     assertEquals(
+       query_1,
+       [{ x: 1 }],
+@@ -1070,8 +1082,9 @@ Deno.test(
+     );
+     await transaction_2.begin();
+ 
+-    const { rows: query_2 } = await transaction_2.queryObject<{ x: number }>
+-      `SELECT X FROM FOR_TRANSACTION_TEST`;
++    const { rows: query_2 } = await transaction_2.queryObject<
++      { x: number }
++    >`SELECT X FROM FOR_TRANSACTION_TEST`;
+     assertEquals(
+       query_2,
+       [{ x: 1 }],
+@@ -1144,8 +1157,9 @@ Deno.test(
+     await transaction.begin();
+     await transaction.queryArray`INSERT INTO MY_TEST (X) VALUES (1)`;
+ 
+-    const { rows: query_1 } = await transaction.queryObject<{ x: number }>
+-      `SELECT X FROM MY_TEST`;
++    const { rows: query_1 } = await transaction.queryObject<
++      { x: number }
++    >`SELECT X FROM MY_TEST`;
+     assertEquals(query_1, [{ x: 1 }]);
+ 
+     await transaction.rollback({ chain: true });
+@@ -1158,8 +1172,9 @@ Deno.test(
+ 
+     await transaction.rollback();
+ 
+-    const { rowCount: query_2 } = await client.queryObject<{ x: number }>
+-      `SELECT X FROM MY_TEST`;
++    const { rowCount: query_2 } = await client.queryObject<
++      { x: number }
++    >`SELECT X FROM MY_TEST`;
+     assertEquals(query_2, 0);
+ 
+     assertEquals(
+@@ -1222,27 +1237,31 @@ Deno.test(
+     await transaction.begin();
+     await transaction.queryArray`CREATE TEMP TABLE X (Y INT)`;
+     await transaction.queryArray`INSERT INTO X VALUES (1)`;
+-    const { rows: query_1 } = await transaction.queryObject<{ y: number }>
+-      `SELECT Y FROM X`;
++    const { rows: query_1 } = await transaction.queryObject<
++      { y: number }
++    >`SELECT Y FROM X`;
+     assertEquals(query_1, [{ y: 1 }]);
+ 
+     const savepoint = await transaction.savepoint(savepoint_name);
+ 
+     await transaction.queryArray`DELETE FROM X`;
+-    const { rowCount: query_2 } = await transaction.queryObject<{ y: number }>
+-      `SELECT Y FROM X`;
++    const { rowCount: query_2 } = await transaction.queryObject<
++      { y: number }
++    >`SELECT Y FROM X`;
+     assertEquals(query_2, 0);
+ 
+     await savepoint.update();
+ 
+     await transaction.queryArray`INSERT INTO X VALUES (2)`;
+-    const { rows: query_3 } = await transaction.queryObject<{ y: number }>
+-      `SELECT Y FROM X`;
++    const { rows: query_3 } = await transaction.queryObject<
++      { y: number }
++    >`SELECT Y FROM X`;
+     assertEquals(query_3, [{ y: 2 }]);
+ 
+     await transaction.rollback(savepoint);
+-    const { rowCount: query_4 } = await transaction.queryObject<{ y: number }>
+-      `SELECT Y FROM X`;
++    const { rowCount: query_4 } = await transaction.queryObject<
++      { y: number }
++    >`SELECT Y FROM X`;
+     assertEquals(query_4, 0);
+ 
+     assertEquals(
+@@ -1259,8 +1278,9 @@ Deno.test(
+ 
+     // This checks that the savepoint can be called by name as well
+     await transaction.rollback(savepoint_name);
+-    const { rows: query_5 } = await transaction.queryObject<{ y: number }>
+-      `SELECT Y FROM X`;
++    const { rows: query_5 } = await transaction.queryObject<
++      { y: number }
++    >`SELECT Y FROM X`;
+     assertEquals(query_5, [{ y: 1 }]);
+ 
+     await transaction.commit();
+diff --git a/tests/test_deps.ts b/tests/test_deps.ts
+index a1d955e0..b813d31f 100644
+--- a/tests/test_deps.ts
++++ b/tests/test_deps.ts
+@@ -6,5 +6,5 @@ export {
+   assertObjectMatch,
+   assertRejects,
+   assertThrows,
+-} from "https://deno.land/std@0.141.0/testing/asserts.ts";
+-export * as streams from "https://deno.land/std@0.141.0/streams/conversion.ts";
++} from "https://deno.land/std@0.160.0/testing/asserts.ts";
++export * as streams from "https://deno.land/std@0.160.0/streams/conversion.ts";

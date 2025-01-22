@@ -1,0 +1,149 @@
+diff --git a/.github/workflows/publish_jsr.yml b/.github/workflows/publish_jsr.yml
+index b797ff9..50285a6 100644
+--- a/.github/workflows/publish_jsr.yml
++++ b/.github/workflows/publish_jsr.yml
+@@ -22,12 +22,15 @@ jobs:
+ 
+       - name: Set up Deno
+         uses: denoland/setup-deno@v1
++        
++      - name: Check Format
++        run: deno fmt --check
+ 
+       - name: Convert to JSR package
+         run: deno run -A tools/convert_to_jsr.ts
+ 
+-      - name: Format
+-        run: deno fmt --check
++      - name: Format converted code
++        run: deno fmt
+       
+       - name: Lint
+         run: deno lint
+@@ -47,4 +50,4 @@ jobs:
+ 
+       - name: Publish (real)
+         if: startsWith(github.ref, 'refs/tags/')
+-        run: deno publish
+\ No newline at end of file
++        run: deno publish
+diff --git a/client.ts b/client.ts
+index 7635c6a..d254188 100644
+--- a/client.ts
++++ b/client.ts
+@@ -515,4 +515,8 @@ export class PoolClient extends QueryClient {
+     // Cleanup all session related metadata
+     this.resetSessionMetadata();
+   }
++
++  [Symbol.dispose]() {
++    this.release();
++  }
+ }
+diff --git a/deno.json b/deno.json
+index d387deb..f4697e7 100644
+--- a/deno.json
++++ b/deno.json
+@@ -1,6 +1,6 @@
+ {
+   "lock": false,
+   "name": "@bartlomieju/postgres",
+-  "version": "0.19.2",
++  "version": "0.19.3",
+   "exports": "./mod.ts"
+ }
+diff --git a/docs/README.md b/docs/README.md
+index c476307..aad68e4 100644
+--- a/docs/README.md
++++ b/docs/README.md
+@@ -450,9 +450,12 @@ const dbPool = new Pool(
+   POOL_CONNECTIONS,
+ );
+ 
+-const client = await dbPool.connect(); // 19 connections are still available
+-await client.queryArray`UPDATE X SET Y = 'Z'`;
+-client.release(); // This connection is now available for use again
++// Note the `using` keyword in block scope
++{
++  using client = await dbPool.connect();
++  // 19 connections are still available
++  await client.queryArray`UPDATE X SET Y = 'Z'`;
++} // This connection is now available for use again
+ ```
+ 
+ The number of pools is up to you, but a pool of 20 is good for small
+@@ -515,9 +518,9 @@ await client_3.release();
+ 
+ #### Pools made simple
+ 
+-The following example is a simple abstraction over pools that allows you to
+-execute one query and release the used client after returning the result in a
+-single function call
++Because of `using` keyword there is no need for manually releasing pool client.
++
++Legacy code like this
+ 
+ ```ts
+ async function runQuery(query: string) {
+@@ -532,7 +535,27 @@ async function runQuery(query: string) {
+ }
+ 
+ await runQuery("SELECT ID, NAME FROM USERS"); // [{id: 1, name: 'Carlos'}, {id: 2, name: 'John'}, ...]
+-await runQuery("SELECT ID, NAME FROM USERS WHERE ID = '1'"); // [{id: 1, name: 'Carlos'}, {id: 2, name: 'John'}, ...]
++await runQuery("SELECT ID, NAME FROM USERS WHERE ID = '1'"); // [{id: 1, name: 'Carlos'}]
++```
++
++Can now be written simply as
++
++```ts
++async function runQuery(query: string) {
++  using client = await pool.connect();
++  return await client.queryObject(query);
++}
++
++await runQuery("SELECT ID, NAME FROM USERS"); // [{id: 1, name: 'Carlos'}, {id: 2, name: 'John'}, ...]
++await runQuery("SELECT ID, NAME FROM USERS WHERE ID = '1'"); // [{id: 1, name: 'Carlos'}]
++```
++
++But you can release pool client manually if you wish
++
++```ts
++const client = await dbPool.connect(); // note the `const` instead of `using` keyword
++await client.queryArray`UPDATE X SET Y = 'Z'`;
++client.release(); // This connection is now available for use again
+ ```
+ 
+ ## Executing queries
+diff --git a/query/array_parser.ts b/query/array_parser.ts
+index b7983b4..60e27a2 100644
+--- a/query/array_parser.ts
++++ b/query/array_parser.ts
+@@ -20,7 +20,7 @@ export function parseArray<T>(
+   source: string,
+   transform: Transformer<T>,
+   separator: AllowedSeparators = ",",
+-) {
++): ArrayResult<T> {
+   return new ArrayParser(source, transform, separator).parse();
+ }
+ 
+diff --git a/tests/pool_test.ts b/tests/pool_test.ts
+index fb7c3fc..c8ecac9 100644
+--- a/tests/pool_test.ts
++++ b/tests/pool_test.ts
+@@ -140,3 +140,15 @@ Deno.test(
+     );
+   }),
+ );
++
++Deno.test(
++  "Pool client will be released after `using` block",
++  testPool(async (POOL) => {
++    const initialPoolAvailable = POOL.available;
++    {
++      using _client = await POOL.connect();
++      assertEquals(POOL.available, initialPoolAvailable - 1);
++    }
++    assertEquals(POOL.available, initialPoolAvailable);
++  }),
++);

@@ -1,0 +1,764 @@
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+index 13565497377..9a683573d6b 100644
+--- a/.github/workflows/ci.yml
++++ b/.github/workflows/ci.yml
+@@ -44,7 +44,7 @@ jobs:
+         uses: crate-ci/typos@master
+ 
+       - name: Cache dependencies and Chrome
+-        uses: actions/cache@v3
++        uses: actions/cache@v4
+         with:
+           path: |
+             ${{ matrix.cache_path }}deps
+diff --git a/.vscode/import_map.json b/.vscode/import_map.json
+index 60e08d9425a..b3854afd917 100644
+--- a/.vscode/import_map.json
++++ b/.vscode/import_map.json
+@@ -17,8 +17,8 @@
+     "$marked-mangle": "https://esm.sh/marked-mangle@1.0.1",
+     "$fresh-testing-library": "https://deno.land/x/fresh_testing_library@0.11.1/mod.ts",
+     "$fresh-testing-library/": "https://deno.land/x/fresh_testing_library@0.11.1/",
+-    "tailwindcss": "npm:tailwindcss@3.3.5",
+-    "tailwindcss/": "npm:/tailwindcss@3.3.5/",
+-    "tailwindcss/plugin": "npm:/tailwindcss@3.3.5/plugin.js"
++    "tailwindcss": "npm:tailwindcss@3.4.1",
++    "tailwindcss/": "npm:/tailwindcss@3.4.1/",
++    "tailwindcss/plugin": "npm:/tailwindcss@3.4.1/plugin.js"
+   }
+ }
+diff --git a/deno.json b/deno.json
+index 6cf330a1bff..859483eb6ab 100644
+--- a/deno.json
++++ b/deno.json
+@@ -19,5 +19,8 @@
+   "compilerOptions": {
+     "jsx": "react-jsx",
+     "jsxImportSource": "preact"
++  },
++  "lint": {
++    "rules": { "exclude": ["no-window"] }
+   }
+ }
+diff --git a/docs/latest/concepts/ahead-of-time-builds.md b/docs/latest/concepts/ahead-of-time-builds.md
+index ee0aeb645fe..42ad614db83 100644
+--- a/docs/latest/concepts/ahead-of-time-builds.md
++++ b/docs/latest/concepts/ahead-of-time-builds.md
+@@ -81,7 +81,7 @@ jobs:
+ 
+     steps:
+       - name: Clone repository
+-        uses: actions/checkout@v3
++        uses: actions/checkout@v4
+ 
+       - name: Install Deno
+         uses: denoland/setup-deno@v1
+diff --git a/docs/latest/examples/migrating-to-tailwind.md b/docs/latest/examples/migrating-to-tailwind.md
+index e0db41b70a6..e4ac0854d27 100644
+--- a/docs/latest/examples/migrating-to-tailwind.md
++++ b/docs/latest/examples/migrating-to-tailwind.md
+@@ -87,9 +87,9 @@ export default {
+       "preact/": "https://esm.sh/preact@10.19.2/",
+ -     "twind": "https://esm.sh/twind@0.16.19",
+ -     "twind/": "https://esm.sh/twind@0.16.19/",
+-+     "tailwindcss": "npm:tailwindcss@3.3.5",
+-+     "tailwindcss/": "npm:/tailwindcss@3.3.5/",
+-+     "tailwindcss/plugin": "npm:/tailwindcss@3.3.5/plugin.js"
+++     "tailwindcss": "npm:tailwindcss@3.4.1",
+++     "tailwindcss/": "npm:/tailwindcss@3.4.1/",
+++     "tailwindcss/plugin": "npm:/tailwindcss@3.4.1/plugin.js"
+     }
+   }
+ ```
+diff --git a/docs/latest/introduction/index.md b/docs/latest/introduction/index.md
+index 4c6874491d3..87960c26c31 100644
+--- a/docs/latest/introduction/index.md
++++ b/docs/latest/introduction/index.md
+@@ -24,9 +24,9 @@ necessary transpilation of TypeScript or JSX to plain JavaScript is done on the
+ fly, just when it is needed. This allows for insanely fast iteration loops and
+ very very fast deployments.
+ 
+-Fresh projects can be deployed manually to any platform with `deno`, but it is
+-intended to be deployed to an edge runtime like [Deno Deploy][deno-deploy] for
+-the best experience.
++Fresh projects can be deployed manually to any platform with [Deno][deno], but
++it is intended to be deployed to an edge runtime like [Deno Deploy][deno-deploy]
++for the best experience.
+ 
+ Some stand out features:
+ 
+@@ -41,4 +41,5 @@ Some stand out features:
+ - File-system routing à la Next.js
+ 
+ [preact]: https://preactjs.com
++[deno]: https://deno.com
+ [deno-deploy]: https://deno.com/deploy
+diff --git a/init.ts b/init.ts
+index 2d82fbaef06..841ba56123d 100644
+--- a/init.ts
++++ b/init.ts
+@@ -6,6 +6,7 @@ import {
+   dotenvImports,
+   freshImports,
+   tailwindImports,
++  twindImports,
+ } from "./src/dev/imports.ts";
+ 
+ ensureMinDenoVersion();
+@@ -26,22 +27,26 @@ USAGE:
+ 
+ OPTIONS:
+     --force   Overwrite existing files
+-    --tailwind   Setup project to use 'tailwind' for styling
+-    --vscode  Setup project for VSCode
++    --tailwind   Use Tailwind for styling
++    --twind   Use Twind for styling
++    --vscode  Setup project for VS Code
+     --docker  Setup Project to use Docker
+ `;
+ 
+ const CONFIRM_EMPTY_MESSAGE =
+   "The target directory is not empty (files could get overwritten). Do you want to continue anyway?";
+ 
+-const USE_TAILWIND_MESSAGE =
+-  "Fresh has built in support for styling using Tailwind CSS. Do you want to use this?";
+-
+ const USE_VSCODE_MESSAGE = "Do you use VS Code?";
+ 
+ const flags = parse(Deno.args, {
+-  boolean: ["force", "tailwind", "vscode", "docker", "help"],
+-  default: { "force": null, "tailwind": null, "vscode": null, "docker": null },
++  boolean: ["force", "tailwind", "twind", "vscode", "docker", "help"],
++  default: {
++    force: null,
++    tailwind: null,
++    twind: null,
++    vscode: null,
++    docker: null,
++  },
+   alias: {
+     help: "h",
+   },
+@@ -52,6 +57,10 @@ if (flags.help) {
+   Deno.exit(0);
+ }
+ 
++if (flags.tailwind && flags.twind) {
++  error("Cannot use Tailwind and Twind at the same time.");
++}
++
+ console.log();
+ console.log(
+   colors.bgRgb8(
+@@ -63,7 +72,7 @@ console.log();
+ 
+ let unresolvedDirectory = Deno.args[0];
+ if (flags._.length !== 1) {
+-  const userInput = prompt("Project Name", "fresh-project");
++  const userInput = prompt("Project Name:", "fresh-project");
+   if (!userInput) {
+     error(help);
+   }
+@@ -90,9 +99,26 @@ try {
+ }
+ console.log("%cLet's set up your new Fresh project.\n", "font-weight: bold");
+ 
+-const useTailwind = flags.tailwind === null
+-  ? confirm(USE_TAILWIND_MESSAGE)
+-  : flags.tailwind;
++let useTailwind = flags.tailwind || false;
++let useTwind = flags.twind || false;
++
++if (flags.tailwind == null && flags.twind == null) {
++  if (confirm("Do you want to use a styling library?")) {
++    console.log();
++    console.log(`1. ${colors.cyan("tailwindcss")} (recommended)`);
++    console.log(`2. ${colors.cyan("Twind")}`);
++    console.log();
++    switch (
++      (prompt("Which styling library do you want to use? [1]") || "1").trim()
++    ) {
++      case "2":
++        useTwind = true;
++        break;
++      default:
++        useTailwind = true;
++    }
++  }
++}
+ 
+ const useVSCode = flags.vscode === null
+   ? confirm(USE_VSCODE_MESSAGE)
+@@ -322,6 +348,24 @@ if (useTailwind) {
+   );
+ }
+ 
++const TWIND_CONFIG_TS = `import { defineConfig, Preset } from "@twind/core";
++import presetTailwind from "@twind/preset-tailwind";
++import presetAutoprefix from "@twind/preset-autoprefix";
++
++export default {
++  ...defineConfig({
++    presets: [presetTailwind() as Preset, presetAutoprefix() as Preset],
++  }),
++  selfURL: import.meta.url,
++};
++`;
++if (useTwind) {
++  await Deno.writeTextFile(
++    join(resolvedDirectory, "twind.config.ts"),
++    TWIND_CONFIG_TS,
++  );
++}
++
+ const NO_TAILWIND_STYLES = `
+ *,
+ *::before,
+@@ -461,7 +505,7 @@ export default function App({ Component }: PageProps) {
+         <meta charset="utf-8" />
+         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+         <title>${basename(resolvedDirectory)}</title>
+-        <link rel="stylesheet" href="/styles.css" />
++        ${useTwind ? "" : `<link rel="stylesheet" href="/styles.css" />`}
+       </head>
+       <body>
+         <Component />
+@@ -481,10 +525,12 @@ const TAILWIND_CSS = `@tailwind base;
+ @tailwind utilities;`;
+ 
+ const cssStyles = useTailwind ? TAILWIND_CSS : NO_TAILWIND_STYLES;
+-await Deno.writeTextFile(
+-  join(resolvedDirectory, "static", "styles.css"),
+-  cssStyles,
+-);
++if (!useTwind) {
++  await Deno.writeTextFile(
++    join(resolvedDirectory, "static", "styles.css"),
++    cssStyles,
++  );
++}
+ 
+ const STATIC_LOGO =
+   `<svg width="40" height="40" fill="none" xmlns="http://www.w3.org/2000/svg">
+@@ -515,10 +561,19 @@ if (useTailwind) {
+   FRESH_CONFIG_TS += `import tailwind from "$fresh/plugins/tailwind.ts";
+ `;
+ }
++if (useTwind) {
++  FRESH_CONFIG_TS += `import twind from "$fresh/plugins/twindv1.ts";
++import twindConfig from "./twind.config.ts";
++`;
++}
+ 
+ FRESH_CONFIG_TS += `
+ export default defineConfig({${
+-  useTailwind ? `\n  plugins: [tailwind()],\n` : ""
++  useTailwind
++    ? `\n  plugins: [tailwind()],\n`
++    : useTwind
++    ? `\n  plugins: [twind(twindConfig)],\n`
++    : ""
+ }});
+ `;
+ const CONFIG_TS_PATH = join(resolvedDirectory, "fresh.config.ts");
+@@ -592,6 +647,9 @@ if (useTailwind) {
+   // deno-lint-ignore no-explicit-any
+   (config as any).nodeModulesDir = true;
+ }
++if (useTwind) {
++  twindImports(config.imports);
++}
+ dotenvImports(config.imports);
+ 
+ const DENO_CONFIG = JSON.stringify(config, null, 2) + "\n";
+diff --git a/plugins/tailwind.ts b/plugins/tailwind.ts
+index c0aaca417d1..8383d7debed 100644
+--- a/plugins/tailwind.ts
++++ b/plugins/tailwind.ts
+@@ -1,5 +1,5 @@
+ import { Plugin, PluginMiddleware, ResolvedFreshConfig } from "../server.ts";
+-import type postcss from "npm:postcss@8.4.31";
++import type postcss from "npm:postcss@8.4.33";
+ import * as path from "https://deno.land/std@0.207.0/path/mod.ts";
+ import { walk } from "https://deno.land/std@0.207.0/fs/walk.ts";
+ import { TailwindPluginOptions } from "./tailwind/types.ts";
+diff --git a/plugins/tailwind/compiler.ts b/plugins/tailwind/compiler.ts
+index 62af242edce..f75500def28 100644
+--- a/plugins/tailwind/compiler.ts
++++ b/plugins/tailwind/compiler.ts
+@@ -1,8 +1,8 @@
+ import { ResolvedFreshConfig } from "../../server.ts";
+ import tailwindCss, { Config } from "tailwindcss";
+-import postcss from "npm:postcss@8.4.31";
+-import cssnano from "npm:cssnano@6.0.1";
+-import autoprefixer from "npm:autoprefixer@10.4.16";
++import postcss from "npm:postcss@8.4.33";
++import cssnano from "npm:cssnano@6.0.3";
++import autoprefixer from "npm:autoprefixer@10.4.17";
+ import * as path from "https://deno.land/std@0.207.0/path/mod.ts";
+ import { TailwindPluginOptions } from "./types.ts";
+ 
+diff --git a/src/build/deps.ts b/src/build/deps.ts
+index 07d31d90979..8931a146e92 100644
+--- a/src/build/deps.ts
++++ b/src/build/deps.ts
+@@ -6,5 +6,5 @@ export {
+   toFileUrl,
+ } from "https://deno.land/std@0.211.0/path/mod.ts";
+ export { escape as regexpEscape } from "https://deno.land/std@0.211.0/regexp/escape.ts";
+-export { denoPlugins } from "https://deno.land/x/esbuild_deno_loader@0.8.3/mod.ts";
++export { denoPlugins } from "https://deno.land/x/esbuild_deno_loader@0.8.5/mod.ts";
+ export { assertEquals } from "https://deno.land/std@0.211.0/assert/mod.ts";
+diff --git a/src/dev/imports.ts b/src/dev/imports.ts
+index 3a3ccf5ed77..14689364cc2 100644
+--- a/src/dev/imports.ts
++++ b/src/dev/imports.ts
+@@ -1,9 +1,11 @@
+ export const RECOMMENDED_PREACT_VERSION = "10.19.2";
+ export const RECOMMENDED_PREACT_SIGNALS_VERSION = "1.2.1";
+ export const RECOMMENDED_PREACT_SIGNALS_CORE_VERSION = "1.5.0";
+-export const RECOMMENDED_TWIND_VERSION = "0.16.19";
++export const RECOMMENDED_TWIND_CORE_VERSION = "1.1.3";
++export const RECOMMENDED_TWIND_PRESET_AUTOPREFIX_VERSION = "1.0.7";
++export const RECOMMENDED_TWIND_PRESET_TAILWIND_VERSION = "1.1.4";
+ export const RECOMMENDED_STD_VERSION = "0.211.0";
+-export const RECOMMENDED_TAILIWIND_VERSION = "3.3.5";
++export const RECOMMENDED_TAILIWIND_VERSION = "3.4.1";
+ 
+ export function freshImports(imports: Record<string, string>) {
+   imports["$fresh/"] = new URL("../../", import.meta.url).href;
+@@ -16,8 +18,12 @@ export function freshImports(imports: Record<string, string>) {
+ }
+ 
+ export function twindImports(imports: Record<string, string>) {
+-  imports["twind"] = `https://esm.sh/twind@${RECOMMENDED_TWIND_VERSION}`;
+-  imports["twind/"] = `https://esm.sh/twind@${RECOMMENDED_TWIND_VERSION}/`;
++  imports["@twind/core"] =
++    `https://esm.sh/@twind/core@${RECOMMENDED_TWIND_CORE_VERSION}`;
++  imports["@twind/preset-tailwind"] =
++    `https://esm.sh/@twind/preset-tailwind@${RECOMMENDED_TWIND_PRESET_TAILWIND_VERSION}/`;
++  imports["@twind/preset-autoprefix"] =
++    `https://esm.sh/@twind/preset-autoprefix@${RECOMMENDED_TWIND_PRESET_AUTOPREFIX_VERSION}/`;
+ }
+ 
+ export function tailwindImports(imports: Record<string, string>) {
+@@ -50,7 +56,7 @@ jobs:
+ 
+     steps:
+       - name: Clone repository
+-        uses: actions/checkout@v3
++        uses: actions/checkout@v4
+ 
+       - name: Install Deno
+         uses: denoland/setup-deno@v1
+diff --git a/src/runtime/entrypoints/main.ts b/src/runtime/entrypoints/main.ts
+index 8cf9e4119cb..00f1797e3f0 100644
+--- a/src/runtime/entrypoints/main.ts
++++ b/src/runtime/entrypoints/main.ts
+@@ -1,3 +1,4 @@
++// deno-lint-ignore-file ban-unknown-rule-code ban-unused-ignore
+ import "../polyfills.ts";
+ import {
+   Component,
+@@ -111,6 +112,7 @@ export function revive(
+       );
+     };
+ 
++    // deno-lint-ignore no-window
+     "scheduler" in window
+       // `scheduler.postTask` is async but that can easily
+       // fire in the background. We don't want waiting for
+@@ -892,11 +894,11 @@ function maybeUpdateHistory(nextUrl: URL) {
+   // Only add history entry when URL is new. Still apply
+   // the partials because sometimes users click a link to
+   // "refresh" the current page.
+-  if (nextUrl.href !== window.location.href) {
++  if (nextUrl.href !== globalThis.location.href) {
+     const state: FreshHistoryState = {
+       index,
+-      scrollX: window.scrollX,
+-      scrollY: window.scrollY,
++      scrollX: globalThis.scrollX,
++      scrollY: globalThis.scrollY,
+     };
+ 
+     // Store current scroll position
+diff --git a/src/runtime/polyfills.ts b/src/runtime/polyfills.ts
+index 948fa5f1863..1c6e5071f73 100644
+--- a/src/runtime/polyfills.ts
++++ b/src/runtime/polyfills.ts
+@@ -1,5 +1,7 @@
++// deno-lint-ignore-file ban-unknown-rule-code ban-unused-ignore
+ // Polyfill for old safari versions
+ if (typeof globalThis === "undefined") {
+   // @ts-ignore polyfill
++  // deno-lint-ignore no-window
+   window.globalThis = window;
+ }
+diff --git a/src/server/context.ts b/src/server/context.ts
+index f76fc97ab4a..8bdcee4c2f6 100644
+--- a/src/server/context.ts
++++ b/src/server/context.ts
+@@ -187,6 +187,11 @@ export class ServerContext {
+       connInfo: ServeHandlerInfo = DEFAULT_CONN_INFO,
+     ) {
+       const url = new URL(req.url);
++      // Syntactically having double slashes in the pathname is valid per
++      // spec, but there is no behavior defined for that. Practically all
++      // servers normalize the pathname of a URL to not include double
++      // forward slashes.
++      url.pathname = url.pathname.replaceAll(/\/+/g, "/");
+ 
+       const aliveUrl = basePath + ALIVE_URL;
+ 
+diff --git a/tests/base_path_test.ts b/tests/base_path_test.ts
+index 8cc93f1ca0e..20533552250 100644
+--- a/tests/base_path_test.ts
++++ b/tests/base_path_test.ts
+@@ -116,7 +116,7 @@ Deno.test("rewrites root relative URLs in HTML", async () => {
+ 
+     const style = await page.$eval(
+       ".foo",
+-      (el) => window.getComputedStyle(el).color,
++      (el) => globalThis.getComputedStyle(el).color,
+     );
+     assertMatch(
+       style,
+diff --git a/tests/fixture_base_path/deno.json b/tests/fixture_base_path/deno.json
+index 7802f6a00ee..8c3bdc24237 100644
+--- a/tests/fixture_base_path/deno.json
++++ b/tests/fixture_base_path/deno.json
+@@ -10,9 +10,9 @@
+     "@preact/signals": "https://esm.sh/*@preact/signals@1.2.2",
+     "@preact/signals-core": "https://esm.sh/@preact/signals-core@1.5.0",
+     "preact-render-to-string": "https://esm.sh/*preact-render-to-string@6.1.0",
+-    "tailwindcss": "npm:tailwindcss@3.3.5",
+-    "tailwindcss/": "npm:/tailwindcss@3.3.5/",
+-    "tailwindcss/plugin": "npm:/tailwindcss@3.3.5/plugin.js"
++    "tailwindcss": "npm:tailwindcss@3.4.1",
++    "tailwindcss/": "npm:/tailwindcss@3.4.1/",
++    "tailwindcss/plugin": "npm:/tailwindcss@3.4.1/plugin.js"
+   },
+   "compilerOptions": {
+     "jsx": "react-jsx",
+diff --git a/tests/fixture_base_path_build/deno.json b/tests/fixture_base_path_build/deno.json
+index d9ccbefafc5..6e495542eda 100644
+--- a/tests/fixture_base_path_build/deno.json
++++ b/tests/fixture_base_path_build/deno.json
+@@ -4,7 +4,7 @@
+     "$fresh/": "../../",
+     "preact": "https://esm.sh/preact@10.15.1",
+     "preact/": "https://esm.sh/preact@10.15.1/",
+-    "tailwindcss": "npm:tailwindcss@3.3.5"
++    "tailwindcss": "npm:tailwindcss@3.4.1"
+   },
+   "compilerOptions": {
+     "jsx": "react-jsx",
+diff --git a/tests/fixture_base_path_config/deno.json b/tests/fixture_base_path_config/deno.json
+index d9ccbefafc5..6e495542eda 100644
+--- a/tests/fixture_base_path_config/deno.json
++++ b/tests/fixture_base_path_config/deno.json
+@@ -4,7 +4,7 @@
+     "$fresh/": "../../",
+     "preact": "https://esm.sh/preact@10.15.1",
+     "preact/": "https://esm.sh/preact@10.15.1/",
+-    "tailwindcss": "npm:tailwindcss@3.3.5"
++    "tailwindcss": "npm:tailwindcss@3.4.1"
+   },
+   "compilerOptions": {
+     "jsx": "react-jsx",
+diff --git a/tests/fixture_tailwind/deno.json b/tests/fixture_tailwind/deno.json
+index d9ccbefafc5..6e495542eda 100644
+--- a/tests/fixture_tailwind/deno.json
++++ b/tests/fixture_tailwind/deno.json
+@@ -4,7 +4,7 @@
+     "$fresh/": "../../",
+     "preact": "https://esm.sh/preact@10.15.1",
+     "preact/": "https://esm.sh/preact@10.15.1/",
+-    "tailwindcss": "npm:tailwindcss@3.3.5"
++    "tailwindcss": "npm:tailwindcss@3.4.1"
+   },
+   "compilerOptions": {
+     "jsx": "react-jsx",
+diff --git a/tests/fixture_tailwind_build/deno.json b/tests/fixture_tailwind_build/deno.json
+index d9ccbefafc5..6e495542eda 100644
+--- a/tests/fixture_tailwind_build/deno.json
++++ b/tests/fixture_tailwind_build/deno.json
+@@ -4,7 +4,7 @@
+     "$fresh/": "../../",
+     "preact": "https://esm.sh/preact@10.15.1",
+     "preact/": "https://esm.sh/preact@10.15.1/",
+-    "tailwindcss": "npm:tailwindcss@3.3.5"
++    "tailwindcss": "npm:tailwindcss@3.4.1"
+   },
+   "compilerOptions": {
+     "jsx": "react-jsx",
+diff --git a/tests/fixture_tailwind_build_2/deno.json b/tests/fixture_tailwind_build_2/deno.json
+index d9ccbefafc5..6e495542eda 100644
+--- a/tests/fixture_tailwind_build_2/deno.json
++++ b/tests/fixture_tailwind_build_2/deno.json
+@@ -4,7 +4,7 @@
+     "$fresh/": "../../",
+     "preact": "https://esm.sh/preact@10.15.1",
+     "preact/": "https://esm.sh/preact@10.15.1/",
+-    "tailwindcss": "npm:tailwindcss@3.3.5"
++    "tailwindcss": "npm:tailwindcss@3.4.1"
+   },
+   "compilerOptions": {
+     "jsx": "react-jsx",
+diff --git a/tests/fixture_tailwind_config/deno.json b/tests/fixture_tailwind_config/deno.json
+index d9ccbefafc5..6e495542eda 100644
+--- a/tests/fixture_tailwind_config/deno.json
++++ b/tests/fixture_tailwind_config/deno.json
+@@ -4,7 +4,7 @@
+     "$fresh/": "../../",
+     "preact": "https://esm.sh/preact@10.15.1",
+     "preact/": "https://esm.sh/preact@10.15.1/",
+-    "tailwindcss": "npm:tailwindcss@3.3.5"
++    "tailwindcss": "npm:tailwindcss@3.4.1"
+   },
+   "compilerOptions": {
+     "jsx": "react-jsx",
+diff --git a/tests/init_test.ts b/tests/init_test.ts
+index f24447165f5..347e9967542 100644
+--- a/tests/init_test.ts
++++ b/tests/init_test.ts
+@@ -242,6 +242,100 @@ Deno.test({
+   },
+ });
+ 
++Deno.test({
++  name: "fresh-init --twind --vscode",
++  async fn(t) {
++    // Preparation
++    const tmpDirName = await Deno.makeTempDir();
++
++    await t.step("execute init command", async () => {
++      const cliProcess = new Deno.Command(Deno.execPath(), {
++        args: [
++          "run",
++          "-A",
++          "init.ts",
++          tmpDirName,
++          "--twind",
++          "--vscode",
++        ],
++        stdin: "null",
++        stdout: "null",
++      });
++      const { code } = await cliProcess.output();
++      assertEquals(code, 0);
++    });
++
++    const files = [
++      "/README.md",
++      "/fresh.gen.ts",
++      "/twind.config.ts",
++      "/components/Button.tsx",
++      "/islands/Counter.tsx",
++      "/main.ts",
++      "/routes/greet/[name].tsx",
++      "/routes/api/joke.ts",
++      "/routes/_app.tsx",
++      "/routes/index.tsx",
++      "/static/logo.svg",
++      "/.vscode/settings.json",
++      "/.vscode/extensions.json",
++      "/.gitignore",
++    ];
++
++    await t.step("check generated files", async () => {
++      await assertFileExistence(files, tmpDirName);
++    });
++
++    await t.step("start up the server and access the root page", async () => {
++      const { serverProcess, lines, address } = await startFreshServer({
++        args: ["run", "-A", "--check", "main.ts"],
++        cwd: tmpDirName,
++      });
++
++      await delay(100);
++
++      // Access the root page
++      const res = await fetch(address);
++      await res.body?.cancel();
++      assertEquals(res.status, STATUS_CODE.OK);
++
++      // verify the island is revived.
++      const browser = await puppeteer.launch({ args: ["--no-sandbox"] });
++      const page = await browser.newPage();
++      await page.goto(address, { waitUntil: "networkidle2" });
++
++      const counter = await page.$("body > div > div > div > p");
++      let counterValue = await counter?.evaluate((el) => el.textContent);
++      assertEquals(counterValue, "3");
++
++      const fontWeight = await counter?.evaluate((el) =>
++        getComputedStyle(el).fontWeight
++      );
++      assertEquals(fontWeight, "400");
++
++      const buttonPlus = await page.$(
++        "body > div > div > div > button:nth-child(3)",
++      );
++      await buttonPlus?.click();
++
++      await waitForText(page, "body > div > div > div > p", "4");
++
++      counterValue = await counter?.evaluate((el) => el.textContent);
++      assert(counterValue === "4");
++      await page.close();
++      await browser.close();
++
++      serverProcess.kill("SIGTERM");
++      await serverProcess.status;
++
++      // Drain the lines stream
++      for await (const _ of lines) { /* noop */ }
++    });
++
++    await retry(() => Deno.remove(tmpDirName, { recursive: true }));
++  },
++});
++
+ Deno.test("fresh-init error(help)", async function (t) {
+   const includeText = "fresh-init";
+ 
+diff --git a/tests/main_test.ts b/tests/main_test.ts
+index 252ac46b25f..259b8669859 100644
+--- a/tests/main_test.ts
++++ b/tests/main_test.ts
+@@ -232,7 +232,7 @@ Deno.test("redirect /pages/fresh/ to /pages/fresh", async () => {
+   );
+ });
+ 
+-Deno.test("redirect /pages/////fresh///// to /pages/////fresh", async () => {
++Deno.test("redirect /pages/////fresh///// to /pages/fresh", async () => {
+   const resp = await handler(
+     new Request("https://fresh.deno.dev/pages/////fresh/////"),
+   );
+@@ -240,11 +240,11 @@ Deno.test("redirect /pages/////fresh///// to /pages/////fresh", async () => {
+   assertEquals(resp.status, STATUS_CODE.TemporaryRedirect);
+   assertEquals(
+     resp.headers.get("location"),
+-    "/pages/////fresh",
++    "/pages/fresh",
+   );
+ });
+ 
+-Deno.test("redirect /pages/////fresh/ to /pages/////fresh", async () => {
++Deno.test("redirect /pages/////fresh/ to /pages/fresh", async () => {
+   const resp = await handler(
+     new Request("https://fresh.deno.dev/pages/////fresh/"),
+   );
+@@ -252,7 +252,7 @@ Deno.test("redirect /pages/////fresh/ to /pages/////fresh", async () => {
+   assertEquals(resp.status, STATUS_CODE.TemporaryRedirect);
+   assertEquals(
+     resp.headers.get("location"),
+-    "/pages/////fresh",
++    "/pages/fresh",
+   );
+ });
+ 
+@@ -264,6 +264,15 @@ Deno.test("no redirect for /pages/////fresh", async () => {
+   assertEquals(resp.status, STATUS_CODE.NotFound);
+ });
+ 
++Deno.test("no open redirect when passing double slashes", async () => {
++  const resp = await handler(
++    new Request("https://fresh.deno.dev//evil.com/"),
++  );
++  assert(resp);
++  assertEquals(resp.status, STATUS_CODE.TemporaryRedirect);
++  assertEquals(resp.headers.get("location"), "/evil.com");
++});
++
+ Deno.test("/failure", async () => {
+   const resp = await handler(new Request("https://fresh.deno.dev/failure"));
+   assert(resp);
+diff --git a/tests/partials_test.ts b/tests/partials_test.ts
+index d1d34d09496..34b80ef0c28 100644
+--- a/tests/partials_test.ts
++++ b/tests/partials_test.ts
+@@ -1204,7 +1204,7 @@ Deno.test("fragment navigation should not scroll to top", async () => {
+       await page.click("a");
+       await page.waitForFunction(() => location.hash === "#foo");
+ 
+-      const scroll = await page.evaluate(() => window.scrollY);
++      const scroll = await page.evaluate(() => globalThis.scrollY);
+       assert(scroll > 0, `Did not scroll to fragment`);
+     },
+   );
+@@ -1332,12 +1332,12 @@ Deno.test("merges <head> content", async () => {
+       assertMetaContent(doc, "og:bar", "og value bar");
+ 
+       const color = await page.$eval("h1", (el) => {
+-        return window.getComputedStyle(el).color;
++        return globalThis.getComputedStyle(el).color;
+       });
+       assertEquals(color, "rgb(255, 0, 0)");
+ 
+       const textColor = await page.$eval("p", (el) => {
+-        return window.getComputedStyle(el).color;
++        return globalThis.getComputedStyle(el).color;
+       });
+       assertEquals(textColor, "rgb(0, 128, 0)");
+     },
+diff --git a/tests/server_components_test.ts b/tests/server_components_test.ts
+index 330a632a2d2..a32cac6539a 100644
+--- a/tests/server_components_test.ts
++++ b/tests/server_components_test.ts
+@@ -157,7 +157,7 @@ Deno.test({
+ 
+         // Check that CSS was applied accordingly
+         const color = await page.$eval("h1", (el) => {
+-          return window.getComputedStyle(el).color;
++          return globalThis.getComputedStyle(el).color;
+         });
+         assertEquals(color, "rgb(220, 38, 38)");
+       },
+diff --git a/tests/test_utils.ts b/tests/test_utils.ts
+index a3ffdb539c4..79d50ea8668 100644
+--- a/tests/test_utils.ts
++++ b/tests/test_utils.ts
+@@ -459,7 +459,7 @@ export async function waitForStyle(
+       (s, n, v) => {
+         const el = document.querySelector(s);
+         if (!el) return false;
+-        return window.getComputedStyle(el)[n] === v;
++        return globalThis.getComputedStyle(el)[n] === v;
+       },
+       selector,
+       name,
+diff --git a/www/deno.json b/www/deno.json
+index 273711ff8d3..555a1c2c9e5 100644
+--- a/www/deno.json
++++ b/www/deno.json
+@@ -17,9 +17,9 @@
+     "$marked-mangle": "https://esm.sh/marked-mangle@1.0.1",
+     "$fresh-testing-library": "https://deno.land/x/fresh_testing_library@0.8.0/mod.ts",
+     "$fresh-testing-library/": "https://deno.land/x/fresh_testing_library@0.8.0/",
+-    "tailwindcss": "npm:tailwindcss@3.3.5",
+-    "tailwindcss/": "npm:/tailwindcss@3.3.5/",
+-    "tailwindcss/plugin": "npm:/tailwindcss@3.3.5/plugin.js"
++    "tailwindcss": "npm:tailwindcss@3.4.1",
++    "tailwindcss/": "npm:/tailwindcss@3.4.1/",
++    "tailwindcss/plugin": "npm:/tailwindcss@3.4.1/plugin.js"
+   },
+   "compilerOptions": {
+     "jsx": "react-jsx",
+diff --git a/www/islands/LemonDrop.tsx b/www/islands/LemonDrop.tsx
+index 456f0ea7803..e54ecfaa31d 100644
+--- a/www/islands/LemonDrop.tsx
++++ b/www/islands/LemonDrop.tsx
+@@ -74,7 +74,9 @@ function LemonDrop() {
+   }, [width.value]);
+ 
+   useEffect(() => {
+-    const mediaQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
++    const mediaQuery = globalThis.matchMedia(
++      "(prefers-reduced-motion: reduce)",
++    );
+     if (mediaQuery.matches) {
+       return;
+     }

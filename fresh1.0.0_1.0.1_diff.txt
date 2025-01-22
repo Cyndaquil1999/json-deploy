@@ -1,0 +1,952 @@
+diff --git a/.vscode/import_map.json b/.vscode/import_map.json
+index c6eaf205352..589c720e2ff 100644
+--- a/.vscode/import_map.json
++++ b/.vscode/import_map.json
+@@ -4,12 +4,12 @@
+     "$fresh/": "../",
+ 
+     "@twind": "../www/utils/twind.ts",
+-    "twind": "https://esm.sh/twind@0.16.16",
+-    "twind/": "https://esm.sh/twind@0.16.16/",
++    "twind": "https://esm.sh/twind@0.16.17",
++    "twind/": "https://esm.sh/twind@0.16.17/",
+ 
+-    "preact": "https://esm.sh/preact@10.8.1",
+-    "preact/": "https://esm.sh/preact@10.8.1/",
+-    "preact-render-to-string": "https://esm.sh/preact-render-to-string@5.2.0?deps=preact@10.8.1",
++    "preact": "https://esm.sh/preact@10.8.2",
++    "preact/": "https://esm.sh/preact@10.8.2/",
++    "preact-render-to-string": "https://esm.sh/preact-render-to-string@5.2.0?deps=preact@10.8.2",
+ 
+     "$semver/": "https://deno.land/x/semver@v1.4.0/"
+   }
+diff --git a/README.md b/README.md
+index a0293dd0e54..a9157e642dd 100644
+--- a/README.md
++++ b/README.md
+@@ -1,11 +1,13 @@
++[Documentation](#documentation) | [Getting started](#getting-started)
++
+ # fresh
+ 
+ <img align="right" src="./www/static/logo.svg" height="150px" alt="the fresh logo: a sliced lemon dripping with juice">
+ 
+-The next-gen web framework.
++**Fresh** is a next generation web framework, built for speed, reliability, and
++simplicity.
+ 
+-Fresh is a next generation web framework, built for speed, reliability, and
+-simplicity. Some stand out features:
++Some stand-out features:
+ 
+ - Just-in-time rendering on the edge.
+ - Island based client hydration for maximum interactivity.
+@@ -13,31 +15,48 @@ simplicity. Some stand out features:
+ - No build step.
+ - No configuration necessary.
+ - TypeScript support out of the box.
+-- File-system routing à la Next.js
++- File-system routing à la Next.js.
+ 
+-## Documentation
++## 📖 Documentation
+ 
+ The [documentation](https://fresh.deno.dev/docs/) is available on
+ [fresh.deno.dev](https://fresh.deno.dev/).
+ 
+-## Getting started
++## 🚀 Getting started
++
++Install [Deno CLI](https://deno.land/) version 1.23.0 or higher.
+ 
+ You can scaffold a new project by running the Fresh init script. To scaffold a
+-project in the `myproject` folder, run the following:
++project in the `my-project` folder, run the following:
+ 
+ ```sh
+ deno run -A -r https://fresh.deno.dev my-project
+ ```
+ 
+-To now start the project, use `deno task`:
++Then navigate to the newly created project folder:
++
++```
++cd my-project
++```
++
++From within your project folder, start the development server using the
++`deno task` command:
+ 
+ ```
+ deno task start
+ ```
+ 
+-To deploy the script to [Deno Deploy](https://deno.com/deploy), push your
+-project to GitHub, [create a Deno Deploy project](https://dash.deno.com/new),
+-and link it to the **`main.ts`** file in the root of the created repository.
++Now open http://localhost:8000 in your browser to view the page. You make
++changes to the project source code and see them reflected in your browser.
++
++To deploy the project to the live internet, you can use
++[Deno Deploy](https://deno.com/deploy):
++
++1. Push your project to GitHub.
++2. [Create a Deno Deploy project](https://dash.deno.com/new).
++3. [Link][https://deno.com/deploy/docs/projects#enabling] the Deno Deploy
++   project to the **`main.ts`** file in the root of the created repository.
++4. The project will be deployed to a public $project.deno.dev subdomain.
+ 
+ For a more in-depth getting started guide, visit the
+ [Getting Started](https://fresh.deno.dev/docs/getting-started) page in the Fresh
+diff --git a/docs/concepts/architechture.md b/docs/concepts/architechture.md
+index f277a7e0885..f8f39034d2e 100644
+--- a/docs/concepts/architechture.md
++++ b/docs/concepts/architechture.md
+@@ -12,13 +12,13 @@ gathered from experts in the field. Some examples of these principles are:
+ - The work performed on the client should be minimized.
+ - Errors should have a small blast radius - stuff should gracefully degrade.
+ 
+-The single biggest architechture decision that Fresh makes is it's usage of the
++The single biggest architecture decision that Fresh makes is its usage of the
+ [islands architecture][islands] pattern. This means that Fresh applications ship
+-pure HTML to the client by default. Parts of server rendered page can then be
++pure HTML to the client by default. Parts of server-rendered page can then be
+ independently re-hydrated with interactive widgets (islands). This means that
+ the client is only responsible for rendering parts of the page that are
+ interactive enough to warrant the extra effort. Any content that is purely
+-static does not have related client side JavaScript, and is thus very
++static does not have related client-side JavaScript and is thus very
+ lightweight.
+ 
+ <!-- TODO(lucacasonato): elaborate on request handling, form actions, etc. -->
+diff --git a/docs/concepts/data-fetching.md b/docs/concepts/data-fetching.md
+index 91ae8beba04..6581d802b51 100644
+--- a/docs/concepts/data-fetching.md
++++ b/docs/concepts/data-fetching.md
+@@ -3,11 +3,10 @@ description: |
+   Data fetching in Fresh happens inside of route handler functions. These can pass route data to the page via page props.
+ ---
+ 
+-Server side data fetching in Fresh is acomplished through asynchronous
+-[handler functions][route-handlers]. These handler functions can call a
+-`ctx.render()` function with the data to be rendered as an argument. This data
+-can then be retreived by the page component through the `data` property on the
+-`props`.
++Server side data fetching in Fresh is accomplished through asynchronous handler
++functions. These handler functions can call a `ctx.render()` function with the
++data to be rendered as an argument. This data can then be retrieved by the page
++component through the `data` property on the `props`.
+ 
+ Here is an example:
+ 
+@@ -41,5 +40,3 @@ The type parameter on the `PageProps`, `Handlers`, `Handler`, and
+ `HandlerContext` can be used to enforce a TypeScript type to use for the render
+ data. Fresh enforces during type checking that the types in all of these fields
+ are compatible within a single page.
+-
+-[route-handlers]: ./route-handlers
+diff --git a/docs/concepts/error-pages.md b/docs/concepts/error-pages.md
+index 84511da8518..1719a2ca696 100644
+--- a/docs/concepts/error-pages.md
++++ b/docs/concepts/error-pages.md
+@@ -5,7 +5,7 @@ description: |
+ 
+ Fresh supports customizing the `404 Not Found`, and the
+ `500 Internal Server Error` pages. These are shown when a request is made but no
+-matching route exists, and when a middelware, route handler, or page component
++matching route exists, and when a middleware, route handler, or page component
+ throws an error respectively.
+ 
+ The 404 page can be customized by creating a `_404.tsx` file in the `routes/`
+diff --git a/docs/concepts/islands.md b/docs/concepts/islands.md
+index cc6bb5d3ef4..ba6351c75c9 100644
+--- a/docs/concepts/islands.md
++++ b/docs/concepts/islands.md
+@@ -4,12 +4,12 @@ description: |
+ ---
+ 
+ Islands enable client side interactivity in Fresh. Islands are isolated Preact
+-components that are are rendered on the client. This is different from all other
+-components in Fresh, as they are ususally just rendered on the server.
++components that are rendered on the client. This is different from all other
++components in Fresh, as they are usually just rendered on the server.
+ 
+ Islands are defined by creating a file in the `islands/` folder in a Fresh
+ project. The name of this file must be a PascalCase name of the island. The file
+-must have a default export that is a regular preact component.
++must have a default export that is a regular Preact component.
+ 
+ ```tsx
+ // islands/MyIsland.tsx
+diff --git a/docs/concepts/middleware.md b/docs/concepts/middleware.md
+index 0aa3f23ff08..ee4ab97ca67 100644
+--- a/docs/concepts/middleware.md
++++ b/docs/concepts/middleware.md
+@@ -61,7 +61,8 @@ For a request to `/` the request will flow like this:
+ For a request to `/admin` the request flows like this:
+ 
+ 1. The `routes/_middleware.ts` middleware is invoked.
+-2. Calling `ctx.next()` will invoke the `routes/admin/_middleware.ts` middlware.
++2. Calling `ctx.next()` will invoke the `routes/admin/_middleware.ts`
++   middleware.
+ 3. Calling `ctx.next()` will invoke the `routes/admin/index.ts` handler.
+ 
+ For a request to `/admin/signin` the request flows like this:
+diff --git a/docs/concepts/routes.md b/docs/concepts/routes.md
+index fc672a32247..f53bccfc2f6 100644
+--- a/docs/concepts/routes.md
++++ b/docs/concepts/routes.md
+@@ -38,8 +38,8 @@ To define a handler, one needs to export a `handler` function or object from the
+ route module. If the handler is an object, each key in the object is the name of
+ the HTTP method that the handler should be called for. For example the `GET`
+ handler above is called for `GET` requests. If the handler is a function, it is
+-called for all requests regardless of the method. If a HTTP method does not have
+-a corresponding handler, a 405 HTTP error is returned.
++called for all requests regardless of the method. If an HTTP method does not
++have a corresponding handler, a 405 HTTP error is returned.
+ 
+ Now, let's render some HTML using the route component:
+ 
+@@ -74,7 +74,7 @@ import { h } from "preact";
+ import { HandlerContext, Handlers, PageProps } from "$fresh/server.ts";
+ 
+ export const handler: Handlers = {
+-  async GET(ctx: HandlerContext) {
++  async GET(_req: Request, ctx: HandlerContext) {
+     const resp = await ctx.render();
+     resp.headers.set("X-Custom-Header", "Hello World");
+     return resp;
+diff --git a/docs/concepts/routing.md b/docs/concepts/routing.md
+index 96ca5d2a1bd..325625bf42e 100644
+--- a/docs/concepts/routing.md
++++ b/docs/concepts/routing.md
+@@ -25,8 +25,8 @@ File names are mapped to route patterns as follows:
+ - Paths where the last path segment follows the structure `[...<ident>]` are
+   treated as having a wildcard suffix.
+ 
+-Here is a table of file names, and which route patterns they map to, and which
+-paths they might match:
++Here is a table of file names, which route patterns they map to, and which paths
++they might match:
+ 
+ | File name                 | Route pattern          | Matching paths             |
+ | ------------------------- | ---------------------- | -------------------------- |
+diff --git a/docs/concepts/static-files.md b/docs/concepts/static-files.md
+index 6457aa5db6e..8c5594ff9b2 100644
+--- a/docs/concepts/static-files.md
++++ b/docs/concepts/static-files.md
+@@ -9,23 +9,25 @@ on the file extension of the file on disk. Assets are also automatically
+ streamed from disk to the client to improve performance and efficiency for both
+ user and server.
+ 
+-Fresh also adds an `etag` header to assets automatically, and handles the
++Fresh also adds an `etag` header to assets automatically and handles the
+ `If-None-Match` header for incoming requests.
+ 
+ ### Caching
+ 
+ By default, no caching headers are added to assets. This can be disadvantageous
+-in many scenarios, so fresh makes it easy to serve assets with long cache
++in many scenarios, so Fresh makes it easy to serve assets with long cache
+ lifetimes too.
+ 
+ The first approach to do this is manual. The client runtime exports an `asset`
+-function that takes an absolute path to the static asset, and returns a "locked"
++function that takes an absolute path to the static asset and returns a "locked"
+ version of this path that contains a build ID for cache busting. When the asset
+ is requested at this "locked" path, it will be served with a cache lifetime of
+ one year.
+ 
+ ```jsx
+-import { asset, h } from "../deps.ts";
++/** @jsx h */
++import { h } from "preact";
++import { asset } from "$fresh/runtime.ts";
+ 
+ export default function Page() {
+   return (
+diff --git a/docs/getting-started/adding-interactivity.md b/docs/getting-started/adding-interactivity.md
+index 137fd63cf50..3217660797e 100644
+--- a/docs/getting-started/adding-interactivity.md
++++ b/docs/getting-started/adding-interactivity.md
+@@ -7,11 +7,11 @@ description: |
+ Up to now none of the pages in the demo project have contained any client side
+ JavaScript. This is great for resiliency and performance, but it can also limit
+ the possibilities of interactivity. In many current generation web frameworks,
+-you get the choice of shipping no JavaScript to the client, or shipping a
++you get the choice of shipping no JavaScript to the client or shipping a
+ renderer for the entire page.
+ 
+ This is not very flexible, especially considering that most pages will only have
+-small pieces of content that require interactivity. For example an otherwise
++small pieces of content that require interactivity. For example, an otherwise
+ static page might need a little bit of JavaScript to power an image carousel or
+ "buy now" button. This model is often called
+ [islands architecture][islands-architecture]. This refers to a page having
+@@ -46,10 +46,12 @@ export default function Countdown(props: { target: string }) {
+   // date as long as the component is mounted.
+   useEffect(() => {
+     const timer = setInterval(() => {
+-      setNow(new Date());
+-      if (now > target) {
+-        clearInterval(timer);
+-      }
++      setNow((now) => {
++        if (now > target) {
++          clearInterval(timer);
++        }
++        return new Date();
++      });
+     }, 1000);
+     return () => clearInterval(timer);
+   }, [props.target]);
+diff --git a/docs/getting-started/create-a-project.md b/docs/getting-started/create-a-project.md
+index c3e2e835fc7..34f8ef08924 100644
+--- a/docs/getting-started/create-a-project.md
++++ b/docs/getting-started/create-a-project.md
+@@ -4,26 +4,27 @@ description: |
+   scaffolds out the various files and folders a fresh project needs.
+ ---
+ 
+-New Fresh projects can be created with using the fresh project creation tool. It
++New Fresh projects can be created by using the fresh project creation tool. It
+ will scaffold out a new project with some example files to get you started.
+ 
+-To create a new project in the directory `"my-project"`, run:
++To create a new project, run:
+ 
+ ```
+-$ deno run -A -r https://fresh.deno.dev my-project
+-The manifest has been generated for 3 routes and 1 islands.
+-
+-Project created!
+-Run `deno task start` in the project directory to get started.
++deno run -A -r https://fresh.deno.dev my-project
++cd my-project
++deno task start
+ ```
+ 
++This will scaffold out the new project, then switch into the newly created
++directory, and then start the development server.
++
+ This will create a directory containing some files and directories. There are 4
+ files that are strictly necessary to run a fresh project:
+ 
+-- **`dev.ts`**: This is the development entrypoint for your project. This is the
+-  file that you run to start your project. This file doesn't need to be called
+-  `dev.ts`, but this is the convention.
+-- **`main.ts`**: This is the production entrypoint for your project. It is the
++- **`dev.ts`**: This is the development entry point for your project. This is
++  the file that you run to start your project. This file doesn't need to be
++  called `dev.ts`, but this is the convention.
++- **`main.ts`**: This is the production entry point for your project. It is the
+   file that you link to Deno Deploy. This file doesn't actually need to be
+   `main.ts`, but this is the convention.
+ - **`fresh.gen.ts`**: This is the manifest file that contains information about
+@@ -45,7 +46,7 @@ Two important folders are also created that contain your routes and islands
+ respectively:
+ 
+ - **`routes/`**: This folder contains all of the routes in your project. The
+-  names of each file in this folder corresponds to the path where that page will
++  names of each file in this folder correspond to the path where that page will
+   be accessed. Code inside of this folder is never directly shipped to the
+   client. You'll learn more about how routes work in the next section.
+ - **`islands/`**: This folder contains all of the interactive islands in your
+diff --git a/docs/getting-started/create-a-route.md b/docs/getting-started/create-a-route.md
+index d6d9f26536a..dd15e07ab02 100644
+--- a/docs/getting-started/create-a-route.md
++++ b/docs/getting-started/create-a-route.md
+@@ -6,7 +6,7 @@ description: |
+ 
+ After getting the project running locally, the next step is to add a new route
+ to the project. Routes encapsulate the logic for handling requests to a
+-particular path in your project. They can be used to handle API requests, or
++particular path in your project. They can be used to handle API requests or
+ render HTML pages. For now we are going to do the latter.
+ 
+ Routes are defined as files in the `routes` directory. The file name of the
+@@ -52,12 +52,12 @@ export default function AboutPage() {
+ 
+ > ℹ️ The first two lines are the JSX pragma, and the import for the JSX create
+ > element function. These are just boilerplate. You don't need to know exactly
+-> what they do - they just ensure that JSX get's rendered correctly.
++> what they do - they just ensure that JSX gets rendered correctly.
+ 
+ The new page will be visible at `http://localhost:8000/about`.
+ 
+ <!-- You can find more in depth information about routes on the
+-[_Concepts: Routes_][concepts-routes] documentation page page. The following
++[_Concepts: Routes_][concepts-routes] documentation page. The following
+ pages in the _Getting Started_ guide will also explain more features of routes. -->
+ 
+ [concepts-routing]: /docs/concepts/routing
+diff --git a/docs/getting-started/custom-handlers.md b/docs/getting-started/custom-handlers.md
+index 6dcb521b0e0..4dc4b29df8a 100644
+--- a/docs/getting-started/custom-handlers.md
++++ b/docs/getting-started/custom-handlers.md
+@@ -9,11 +9,11 @@ now, only the page component has been discussed in this chapter.
+ 
+ Handlers are functions in the form of `Request => Response` or
+ `Request => Promise<Response>` that are called when a request is made to a
+-particular route. There can be one handler that covers all HTTP methods, or one
++particular route. There can be one handler that covers all HTTP methods or one
+ handler per method.
+ 
+ The handler has access to the `Request` object that backs the request to the
+-route, and must return a `Response` object. The response object can either be
++route and must return a `Response` object. The response object can either be
+ created manually (for example a JSON response for an API route), or it can be
+ created by rendering the page component. By default, all routes that don't
+ define a custom handler use a default handler that just renders the page
+@@ -21,7 +21,7 @@ component.
+ 
+ To define a handler in a route module, one must export it as a named export with
+ the name `handler`. Handlers can have two forms: a plain function (catchall for
+-all HTTP methods), or a plain object where each property is a function named by
++all HTTP methods) or a plain object where each property is a function named by
+ the HTTP method it handles.
+ 
+ Here is an example of a custom `GET` handler that renders the page component and
+diff --git a/docs/getting-started/deploy-to-production.md b/docs/getting-started/deploy-to-production.md
+index bee01ccc390..dec979ed68b 100644
+--- a/docs/getting-started/deploy-to-production.md
++++ b/docs/getting-started/deploy-to-production.md
+@@ -18,9 +18,9 @@ one must go to the [Deno Deploy dashboard][deno-deploy-dashboard] and create a
+ new project.
+ 
+ After creating the project, head to the "Git" tab in the project settings,
+-select the repository, the production branch (`main`), and the entrypoint file
++select the repository, the production branch (`main`) and the entrypoint file
+ (`main.ts`). This will link the project to the repository and automatically
+-deploy it to the internet. The project is now be available at
++deploy it to the internet. The project will now be available at
+ https://$PROJECT_NAME.deno.dev.
+ 
+ Every time the code in the GitHub repository is updated, it will be deployed
+diff --git a/docs/getting-started/form-submissions.md b/docs/getting-started/form-submissions.md
+index f26b2a0fbde..caf925d24b7 100644
+--- a/docs/getting-started/form-submissions.md
++++ b/docs/getting-started/form-submissions.md
+@@ -16,10 +16,10 @@ Fresh builds the core of its form submission infrastructure around the native
+ chapter explains how to progressively enhance your forms with client side
+ JavaScript to make them more interactive.
+ 
+-The way forms work in the browser, is that they perform a HTML navigation action
+-when the user submits the form. In most cases this means that when the form is
+-submitted, a GET or POST request is sent to the server with the form data, which
+-then responds with a new page to render.
++The way forms work in the browser, is that they perform an HTML navigation
++action when the user submits the form. In most cases this means that when the
++form is submitted, a GET or POST request is sent to the server with the form
++data, which then responds with a new page to render.
+ 
+ Fresh can handle both GET and POST requests through the
+ [custom handlers][custom-handlers] feature of routes. The handlers can perform
+diff --git a/docs/getting-started/running-locally.md b/docs/getting-started/running-locally.md
+index ed386a2b273..3e05b5a6f17 100644
+--- a/docs/getting-started/running-locally.md
++++ b/docs/getting-started/running-locally.md
+@@ -33,6 +33,13 @@ passing the extra folder as an argument: `--watch=static/`. You should also add
+ `routes/` to the watch list, so that the server restarts automatically whenever
+ you add a new route.
+ 
++If you want to change the port or host, modify the options bag of the `start()`
++call in `main.ts` to include an explicit port number:
++
++```js
++await start(manifest, { port: 3000 });
++```
++
+ Combining all of this we get the following `deno run` command:
+ 
+ ```
+diff --git a/docs/introduction/index.md b/docs/introduction/index.md
+index 3d3346bbf9d..4c6874491d3 100644
+--- a/docs/introduction/index.md
++++ b/docs/introduction/index.md
+@@ -21,7 +21,7 @@ and the client.
+ Fresh also does not have a build step. The code you write is also directly the
+ code that is run on the server, and the code that is executed on the client. Any
+ necessary transpilation of TypeScript or JSX to plain JavaScript is done on the
+-fly, just when it is needed. This allows for insanely fast iteration loops, and
++fly, just when it is needed. This allows for insanely fast iteration loops and
+ very very fast deployments.
+ 
+ Fresh projects can be deployed manually to any platform with `deno`, but it is
+diff --git a/examples/counter/import_map.json b/examples/counter/import_map.json
+index 86efdc9c2b1..b5705fb2226 100644
+--- a/examples/counter/import_map.json
++++ b/examples/counter/import_map.json
+@@ -1,8 +1,8 @@
+ {
+   "imports": {
+     "$fresh/": "../../",
+-    "preact": "https://esm.sh/preact@10.8.1",
+-    "preact/": "https://esm.sh/preact@10.8.1/",
+-    "preact-render-to-string": "https://esm.sh/preact-render-to-string@5.2.0?deps=preact@10.8.1"
++    "preact": "https://esm.sh/preact@10.8.2",
++    "preact/": "https://esm.sh/preact@10.8.2/",
++    "preact-render-to-string": "https://esm.sh/preact-render-to-string@5.2.0?deps=preact@10.8.2"
+   }
+ }
+diff --git a/init.ts b/init.ts
+index 9fccd8918d6..ed20cfac27e 100644
+--- a/init.ts
++++ b/init.ts
+@@ -36,6 +36,7 @@ USAGE:
+ OPTIONS:
+     --force   Overwrite existing files
+     --twind   Setup project to use 'twind' for styling
++    --vscode  Setup project for VSCode
+ `;
+ 
+ const CONFIRM_EMPTY_MESSAGE =
+@@ -44,9 +45,11 @@ const CONFIRM_EMPTY_MESSAGE =
+ const USE_TWIND_MESSAGE =
+   "Do you want to use 'twind' (https://twind.dev/) for styling?";
+ 
++const USE_VSCODE_MESSAGE = "Do you use VS Code?";
++
+ const flags = parse(Deno.args, {
+-  boolean: ["force", "twind"],
+-  default: { "force": null, "twind": null },
++  boolean: ["force", "twind", "vscode"],
++  default: { "force": null, "twind": null, "vscode": null },
+ });
+ 
+ if (flags._.length !== 1) {
+@@ -76,18 +79,25 @@ const useTwind = flags.twind === null
+   ? confirm(USE_TWIND_MESSAGE)
+   : flags.twind;
+ 
++const useVSCode = flags.vscode === null
++  ? confirm(USE_VSCODE_MESSAGE)
++  : flags.vscode;
++
+ await Deno.mkdir(join(directory, "routes", "api"), { recursive: true });
+ await Deno.mkdir(join(directory, "islands"), { recursive: true });
+ await Deno.mkdir(join(directory, "static"), { recursive: true });
++if (useVSCode) {
++  await Deno.mkdir(join(directory, ".vscode"), { recursive: true });
++}
+ if (useTwind) await Deno.mkdir(join(directory, "utils"), { recursive: true });
+ 
+ const importMap = {
+   "imports": {
+     "$fresh/": new URL("./", import.meta.url).href,
+-    "preact": "https://esm.sh/preact@10.8.1",
+-    "preact/": "https://esm.sh/preact@10.8.1/",
++    "preact": "https://esm.sh/preact@10.8.2",
++    "preact/": "https://esm.sh/preact@10.8.2/",
+     "preact-render-to-string":
+-      "https://esm.sh/preact-render-to-string@5.2.0?deps=preact@10.8.1",
++      "https://esm.sh/preact-render-to-string@5.2.0?deps=preact@10.8.2",
+   } as Record<string, string>,
+ };
+ if (useTwind) {
+@@ -211,7 +221,7 @@ const JOKES = [
+ ];
+ 
+ export const handler = (_req: Request, _ctx: HandlerContext): Response => {
+-  const randomIndex = Math.floor(Math.random() * 10);
++  const randomIndex = Math.floor(Math.random() * JOKES.length);
+   const body = JOKES[randomIndex];
+   return new Response(body);
+ };
+@@ -339,8 +349,35 @@ await Deno.writeTextFile(
+   README_MD,
+ );
+ 
++const vscodeSettings = {
++  "deno.enable": true,
++};
++
++const VSCODE_SETTINGS = JSON.stringify(vscodeSettings, null, 2) + "\n";
++
++if (useVSCode) {
++  await Deno.writeTextFile(
++    join(directory, ".vscode", "settings.json"),
++    VSCODE_SETTINGS,
++  );
++}
++
++const vscodeExtensions = {
++  recommendations: ["denoland.vscode-deno"],
++};
++
++const VSCODE_EXTENSIONS = JSON.stringify(vscodeExtensions, null, 2) + "\n";
++
++if (useVSCode) {
++  await Deno.writeTextFile(
++    join(directory, ".vscode", "extensions.json"),
++    VSCODE_EXTENSIONS,
++  );
++}
++
+ const manifest = await collect(directory);
+ await generate(directory, manifest);
+ 
+ console.log("\n%cProject created!", "color: green; font-weight: bold");
+-console.log("Run \`deno task start\` in the project directory to get started.");
++console.log("\`cd my-project\` to enter to the project directory.");
++console.log("Run \`deno task start\` to start the development server.");
+diff --git a/src/server/bundle.ts b/src/server/bundle.ts
+index 8e85645b00c..579b36b8b24 100644
+--- a/src/server/bundle.ts
++++ b/src/server/bundle.ts
+@@ -3,7 +3,7 @@ import { denoPlugin, esbuild, toFileUrl } from "./deps.ts";
+ import { Island } from "./types.ts";
+ 
+ let esbuildInitalized: boolean | Promise<void> = false;
+-async function ensureEsbuildInialized() {
++async function ensureEsbuildInitialized() {
+   if (esbuildInitalized === false) {
+     if (Deno.run === undefined) {
+       esbuildInitalized = esbuild.initialize({
+@@ -40,7 +40,7 @@ export class Bundler {
+     }
+ 
+     const absWorkingDir = Deno.cwd();
+-    await ensureEsbuildInialized();
++    await ensureEsbuildInitialized();
+     const bundle = await esbuild.build({
+       bundle: true,
+       define: { __FRSH_BUILD_ID: `"${BUILD_ID}"` },
+diff --git a/src/server/context.ts b/src/server/context.ts
+index bbaa3c45a58..a9d4e7554d0 100644
+--- a/src/server/context.ts
++++ b/src/server/context.ts
+@@ -690,7 +690,10 @@ function serializeCSPDirectives(csp: ContentSecurityPolicyDirectives): string {
+ 
+ export function middlewarePathToPattern(baseRoute: string) {
+   baseRoute = baseRoute.slice(0, -"_middleware".length);
+-  const pattern = pathToPattern(baseRoute);
+-  const compiledPattern = new URLPattern({ pathname: `${pattern}*` });
++  let pattern = pathToPattern(baseRoute);
++  if (pattern.endsWith("/")) {
++    pattern = pattern.slice(0, -1) + "{/*}?";
++  }
++  const compiledPattern = new URLPattern({ pathname: pattern });
+   return { pattern, compiledPattern };
+ }
+diff --git a/src/server/context_test.ts b/src/server/context_test.ts
+index aff491a7947..20a64dd68db 100644
+--- a/src/server/context_test.ts
++++ b/src/server/context_test.ts
+@@ -9,16 +9,16 @@ Deno.test("selectMiddlewares", () => {
+     "_middleware",
+     "api/_middleware",
+     "api/[id]/_middleware",
++    "api/[id]/[path]/_middleware",
+ 
+     // should not select
+     "api/xyz/_middleware",
+     "api/[id]/xyz/_middleware",
+-    "api/[id]/[path]/_middleware",
+     "api/[id]/[path]/foo/_middleware",
+   ];
+   const mwRoutes = middlewaresPath.map((path) =>
+     middlewarePathToPattern(path)
+   ) as MiddlewareRoute[];
+   const mws = selectMiddlewares(url, mwRoutes);
+-  assert(mws.length === 3);
++  assert(mws.length === 4);
+ });
+diff --git a/tests/cli_test.ts b/tests/cli_test.ts
+index a8116372d98..1ff4c1fb717 100644
+--- a/tests/cli_test.ts
++++ b/tests/cli_test.ts
+@@ -14,16 +14,10 @@ type FileTree = {
+   type: "directory";
+   name: string;
+   contents: FileTree[];
+-} | {
+-  type: "report";
+-  directories: number;
+-  files: number;
+ };
+ 
+ const assertFileExistence = async (tree: FileTree[], dirname?: string) => {
+   for (const t of tree) {
+-    if (t.type === "report") continue;
+-
+     const stat = await Deno.stat(
+       dirname ? [dirname, t.name].join("/") : t.name,
+     );
+@@ -47,7 +41,15 @@ Deno.test({
+ 
+     await t.step("execute init command", async () => {
+       const cliProcess = Deno.run({
+-        cmd: ["deno", "run", "-A", "init.ts", tmpDirName, "--no-twind"],
++        cmd: [
++          "deno",
++          "run",
++          "-A",
++          "init.ts",
++          tmpDirName,
++          "--no-twind",
++          "--no-vscode",
++        ],
+         stdout: "null",
+       });
+       const { code } = await cliProcess.status();
+@@ -96,7 +98,6 @@ Deno.test({
+           },
+         ],
+       },
+-      { "type": "report", "directories": 3, "files": 8 },
+     ];
+ 
+     await t.step("check generated files", async () => {
+@@ -160,14 +161,22 @@ Deno.test({
+ });
+ 
+ Deno.test({
+-  name: "fresh-init --twind",
++  name: "fresh-init --twind --vscode",
+   async fn(t) {
+     // Preparation
+     const tmpDirName = await Deno.makeTempDir();
+ 
+     await t.step("execute init command", async () => {
+       const cliProcess = Deno.run({
+-        cmd: ["deno", "run", "-A", "init.ts", tmpDirName, "--twind"],
++        cmd: [
++          "deno",
++          "run",
++          "-A",
++          "init.ts",
++          tmpDirName,
++          "--twind",
++          "--vscode",
++        ],
+         stdout: "null",
+       });
+       const { code } = await cliProcess.status();
+@@ -221,9 +230,16 @@ Deno.test({
+               { "type": "file", "name": "twind.ts" },
+             ],
+           },
++          {
++            "type": "directory",
++            "name": ".vscode",
++            "contents": [
++              { "type": "file", "name": "settings.json" },
++              { "type": "file", "name": "extensions.json" },
++            ],
++          },
+         ],
+       },
+-      { "type": "report", "directories": 4, "files": 9 },
+     ];
+ 
+     await t.step("check generated files", async () => {
+diff --git a/tests/fixture/fresh.gen.ts b/tests/fixture/fresh.gen.ts
+index 97e66743679..f62e7b40f70 100644
+--- a/tests/fixture/fresh.gen.ts
++++ b/tests/fixture/fresh.gen.ts
+@@ -20,13 +20,14 @@ import * as $14 from "./routes/layeredMdw/_middleware.ts";
+ import * as $15 from "./routes/layeredMdw/layer2-no-mw/without_mw.ts";
+ import * as $16 from "./routes/layeredMdw/layer2/_middleware.ts";
+ import * as $17 from "./routes/layeredMdw/layer2/abc.ts";
+-import * as $18 from "./routes/layeredMdw/layer2/layer3/[id].ts";
+-import * as $19 from "./routes/layeredMdw/layer2/layer3/_middleware.ts";
+-import * as $20 from "./routes/middleware_root.ts";
+-import * as $21 from "./routes/params.tsx";
+-import * as $22 from "./routes/props/[id].tsx";
+-import * as $23 from "./routes/static.tsx";
+-import * as $24 from "./routes/wildcard.tsx";
++import * as $18 from "./routes/layeredMdw/layer2/index.ts";
++import * as $19 from "./routes/layeredMdw/layer2/layer3/[id].ts";
++import * as $20 from "./routes/layeredMdw/layer2/layer3/_middleware.ts";
++import * as $21 from "./routes/middleware_root.ts";
++import * as $22 from "./routes/params.tsx";
++import * as $23 from "./routes/props/[id].tsx";
++import * as $24 from "./routes/static.tsx";
++import * as $25 from "./routes/wildcard.tsx";
+ import * as $$0 from "./islands/Counter.tsx";
+ import * as $$1 from "./islands/Test.tsx";
+ 
+@@ -50,13 +51,14 @@ const manifest = {
+     "./routes/layeredMdw/layer2-no-mw/without_mw.ts": $15,
+     "./routes/layeredMdw/layer2/_middleware.ts": $16,
+     "./routes/layeredMdw/layer2/abc.ts": $17,
+-    "./routes/layeredMdw/layer2/layer3/[id].ts": $18,
+-    "./routes/layeredMdw/layer2/layer3/_middleware.ts": $19,
+-    "./routes/middleware_root.ts": $20,
+-    "./routes/params.tsx": $21,
+-    "./routes/props/[id].tsx": $22,
+-    "./routes/static.tsx": $23,
+-    "./routes/wildcard.tsx": $24,
++    "./routes/layeredMdw/layer2/index.ts": $18,
++    "./routes/layeredMdw/layer2/layer3/[id].ts": $19,
++    "./routes/layeredMdw/layer2/layer3/_middleware.ts": $20,
++    "./routes/middleware_root.ts": $21,
++    "./routes/params.tsx": $22,
++    "./routes/props/[id].tsx": $23,
++    "./routes/static.tsx": $24,
++    "./routes/wildcard.tsx": $25,
+   },
+   islands: {
+     "./islands/Counter.tsx": $$0,
+diff --git a/tests/fixture/import_map.json b/tests/fixture/import_map.json
+index 86efdc9c2b1..b5705fb2226 100644
+--- a/tests/fixture/import_map.json
++++ b/tests/fixture/import_map.json
+@@ -1,8 +1,8 @@
+ {
+   "imports": {
+     "$fresh/": "../../",
+-    "preact": "https://esm.sh/preact@10.8.1",
+-    "preact/": "https://esm.sh/preact@10.8.1/",
+-    "preact-render-to-string": "https://esm.sh/preact-render-to-string@5.2.0?deps=preact@10.8.1"
++    "preact": "https://esm.sh/preact@10.8.2",
++    "preact/": "https://esm.sh/preact@10.8.2/",
++    "preact-render-to-string": "https://esm.sh/preact-render-to-string@5.2.0?deps=preact@10.8.2"
+   }
+ }
+diff --git a/tests/fixture/routes/layeredMdw/layer2/index.ts b/tests/fixture/routes/layeredMdw/layer2/index.ts
+new file mode 100644
+index 00000000000..2be04d0689a
+--- /dev/null
++++ b/tests/fixture/routes/layeredMdw/layer2/index.ts
+@@ -0,0 +1,13 @@
++import { Handlers } from "../../../../../server.ts";
++
++interface State {
++  root: string;
++  layer1: string;
++  layer2: string;
++}
++
++export const handler: Handlers<undefined, State> = {
++  GET(_req: Request, { state }) {
++    return new Response(JSON.stringify(state));
++  },
++};
+diff --git a/tests/fixture_error/import_map.json b/tests/fixture_error/import_map.json
+index 86efdc9c2b1..b5705fb2226 100644
+--- a/tests/fixture_error/import_map.json
++++ b/tests/fixture_error/import_map.json
+@@ -1,8 +1,8 @@
+ {
+   "imports": {
+     "$fresh/": "../../",
+-    "preact": "https://esm.sh/preact@10.8.1",
+-    "preact/": "https://esm.sh/preact@10.8.1/",
+-    "preact-render-to-string": "https://esm.sh/preact-render-to-string@5.2.0?deps=preact@10.8.1"
++    "preact": "https://esm.sh/preact@10.8.2",
++    "preact/": "https://esm.sh/preact@10.8.2/",
++    "preact-render-to-string": "https://esm.sh/preact-render-to-string@5.2.0?deps=preact@10.8.2"
+   }
+ }
+diff --git a/tests/main_test.ts b/tests/main_test.ts
+index 7d07b601a7d..d070b67545d 100644
+--- a/tests/main_test.ts
++++ b/tests/main_test.ts
+@@ -321,6 +321,37 @@ Deno.test({
+     assert(resp);
+     assertEquals(resp.status, 200);
+     const body = await resp.text();
++    console.log(body);
++    assertStringIncludes(body, "root_mw");
++    assertStringIncludes(body, "layer1_mw");
++    assertStringIncludes(body, "layer2_mw");
++    // layered 2 should not run layer 3 middleware
++    assert(!body.includes("layer3_mw"));
++
++    const resp1 = await router(
++      new Request("https://fresh.deno.dev/layeredMdw/layer2-no-mw/without_mw"),
++    );
++    assert(resp1);
++    assertEquals(resp1.status, 200);
++    const body1 = await resp1.text();
++    assertStringIncludes(body1, "root_mw");
++    assertStringIncludes(body1, "layer1_mw");
++    // layered 2 should not run layer 2 or 3 middleware
++    assert(!body1.includes("layer2_mw"));
++    assert(!body1.includes("layer3_mw"));
++  },
++});
++
++Deno.test({
++  name: "/middleware - layer 2 middleware at index",
++  fn: async () => {
++    const resp = await router(
++      new Request("https://fresh.deno.dev/layeredMdw/layer2"),
++    );
++    assert(resp);
++    assertEquals(resp.status, 200);
++    const body = await resp.text();
++    console.log(body);
+     assertStringIncludes(body, "root_mw");
+     assertStringIncludes(body, "layer1_mw");
+     assertStringIncludes(body, "layer2_mw");
+diff --git a/versions.json b/versions.json
+index 8117da3b6c2..f8fe269bd56 100644
+--- a/versions.json
++++ b/versions.json
+@@ -1,4 +1,5 @@
+ [
++  "1.0.1",
+   "1.0.0",
+   "1.0.0-rc.6",
+   "1.0.0-rc.5",
+diff --git a/www/components/Footer.tsx b/www/components/Footer.tsx
+index b12523994ee..502664e0af2 100644
+--- a/www/components/Footer.tsx
++++ b/www/components/Footer.tsx
+@@ -5,15 +5,15 @@ import { tw } from "@twind";
+ const LINKS = [
+   {
+     title: "Source",
+-    href: "https://github.com/lucacasonato/fresh",
++    href: "https://github.com/denoland/fresh",
+   },
+   {
+     title: "License",
+-    href: "https://github.com/lucacasonato/fresh/blob/main/LICENSE",
++    href: "https://github.com/denoland/fresh/blob/main/LICENSE",
+   },
+   {
+     title: "Code of Conduct",
+-    href: "https://github.com/lucacasonato/fresh/blob/main/CODE_OF_CONDUCT.md",
++    href: "https://github.com/denoland/fresh/blob/main/CODE_OF_CONDUCT.md",
+   },
+ ];
+ 
+diff --git a/www/import_map.json b/www/import_map.json
+index 55f97ff57bd..21749586fb1 100644
+--- a/www/import_map.json
++++ b/www/import_map.json
+@@ -3,12 +3,12 @@
+     "$fresh/": "../",
+ 
+     "@twind": "./utils/twind.ts",
+-    "twind": "https://esm.sh/twind@0.16.16",
+-    "twind/": "https://esm.sh/twind@0.16.16/",
++    "twind": "https://esm.sh/twind@0.16.17",
++    "twind/": "https://esm.sh/twind@0.16.17/",
+ 
+-    "preact": "https://esm.sh/preact@10.8.1",
+-    "preact/": "https://esm.sh/preact@10.8.1/",
+-    "preact-render-to-string": "https://esm.sh/preact-render-to-string@5.2.0?deps=preact@10.8.1",
++    "preact": "https://esm.sh/preact@10.8.2",
++    "preact/": "https://esm.sh/preact@10.8.2/",
++    "preact-render-to-string": "https://esm.sh/preact-render-to-string@5.2.0?deps=preact@10.8.2",
+ 
+     "$semver/": "https://deno.land/x/semver@v1.4.0/"
+   }
+diff --git a/www/routes/raw.ts b/www/routes/raw.ts
+index fbc6f6c485c..860ae44fe60 100644
+--- a/www/routes/raw.ts
++++ b/www/routes/raw.ts
+@@ -3,7 +3,7 @@ import { Handlers } from "$fresh/server.ts";
+ import { parse } from "$semver/mod.ts";
+ import VERSIONS from "../../versions.json" assert { type: "json" };
+ 
+-const BASE_URL = "https://raw.githubusercontent.com/lucacasonato/fresh/";
++const BASE_URL = "https://raw.githubusercontent.com/denoland/fresh/";
+ 
+ export const handler: Handlers = {
+   async GET(req, ctx) {

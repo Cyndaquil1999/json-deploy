@@ -1,0 +1,3697 @@
+diff --git a/Dockerfile b/Dockerfile
+index 64c49e88..7e2a164c 100644
+--- a/Dockerfile
++++ b/Dockerfile
+@@ -1,4 +1,4 @@
+-FROM hayd/alpine-deno:1.7.1
++FROM hayd/alpine-deno:1.9.0
+ WORKDIR /app
+ 
+ # Install wait utility
+diff --git a/README.md b/README.md
+index 96de480f..5d62caae 100644
+--- a/README.md
++++ b/README.md
+@@ -3,7 +3,7 @@
+ ![Build Status](https://img.shields.io/github/workflow/status/denodrivers/postgres/ci?label=Build&logo=github&style=flat-square)
+ [![Discord server](https://img.shields.io/discord/768918486575480863?color=blue&label=Ask%20for%20help%20here&logo=discord&style=flat-square)](https://discord.gg/HEdTCvZUSf)
+ [![Manual](https://img.shields.io/github/v/release/denodrivers/postgres?color=orange&label=Manual&logo=deno&style=flat-square)](https://deno-postgres.com)
+-[![Documentation](https://img.shields.io/github/v/release/denodrivers/postgres?color=yellow&label=Documentation&logo=deno&style=flat-square)](https://doc.deno.land/https/deno.land/x/postgres@v0.10.0/mod.ts)
++[![Documentation](https://img.shields.io/github/v/release/denodrivers/postgres?color=yellow&label=Documentation&logo=deno&style=flat-square)](https://doc.deno.land/https/deno.land/x/postgres@v0.11.0/mod.ts)
+ [![License](https://img.shields.io/github/license/denodrivers/postgres?color=yellowgreen&label=License&style=flat-square)](LICENSE)
+ 
+ A lightweight PostgreSQL driver for Deno focused on user experience
+diff --git a/client.ts b/client.ts
+index 81134ddd..74e7133c 100644
+--- a/client.ts
++++ b/client.ts
+@@ -18,26 +18,127 @@ import {
+ import { Transaction, TransactionOptions } from "./query/transaction.ts";
+ import { isTemplateString } from "./utils.ts";
+ 
+-export class QueryClient {
++export abstract class QueryClient {
++  protected connection: Connection;
++  protected transaction: string | null = null;
++
++  constructor(connection: Connection) {
++    this.connection = connection;
++  }
++
+   get current_transaction(): string | null {
+-    return null;
++    return this.transaction;
++  }
++
++  protected executeQuery<T extends Array<unknown>>(
++    query: Query<ResultType.ARRAY>,
++  ): Promise<QueryArrayResult<T>>;
++  protected executeQuery<T extends Record<string, unknown>>(
++    query: Query<ResultType.OBJECT>,
++  ): Promise<QueryObjectResult<T>>;
++  protected executeQuery(
++    query: Query<ResultType>,
++  ): Promise<QueryResult> {
++    return this.connection.query(query);
+   }
+ 
+   /**
+-   * This function is meant to be replaced when being extended
++   * Transactions are a powerful feature that guarantees safe operations by allowing you to control
++   * the outcome of a series of statements and undo, reset, and step back said operations to
++   * your liking
++   * 
++   * In order to create a transaction, use the `createTransaction` method in your client as follows:
++   * 
++   * ```ts
++   * const transaction = client.createTransaction("my_transaction_name");
++   * await transaction.begin();
++   * // All statements between begin and commit will happen inside the transaction
++   * await transaction.commit(); // All changes are saved
++   * ```
++   * 
++   * All statements that fail in query execution will cause the current transaction to abort and release
++   * the client without applying any of the changes that took place inside it
++   * 
++   * ```ts
++   * await transaction.begin();
++   * await transaction.queryArray`INSERT INTO MY_TABLE (X) VALUES ${"some_value"}`;
++   * try {
++   *   await transaction.queryArray`SELECT []`; // Invalid syntax, transaction aborted, changes won't be applied
++   * }catch(e){
++   *   await transaction.commit(); // Will throw, current transaction has already finished
++   * }
++   * ```
++   * 
++   * This however, only happens if the error is of execution in nature, validation errors won't abort
++   * the transaction
++   * 
++   * ```ts
++   * await transaction.begin();
++   * await transaction.queryArray`INSERT INTO MY_TABLE (X) VALUES ${"some_value"}`;
++   * try {
++   *   await transaction.rollback("unexistent_savepoint"); // Validation error
++   * }catch(e){
++   *   await transaction.commit(); // Transaction will end, changes will be saved
++   * }
++   * ```
++   * 
++   * A transaction has many options to ensure modifications made to the database are safe and
++   * have the expected outcome, which is a hard thing to accomplish in a database with many concurrent users,
++   * and it does so by allowing you to set local levels of isolation to the transaction you are about to begin
++   * 
++   * Each transaction can execute with the following levels of isolation:
++   * 
++   * - Read committed: This is the normal behavior of a transaction. External changes to the database
++   *   will be visible inside the transaction once they are committed.
++   * 
++   * - Repeatable read: This isolates the transaction in a way that any external changes to the data we are reading
++   *   won't be visible inside the transaction until it has finished
++   *   ```ts
++   *   const transaction = await client.createTransaction("my_transaction", { isolation_level: "repeatable_read" });
++   *   ```
++   * 
++   * - Serializable: This isolation level prevents the current transaction from making persistent changes
++   *   if the data they were reading at the beginning of the transaction has been modified (recommended)
++   *   ```ts
++   *   const transaction = await client.createTransaction("my_transaction", { isolation_level: "serializable" });
++   *   ```
+    * 
+-   * It's sole purpose is to be a common interface implementations can use
+-   * regardless of their internal structure
++   * Additionally, each transaction allows you to set two levels of access to the data:
++   * 
++   * - Read write: This is the default mode, it allows you to execute all commands you have access to normally
++   * 
++   * - Read only: Disables all commands that can make changes to the database. Main use for the read only mode
++   *   is to in conjuction with the repeatable read isolation, ensuring the data you are reading does not change
++   *   during the transaction, specially useful for data extraction
++   *   ```ts
++   *   const transaction = await client.createTransaction("my_transaction", { read_only: true });
++   *   ```
++   * 
++   * Last but not least, transactions allow you to share starting point snapshots between them.
++   * For example, if you initialized a repeatable read transaction before a particularly sensible change
++   * in the database, and you would like to start several transactions with that same before the change state
++   * you can do the following:
++   * 
++   * ```ts
++   * const snapshot = await transaction_1.getSnapshot();
++   * const transaction_2 = client_2.createTransaction("new_transaction", { isolation_level: "repeatable_read", snapshot });
++   * // transaction_2 now shares the same starting state that transaction_1 had
++   * ```
++   * 
++   * https://www.postgresql.org/docs/13/tutorial-transactions.html
++   * https://www.postgresql.org/docs/13/sql-set-transaction.html
+    */
+-  _executeQuery<T extends Array<unknown>>(
+-    _query: Query<ResultType.ARRAY>,
+-  ): Promise<QueryArrayResult<T>>;
+-  _executeQuery<T extends Record<string, unknown>>(
+-    _query: Query<ResultType.OBJECT>,
+-  ): Promise<QueryObjectResult<T>>;
+-  _executeQuery(_query: Query<ResultType>): Promise<QueryResult> {
+-    throw new Error(
+-      `"${this._executeQuery.name}" hasn't been implemented for class "${this.constructor.name}"`,
++
++  createTransaction(name: string, options?: TransactionOptions): Transaction {
++    return new Transaction(
++      name,
++      options,
++      this,
++      // Bind context so function can be passed as is
++      this.executeQuery.bind(this),
++      (name: string | null) => {
++        this.transaction = name;
++      },
+     );
+   }
+ 
+@@ -101,7 +202,7 @@ export class QueryClient {
+       query = new Query(query_template_or_config, ResultType.ARRAY);
+     }
+ 
+-    return this._executeQuery(query);
++    return this.executeQuery(query);
+   }
+ 
+   /**
+@@ -187,256 +288,77 @@ export class QueryClient {
+       );
+     }
+ 
+-    return this._executeQuery<T>(query);
++    return this.executeQuery<T>(query);
+   }
+ }
+ 
++// TODO
++// Check for client connection and re-connection
++/**
++ * Clients allow you to communicate with your PostgreSQL database and execute SQL
++ * statements asynchronously
++ * 
++ * ```ts
++ * const client = new Client(connection_parameters);
++ * await client.connect();
++ * await client.queryArray`UPDATE MY_TABLE SET MY_FIELD = 0`;
++ * await client.end();
++ * ```
++ * 
++ * A client will execute all their queries in a sequencial fashion,
++ * for concurrency capabilities check out connection pools
++ * 
++ * ```ts
++ * const client_1 = new Client(connection_parameters);
++ * await client_1.connect();
++ * // Even if operations are not awaited, they will be executed in the order they were
++ * // scheduled
++ * client_1.queryArray`UPDATE MY_TABLE SET MY_FIELD = 0`;
++ * client_1.queryArray`DELETE FROM MY_TABLE`;
++ * 
++ * const client_2 = new Client(connection_parameters);
++ * await client_2.connect();
++ * // `client_2` will execute it's queries in parallel to `client_1`
++ * const {rows: result} = await client_2.queryArray`SELECT * FROM MY_TABLE`;
++ * 
++ * await client_1.end();
++ * await client_2.end();
++ * ```
++ */
+ export class Client extends QueryClient {
+-  #connection: Connection;
+-  #current_transaction: string | null = null;
+-
+   constructor(config?: ConnectionOptions | ConnectionString) {
+-    super();
+-    this.#connection = new Connection(createParams(config));
+-  }
+-
+-  _executeQuery(query: Query<ResultType.ARRAY>): Promise<QueryArrayResult>;
+-  _executeQuery(query: Query<ResultType.OBJECT>): Promise<QueryObjectResult>;
+-  _executeQuery(query: Query<ResultType>): Promise<QueryResult> {
+-    return this.#connection.query(query);
++    super(new Connection(createParams(config)));
+   }
+ 
++  /**
++   * Every client must initialize their connection previously to the
++   * execution of any statement
++   */
+   async connect(): Promise<void> {
+-    await this.#connection.startup();
++    await this.connection.startup();
+   }
+ 
+   /**
+-   * Transactions are a powerful feature that guarantees safe operations by allowing you to control
+-   * the outcome of a series of statements and undo, reset, and step back said operations to
+-   * your liking
+-   * 
+-   * In order to create a transaction, use the `createTransaction` method in your client as follows:
+-   * 
+-   * ```ts
+-   * const transaction = client.createTransaction("my_transaction_name");
+-   * await transaction.begin();
+-   * // All statements between begin and commit will happen inside the transaction
+-   * await transaction.commit(); // All changes are saved
+-   * ```
+-   * 
+-   * All statements that fail in query execution will cause the current transaction to abort and release
+-   * the client without applying any of the changes that took place inside it
+-   * 
+-   * ```ts
+-   * await transaction.begin();
+-   * await transaction.queryArray`INSERT INTO MY_TABLE (X) VALUES ${"some_value"}`;
+-   * try {
+-   *   await transaction.queryArray`SELECT []`; // Invalid syntax, transaction aborted, changes won't be applied
+-   * }catch(e){
+-   *   await transaction.commit(); // Will throw, current transaction has already finished
+-   * }
+-   * ```
+-   * 
+-   * This however, only happens if the error is of execution in nature, validation errors won't abort
+-   * the transaction
+-   * 
+-   * ```ts
+-   * await transaction.begin();
+-   * await transaction.queryArray`INSERT INTO MY_TABLE (X) VALUES ${"some_value"}`;
+-   * try {
+-   *   await transaction.rollback("unexistent_savepoint"); // Validation error
+-   * }catch(e){
+-   *   await transaction.commit(); // Transaction will end, changes will be saved
+-   * }
+-   * ```
+-   * 
+-   * A transaction has many options to ensure modifications made to the database are safe and
+-   * have the expected outcome, which is a hard thing to accomplish in a database with many concurrent users,
+-   * and it does so by allowing you to set local levels of isolation to the transaction you are about to begin
+-   * 
+-   * Each transaction can execute with the following levels of isolation:
+-   * 
+-   * - Read committed: This is the normal behavior of a transaction. External changes to the database
+-   *   will be visible inside the transaction once they are committed.
+-   * 
+-   * - Repeatable read: This isolates the transaction in a way that any external changes to the data we are reading
+-   *   won't be visible inside the transaction until it has finished
+-   *   ```ts
+-   *   const transaction = await client.createTransaction("my_transaction", { isolation_level: "repeatable_read" });
+-   *   ```
+-   * 
+-   * - Serializable: This isolation level prevents the current transaction from making persistent changes
+-   *   if the data they were reading at the beginning of the transaction has been modified (recommended)
+-   *   ```ts
+-   *   const transaction = await client.createTransaction("my_transaction", { isolation_level: "serializable" });
+-   *   ```
+-   * 
+-   * Additionally, each transaction allows you to set two levels of access to the data:
+-   * 
+-   * - Read write: This is the default mode, it allows you to execute all commands you have access to normally
+-   * 
+-   * - Read only: Disables all commands that can make changes to the database. Main use for the read only mode
+-   *   is to in conjuction with the repeatable read isolation, ensuring the data you are reading does not change
+-   *   during the transaction, specially useful for data extraction
+-   *   ```ts
+-   *   const transaction = await client.createTransaction("my_transaction", { read_only: true });
+-   *   ```
+-   * 
+-   * Last but not least, transactions allow you to share starting point snapshots between them.
+-   * For example, if you initialized a repeatable read transaction before a particularly sensible change
+-   * in the database, and you would like to start several transactions with that same before the change state
+-   * you can do the following:
+-   * 
+-   * ```ts
+-   * const snapshot = await transaction_1.getSnapshot();
+-   * const transaction_2 = client_2.createTransaction("new_transaction", { isolation_level: "repeatable_read", snapshot });
+-   * // transaction_2 now shares the same starting state that transaction_1 had
+-   * ```
+-   * 
+-   * https://www.postgresql.org/docs/13/tutorial-transactions.html
+-   * https://www.postgresql.org/docs/13/sql-set-transaction.html
++   * Ending a connection will close your PostgreSQL connection, and delete
++   * all non-persistent data that may have been created in the course of the
++   * session
+    */
+-  createTransaction(name: string, options?: TransactionOptions): Transaction {
+-    return new Transaction(
+-      name,
+-      options,
+-      this,
+-      (name: string | null) => {
+-        this.#current_transaction = name;
+-      },
+-    );
+-  }
+-
+-  get current_transaction() {
+-    return this.#current_transaction;
+-  }
+-
+   async end(): Promise<void> {
+-    await this.#connection.end();
+-    this.#current_transaction = null;
++    await this.connection.end();
++    this.transaction = null;
+   }
+ }
+ 
+ export class PoolClient extends QueryClient {
+-  #connection: Connection;
+-  #current_transaction: string | null = null;
+   #release: () => void;
+ 
+   constructor(connection: Connection, releaseCallback: () => void) {
+-    super();
+-    this.#connection = connection;
++    super(connection);
+     this.#release = releaseCallback;
+   }
+ 
+-  get current_transaction() {
+-    return this.#current_transaction;
+-  }
+-
+-  _executeQuery(query: Query<ResultType.ARRAY>): Promise<QueryArrayResult>;
+-  _executeQuery(query: Query<ResultType.OBJECT>): Promise<QueryObjectResult>;
+-  _executeQuery(query: Query<ResultType>): Promise<QueryResult> {
+-    return this.#connection.query(query);
+-  }
+-
+-  /**
+-   * Transactions are a powerful feature that guarantees safe operations by allowing you to control
+-   * the outcome of a series of statements and undo, reset, and step back said operations to
+-   * your liking
+-   * 
+-   * In order to create a transaction, use the `createTransaction` method in your client as follows:
+-   * 
+-   * ```ts
+-   * const transaction = client.createTransaction("my_transaction_name");
+-   * await transaction.begin();
+-   * // All statements between begin and commit will happen inside the transaction
+-   * await transaction.commit(); // All changes are saved
+-   * ```
+-   * 
+-   * All statements that fail in query execution will cause the current transaction to abort and release
+-   * the client without applying any of the changes that took place inside it
+-   * 
+-   * ```ts
+-   * await transaction.begin();
+-   * await transaction.queryArray`INSERT INTO MY_TABLE (X) VALUES ${"some_value"}`;
+-   * try {
+-   *   await transaction.queryArray`SELECT []`; // Invalid syntax, transaction aborted, changes won't be applied
+-   * }catch(e){
+-   *   await transaction.commit(); // Will throw, current transaction has already finished
+-   * }
+-   * ```
+-   * 
+-   * This however, only happens if the error is of execution in nature, validation errors won't abort
+-   * the transaction
+-   * 
+-   * ```ts
+-   * await transaction.begin();
+-   * await transaction.queryArray`INSERT INTO MY_TABLE (X) VALUES ${"some_value"}`;
+-   * try {
+-   *   await transaction.rollback("unexistent_savepoint"); // Validation error
+-   * }catch(e){
+-   *   await transaction.commit(); // Transaction will end, changes will be saved
+-   * }
+-   * ```
+-   * 
+-   * A transaction has many options to ensure modifications made to the database are safe and
+-   * have the expected outcome, which is a hard thing to accomplish in a database with many concurrent users,
+-   * and it does so by allowing you to set local levels of isolation to the transaction you are about to begin
+-   * 
+-   * Each transaction can execute with the following levels of isolation:
+-   * 
+-   * - Read committed: This is the normal behavior of a transaction. External changes to the database
+-   *   will be visible inside the transaction once they are committed.
+-   * 
+-   * - Repeatable read: This isolates the transaction in a way that any external changes to the data we are reading
+-   *   won't be visible inside the transaction until it has finished
+-   *   ```ts
+-   *   const transaction = await client.createTransaction("my_transaction", { isolation_level: "repeatable_read" });
+-   *   ```
+-   * 
+-   * - Serializable: This isolation level prevents the current transaction from making persistent changes
+-   *   if the data they were reading at the beginning of the transaction has been modified (recommended)
+-   *   ```ts
+-   *   const transaction = await client.createTransaction("my_transaction", { isolation_level: "serializable" });
+-   *   ```
+-   * 
+-   * Additionally, each transaction allows you to set two levels of access to the data:
+-   * 
+-   * - Read write: This is the default mode, it allows you to execute all commands you have access to normally
+-   * 
+-   * - Read only: Disables all commands that can make changes to the database. Main use for the read only mode
+-   *   is to in conjuction with the repeatable read isolation, ensuring the data you are reading does not change
+-   *   during the transaction, specially useful for data extraction
+-   *   ```ts
+-   *   const transaction = await client.createTransaction("my_transaction", { read_only: true });
+-   *   ```
+-   * 
+-   * Last but not least, transactions allow you to share starting point snapshots between them.
+-   * For example, if you initialized a repeatable read transaction before a particularly sensible change
+-   * in the database, and you would like to start several transactions with that same before the change state
+-   * you can do the following:
+-   * 
+-   * ```ts
+-   * const snapshot = await transaction_1.getSnapshot();
+-   * const transaction_2 = client_2.createTransaction("new_transaction", { isolation_level: "repeatable_read", snapshot });
+-   * // transaction_2 now shares the same starting state that transaction_1 had
+-   * ```
+-   * 
+-   * https://www.postgresql.org/docs/13/tutorial-transactions.html
+-   * https://www.postgresql.org/docs/13/sql-set-transaction.html
+-   */
+-  createTransaction(name: string, options?: TransactionOptions): Transaction {
+-    return new Transaction(
+-      name,
+-      options,
+-      this,
+-      (name: string | null) => {
+-        this.#current_transaction = name;
+-      },
+-    );
+-  }
+-
+   async release(): Promise<void> {
+     await this.#release();
+-    this.#current_transaction = null;
++    this.transaction = null;
+   }
+ }
+diff --git a/connection/connection.ts b/connection/connection.ts
+index 15d8f0ba..ca3456ff 100644
+--- a/connection/connection.ts
++++ b/connection/connection.ts
+@@ -146,7 +146,7 @@ const encoder = new TextEncoder();
+ export class Connection {
+   #bufReader!: BufReader;
+   #bufWriter!: BufWriter;
+-  #conn!: Deno.Conn;
++  #conn!: Deno.Conn<Deno.NetAddr>;
+   connected = false;
+   #packetWriter = new PacketWriter();
+   // TODO
+diff --git a/connection/connection_params.ts b/connection/connection_params.ts
+index 413b26cc..057a4cb4 100644
+--- a/connection/connection_params.ts
++++ b/connection/connection_params.ts
+@@ -35,7 +35,7 @@ export class ConnectionParamsError extends Error {
+   }
+ }
+ 
+-interface TLSOptions {
++export interface TLSOptions {
+   /**
+    * This will force the connection to run over TLS
+    * If the server doesn't support TLS, the connection will fail
+diff --git a/connection/deferred.ts b/connection/deferred.ts
+index 80d4ebac..fe5bcfe6 100644
+--- a/connection/deferred.ts
++++ b/connection/deferred.ts
+@@ -1,48 +1,50 @@
+ import { Deferred, deferred } from "../deps.ts";
+ 
+ export class DeferredStack<T> {
+-  private _array: Array<T>;
+-  private _queue: Array<Deferred<T>>;
+-  private _maxSize: number;
+-  private _size: number;
++  #array: Array<T>;
++  #creator?: () => Promise<T>;
++  #max_size: number;
++  #queue: Array<Deferred<T>>;
++  #size: number;
+ 
+   constructor(
+     max?: number,
+     ls?: Iterable<T>,
+-    private _creator?: () => Promise<T>,
++    creator?: () => Promise<T>,
+   ) {
+-    this._maxSize = max || 10;
+-    this._array = ls ? [...ls] : [];
+-    this._size = this._array.length;
+-    this._queue = [];
++    this.#array = ls ? [...ls] : [];
++    this.#creator = creator;
++    this.#max_size = max || 10;
++    this.#queue = [];
++    this.#size = this.#array.length;
++  }
++
++  get available(): number {
++    return this.#array.length;
+   }
+ 
+   async pop(): Promise<T> {
+-    if (this._array.length > 0) {
+-      return this._array.pop()!;
+-    } else if (this._size < this._maxSize && this._creator) {
+-      this._size++;
+-      return await this._creator();
++    if (this.#array.length > 0) {
++      return this.#array.pop()!;
++    } else if (this.#size < this.#max_size && this.#creator) {
++      this.#size++;
++      return await this.#creator();
+     }
+     const d = deferred<T>();
+-    this._queue.push(d);
++    this.#queue.push(d);
+     await d;
+-    return this._array.pop()!;
++    return this.#array.pop()!;
+   }
+ 
+   push(value: T): void {
+-    this._array.push(value);
+-    if (this._queue.length > 0) {
+-      const d = this._queue.shift()!;
++    this.#array.push(value);
++    if (this.#queue.length > 0) {
++      const d = this.#queue.shift()!;
+       d.resolve();
+     }
+   }
+ 
+   get size(): number {
+-    return this._size;
+-  }
+-
+-  get available(): number {
+-    return this._array.length;
++    return this.#size;
+   }
+ }
+diff --git a/deps.ts b/deps.ts
+index 11b43112..72ba9444 100644
+--- a/deps.ts
++++ b/deps.ts
+@@ -1,11 +1,11 @@
+-export { BufReader, BufWriter } from "https://deno.land/std@0.85.0/io/bufio.ts";
+-export { copy } from "https://deno.land/std@0.85.0/bytes/mod.ts";
+-export { createHash } from "https://deno.land/std@0.85.0/hash/mod.ts";
++export { BufReader, BufWriter } from "https://deno.land/std@0.93.0/io/bufio.ts";
++export { copy } from "https://deno.land/std@0.93.0/bytes/mod.ts";
++export { createHash } from "https://deno.land/std@0.93.0/hash/mod.ts";
+ export {
+   HmacSha256,
+   Sha256,
+-} from "https://deno.land/std@0.85.0/hash/sha256.ts";
+-export * as base64 from "https://deno.land/std@0.85.0/encoding/base64.ts";
+-export { deferred, delay } from "https://deno.land/std@0.85.0/async/mod.ts";
+-export { bold, yellow } from "https://deno.land/std@0.85.0/fmt/colors.ts";
+-export type { Deferred } from "https://deno.land/std@0.85.0/async/mod.ts";
++} from "https://deno.land/std@0.93.0/hash/sha256.ts";
++export * as base64 from "https://deno.land/std@0.93.0/encoding/base64.ts";
++export { deferred, delay } from "https://deno.land/std@0.93.0/async/mod.ts";
++export type { Deferred } from "https://deno.land/std@0.93.0/async/mod.ts";
++export { bold, yellow } from "https://deno.land/std@0.93.0/fmt/colors.ts";
+diff --git a/docs/README.md b/docs/README.md
+index 89bd205a..dba3873a 100644
+--- a/docs/README.md
++++ b/docs/README.md
+@@ -3,7 +3,7 @@
+ ![Build Status](https://img.shields.io/github/workflow/status/denodrivers/postgres/ci?label=Build&logo=github&style=flat-square)
+ [![Discord server](https://img.shields.io/discord/768918486575480863?color=blue&label=Ask%20for%20help%20here&logo=discord&style=flat-square)](https://discord.gg/HEdTCvZUSf)
+ ![Manual](https://img.shields.io/github/v/release/denodrivers/postgres?color=orange&label=Manual&logo=deno&style=flat-square)
+-[![Documentation](https://img.shields.io/github/v/release/denodrivers/postgres?color=yellow&label=Documentation&logo=deno&style=flat-square)](https://doc.deno.land/https/deno.land/x/postgres@v0.10.0/mod.ts)
++[![Documentation](https://img.shields.io/github/v/release/denodrivers/postgres?color=yellow&label=Documentation&logo=deno&style=flat-square)](https://doc.deno.land/https/deno.land/x/postgres@v0.11.0/mod.ts)
+ ![License](https://img.shields.io/github/license/denodrivers/postgres?color=yellowgreen&label=License&style=flat-square)
+ 
+ `deno-postgres` is a lightweight PostgreSQL driver for Deno focused on user
+@@ -104,52 +104,144 @@ don't have an estimated time of when that might happen.
+ 
+ ### Clients
+ 
+-You are free to create your clients like so:
++Clients are the most basic block for establishing communication with your
++database. They provide abstractions over queries, transactions and connection
++management. In `deno-postgres`, similar clients such as the transaction and pool
++client inherit it's functionality from the basic client, so the available
++methods will be very similar across implementations.
+ 
+-```typescript
+-const client = new Client({
+-  ...
+-})
+-await client.connect()
++You can create a new client by providing the required connection parameters:
++
++```ts
++const client = new Client(connection_parameters);
++await client.connect();
++await client.queryArray`UPDATE MY_TABLE SET MY_FIELD = 0`;
++await client.end();
++```
++
++The basic client does not provide any concurrency features, meaning that in
++order to execute two queries simultaneously, you would need to create two
++different clients that can communicate with your database without conflicting
++with each other.
++
++```ts
++const client_1 = new Client(connection_parameters);
++await client_1.connect();
++// Even if operations are not awaited, they will be executed in the order they were
++// scheduled
++client_1.queryArray`UPDATE MY_TABLE SET MY_FIELD = 0`;
++client_1.queryArray`DELETE FROM MY_TABLE`;
++
++const client_2 = new Client(connection_parameters);
++await client_2.connect();
++// `client_2` will execute it's queries in parallel to `client_1`
++const { rows: result } = await client_2.queryArray`SELECT * FROM MY_TABLE`;
++
++await client_1.end();
++await client_2.end();
+ ```
+ 
++Ending a client will cause it to destroy it's connection with the database,
++forcing you to reconnect in order to execute operations again. In Postgres,
++connections are a synonym for session, which means that temporal operations such
++as the creation of temporal tables or the use of the `PG_TEMP` schema will not
++be persisted after your connection is terminated.
++
+ ### Pools
+ 
+ For stronger management and scalability, you can use **pools**:
+ 
+-```typescript
+-import { Pool } from "https://deno.land/x/postgres/mod.ts";
+-import { PoolClient } from "https://deno.land/x/postgres/client.ts";
+-
++```ts
+ const POOL_CONNECTIONS = 20;
+ const dbPool = new Pool({
+-  user: "user",
+-  password: "password",
+   database: "database",
+   hostname: "hostname",
++  password: "password",
+   port: 5432,
++  user: "user",
+ }, POOL_CONNECTIONS);
+ 
+-async function runQuery(query: string) {
+-  const client: PoolClient = await dbPool.connect();
+-  const dbResult = await client.queryObject(query);
+-  client.release();
+-  return dbResult;
+-}
+-
+-await runQuery("SELECT ID, NAME FROM users;"); // [{id: 1, name: 'Carlos'}, {id: 2, name: 'John'}, ...]
+-await runQuery("SELECT ID, NAME FROM users WHERE id = '1';"); // [{id: 1, name: 'Carlos'}, {id: 2, name: 'John'}, ...]
++const client = await dbPool.connect(); // 19 connections are still available
++await client.queryArray`UPDATE X SET Y = 'Z'`;
++await client.release(); // This connection is now available for use again
+ ```
+ 
+-This improves performance, as creating a whole new connection for each query can
+-be an expensive operation. With pools, you can keep the connections open to be
+-re-used when requested using the `connect()` method. So one of the active
+-connections will be used instead of creating a new one.
+-
+ The number of pools is up to you, but a pool of 20 is good for small
+ applications, this can differ based on how active your application is. Increase
+ or decrease where necessary.
+ 
++#### Clients vs connection pools
++
++Each pool eagerly creates as many connections as requested, allowing you to
++execute several queries concurrently. This also improves performance, since
++creating a whole new connection for each query can be an expensive operation,
++making pools stand out from clients when dealing with concurrent, reusable
++connections.
++
++```ts
++// Open 4 connections at once
++const pool = new Pool(db_params, 4);
++
++// This connections are already open, so there will be no overhead here
++const pool_client_1 = await pool.connect();
++const pool_client_2 = await pool.connect();
++const pool_client_3 = await pool.connect();
++const pool_client_4 = await pool.connect();
++
++// Each one of these will have to open a new connection and they won't be
++// reusable after the client is closed
++const client_1 = new Client(db_params);
++await client_1.connect();
++const client_2 = new Client(db_params);
++await client_2.connect();
++const client_3 = new Client(db_params);
++await client_3.connect();
++const client_4 = new Client(db_params);
++await client_4.connect();
++```
++
++#### Lazy pools
++
++Another good option is to create such connections on demand and have them
++available after creation. That way, one of the available connections will be
++used instead of creating a new one. You can do this by indicating the pool to
++start each connection lazily.
++
++```ts
++const pool = new Pool(db_params, 4, true); // `true` indicates lazy connections
++
++// A new connection is created when requested
++const client_1 = await pool.connect();
++client_1.release();
++
++// No new connection is created, previously initialized one is available
++const client_2 = await pool.connect();
++
++// A new connection is created because all the other ones are in use
++const client_3 = await pool.connect();
++
++await client_2.release();
++await client_3.release();
++```
++
++#### Pools made simple
++
++The following example is a simple abstraction over pools that allow you to
++execute one query and release the used client after returning the result in a
++single function call
++
++```ts
++async function runQuery(query: string) {
++  const client = await pool.connect();
++  const result = await client.queryObject(query);
++  client.release();
++  return result;
++}
++
++await runQuery("SELECT ID, NAME FROM users"); // [{id: 1, name: 'Carlos'}, {id: 2, name: 'John'}, ...]
++await runQuery("SELECT ID, NAME FROM users WHERE id = '1'"); // [{id: 1, name: 'Carlos'}, {id: 2, name: 'John'}, ...]
++```
++
+ ## API
+ 
+ ### Queries
+diff --git a/mod.ts b/mod.ts
+index 27038ab3..9e22e5da 100644
+--- a/mod.ts
++++ b/mod.ts
+@@ -1,3 +1,16 @@
+ export { Client } from "./client.ts";
+ export { PostgresError } from "./connection/warning.ts";
+ export { Pool } from "./pool.ts";
++
++// TODO
++// Remove the following reexports after https://doc.deno.land
++// supports two level depth exports
++export type {
++  ConnectionOptions,
++  ConnectionString,
++  TLSOptions,
++} from "./connection/connection_params.ts";
++export { PoolClient, QueryClient } from "./client.ts";
++export type { QueryConfig, QueryObjectConfig } from "./query/query.ts";
++export { Savepoint, Transaction } from "./query/transaction.ts";
++export type { TransactionOptions } from "./query/transaction.ts";
+diff --git a/pool.ts b/pool.ts
+index 2a9e083a..1b989471 100644
+--- a/pool.ts
++++ b/pool.ts
+@@ -1,4 +1,4 @@
+-import { PoolClient, QueryClient } from "./client.ts";
++import { PoolClient } from "./client.ts";
+ import { Connection } from "./connection/connection.ts";
+ import {
+   ConnectionOptions,
+@@ -7,114 +7,178 @@ import {
+   createParams,
+ } from "./connection/connection_params.ts";
+ import { DeferredStack } from "./connection/deferred.ts";
+-import {
+-  Query,
+-  QueryArrayResult,
+-  QueryObjectResult,
+-  QueryResult,
+-  ResultType,
+-} from "./query/query.ts";
+ 
+-// TODO
+-// Remove query execution methods from main pool
+-export class Pool extends QueryClient {
+-  private _connectionParams: ConnectionParams;
+-  private _connections!: Array<Connection>;
+-  private _availableConnections!: DeferredStack<Connection>;
+-  private _maxSize: number;
+-  public ready: Promise<void>;
+-  private _lazy: boolean;
++/**
++ * Connection pools are a powerful resource to execute parallel queries and
++ * save up time in connection initialization. It is highly recommended that all
++ * applications that require concurrent access use a pool to communicate
++ * with their PostgreSQL database
++ * 
++ * ```ts
++ * const pool = new Pool({
++ *   database: "database",
++ *   hostname: "hostname",
++ *   password: "password",
++ *   port: 5432,
++ *   user: "user",
++ * }, 10); // Creates a pool with 10 available connections
++ * 
++ * const client = await pool.connect();
++ * await client.queryArray`SELECT 1`;
++ * await client.release();
++ * ```
++ * 
++ * You can also opt to not initialize all your connections at once by passing the `lazy`
++ * option when instantiating your pool, this is useful to reduce startup time. In
++ * addition to this, the pool won't start the connection unless there isn't any already
++ * available connections in the pool
++ * 
++ * ```ts
++ * // Creates a pool with 10 max available connections
++ * // Connection with the database won't be established until the user requires it
++ * const pool = new Pool(connection_params, 10, true);
++ * 
++ * // Connection is created here, will be available from now on
++ * const client_1 = await pool.connect();
++ * await client_1.queryArray`SELECT 1`;
++ * await client_1.release();
++ * 
++ * // Same connection as before, will be reused instead of starting a new one
++ * const client_2 = await pool.connect();
++ * await client_2.queryArray`SELECT 1`;
++ * 
++ * // New connection, since previous one is still in use
++ * // There will be two open connections available from now on
++ * const client_3 = await pool.connect();
++ * await client_2.release();
++ * await client_3.release();
++ * ```
++ */
++export class Pool {
++  #available_connections: DeferredStack<Connection> | null = null;
++  #connection_params: ConnectionParams;
++  #ended = false;
++  #lazy: boolean;
++  #max_size: number;
++  // TODO
++  // Initialization should probably have a timeout
++  #ready: Promise<void>;
+ 
+   constructor(
+-    connectionParams: ConnectionOptions | ConnectionString | undefined,
+-    maxSize: number,
+-    lazy?: boolean,
++    // deno-lint-ignore camelcase
++    connection_params: ConnectionOptions | ConnectionString | undefined,
++    // deno-lint-ignore camelcase
++    max_size: number,
++    lazy: boolean = false,
+   ) {
+-    super();
+-    this._connectionParams = createParams(connectionParams);
+-    this._maxSize = maxSize;
+-    this._lazy = !!lazy;
+-    this.ready = this._startup();
++    this.#connection_params = createParams(connection_params);
++    this.#lazy = lazy;
++    this.#max_size = max_size;
++    this.#ready = this.#initialize();
+   }
+ 
+-  _executeQuery(query: Query<ResultType.ARRAY>): Promise<QueryArrayResult>;
+-  _executeQuery(query: Query<ResultType.OBJECT>): Promise<QueryObjectResult>;
+-  _executeQuery(query: Query<ResultType>): Promise<QueryResult> {
+-    return this._execute(query);
++  /**
++   * The number of open connections available for use
++   * 
++   * Lazily initialized pools won't have any open connections by default
++   */
++  get available(): number {
++    if (this.#available_connections == null) {
++      return 0;
++    }
++    return this.#available_connections.available;
+   }
+ 
+-  private async _createConnection(): Promise<Connection> {
+-    const connection = new Connection(this._connectionParams);
+-    await connection.startup();
+-    return connection;
+-  }
++  /**
++   * This will return a new client from the available connections in
++   * the pool
++   * 
++   * In the case of lazy initialized pools, a new connection will be established
++   * with the database if no other connections are available
++   * 
++   * ```ts
++   * const client = pool.connect();
++   * await client.queryArray`UPDATE MY_TABLE SET X = 1`;
++   * await client.release();
++   * ```
++   */
++  async connect(): Promise<PoolClient> {
++    // Reinitialize pool if it has been terminated
++    if (this.#ended) {
++      this.#ready = this.#initialize();
++    }
+ 
+-  /** pool max size */
+-  get maxSize(): number {
+-    return this._maxSize;
++    await this.#ready;
++    const connection = await this.#available_connections!.pop();
++    const release = () => this.#available_connections!.push(connection);
++    return new PoolClient(connection, release);
+   }
+ 
+-  /** number of connections created */
+-  get size(): number {
+-    if (this._availableConnections == null) {
+-      return 0;
++  #createConnection = async (): Promise<Connection> => {
++    const connection = new Connection(this.#connection_params);
++    await connection.startup();
++    return connection;
++  };
++
++  /**
++   * This will close all open connections and set a terminated status in the pool
++   * 
++   * ```ts
++   * await pool.end();
++   * assertEquals(pool.available, 0);
++   * await pool.end(); // An exception will be thrown, pool doesn't have any connections to close
++   * ```
++   * 
++   * However, a terminated pool can be reused by using the "connect" method, which
++   * will reinitialize the connections according to the original configuration of the pool
++   * 
++   * ```ts
++   * await pool.end();
++   * const client = await pool.connect();
++   * await client.queryArray`SELECT 1`; // Works!
++   * await client.close();
++   * ```
++   */
++  async end(): Promise<void> {
++    if (this.#ended) {
++      throw new Error("Pool connections have already been terminated");
+     }
+-    return this._availableConnections.size;
+-  }
+ 
+-  /** number of available connections */
+-  get available(): number {
+-    if (this._availableConnections == null) {
+-      return 0;
++    await this.#ready;
++    while (this.available > 0) {
++      const conn = await this.#available_connections!.pop();
++      await conn.end();
+     }
+-    return this._availableConnections.available;
++
++    this.#available_connections = null;
++    this.#ended = true;
+   }
+ 
+-  private async _startup(): Promise<void> {
+-    const initSize = this._lazy ? 1 : this._maxSize;
+-    const connecting = [...Array(initSize)].map(async () =>
+-      await this._createConnection()
++  #initialize = async (): Promise<void> => {
++    const initSize = this.#lazy ? 0 : this.#max_size;
++    const connections = Array.from(
++      { length: initSize },
++      () => this.#createConnection(),
+     );
+-    this._connections = await Promise.all(connecting);
+-    this._availableConnections = new DeferredStack(
+-      this._maxSize,
+-      this._connections,
+-      this._createConnection.bind(this),
++
++    this.#available_connections = new DeferredStack(
++      this.#max_size,
++      await Promise.all(connections),
++      this.#createConnection.bind(this),
+     );
+-  }
+ 
+-  private async _execute(
+-    query: Query<ResultType.ARRAY>,
+-  ): Promise<QueryArrayResult>;
+-  private async _execute(
+-    query: Query<ResultType.OBJECT>,
+-  ): Promise<QueryObjectResult>;
+-  private async _execute(
+-    query: Query<ResultType>,
+-  ): Promise<QueryResult> {
+-    await this.ready;
+-    const connection = await this._availableConnections.pop();
+-    try {
+-      return await connection.query(query);
+-    } catch (error) {
+-      throw error;
+-    } finally {
+-      this._availableConnections.push(connection);
+-    }
+-  }
++    this.#ended = false;
++  };
+ 
+-  async connect(): Promise<PoolClient> {
+-    await this.ready;
+-    const connection = await this._availableConnections.pop();
+-    const release = () => this._availableConnections.push(connection);
+-    return new PoolClient(connection, release);
+-  }
+-
+-  async end(): Promise<void> {
+-    await this.ready;
+-    while (this.available > 0) {
+-      const conn = await this._availableConnections.pop();
+-      await conn.end();
++  /**
++   * The number of total connections open in the pool
++   * 
++   * Both available and in use connections will be counted
++   */
++  get size(): number {
++    if (this.#available_connections == null) {
++      return 0;
+     }
++    return this.#available_connections.size;
+   }
+ }
+diff --git a/query/query.ts b/query/query.ts
+index cd8c052e..3c62544b 100644
+--- a/query/query.ts
++++ b/query/query.ts
+@@ -213,9 +213,9 @@ export class Query<T extends ResultType> {
+   public text: string;
+ 
+   //deno-lint-ignore camelcase
+-  constructor(config: QueryObjectConfig, result_type: T);
++  constructor(_config: QueryObjectConfig, _result_type: T);
+   //deno-lint-ignore camelcase
+-  constructor(text: string, result_type: T, ...args: unknown[]);
++  constructor(_text: string, _result_type: T, ..._args: unknown[]);
+   constructor(
+     //deno-lint-ignore camelcase
+     config_or_text: string | QueryObjectConfig,
+diff --git a/query/transaction.ts b/query/transaction.ts
+index c23f20c7..48152a9b 100644
+--- a/query/transaction.ts
++++ b/query/transaction.ts
+@@ -6,13 +6,14 @@ import {
+   QueryConfig,
+   QueryObjectConfig,
+   QueryObjectResult,
++  QueryResult,
+   ResultType,
+   templateStringToQuery,
+ } from "./query.ts";
+ import { isTemplateString } from "../utils.ts";
+ import { PostgresError, TransactionError } from "../connection/warning.ts";
+ 
+-class Savepoint {
++export class Savepoint {
+   /**
+    * This is the count of the current savepoint instances in the transaction
+    */
+@@ -101,24 +102,28 @@ export type TransactionOptions = {
+ 
+ export class Transaction {
+   #client: QueryClient;
++  #executeQuery: (_query: Query<ResultType>) => Promise<QueryResult>;
+   #isolation_level: IsolationLevel;
+   #read_only: boolean;
+-  #updateClientLock: (name: string | null) => void;
+   #savepoints: Savepoint[] = [];
+   #snapshot?: string;
++  #updateClientLock: (name: string | null) => void;
+ 
+   constructor(
+     public name: string,
+     options: TransactionOptions | undefined,
+     client: QueryClient,
+     // deno-lint-ignore camelcase
++    execute_query_callback: (_query: Query<ResultType>) => Promise<QueryResult>,
++    // deno-lint-ignore camelcase
+     update_client_lock_callback: (name: string | null) => void,
+   ) {
+     this.#client = client;
++    this.#executeQuery = execute_query_callback;
+     this.#isolation_level = options?.isolation_level ?? "read_committed";
+     this.#read_only = options?.read_only ?? false;
+-    this.#updateClientLock = update_client_lock_callback;
+     this.#snapshot = options?.snapshot;
++    this.#updateClientLock = update_client_lock_callback;
+   }
+ 
+   get isolation_level() {
+@@ -353,7 +358,7 @@ export class Transaction {
+     }
+ 
+     try {
+-      return await this.#client._executeQuery(query);
++      return await this.#executeQuery(query) as QueryArrayResult<T>;
+     } catch (e) {
+       // deno-lint-ignore no-unreachable
+       if (e instanceof PostgresError) {
+@@ -448,7 +453,7 @@ export class Transaction {
+     }
+ 
+     try {
+-      return await this.#client._executeQuery<T>(query);
++      return await this.#executeQuery(query) as QueryObjectResult<T>;
+     } catch (e) {
+       // deno-lint-ignore no-unreachable
+       if (e instanceof PostgresError) {
+diff --git a/tests/data_types_test.ts b/tests/data_types_test.ts
+index 1801ba31..e642188f 100644
+--- a/tests/data_types_test.ts
++++ b/tests/data_types_test.ts
+@@ -1,10 +1,4 @@
+-import {
+-  assertEquals,
+-  decodeBase64,
+-  encodeBase64,
+-  formatDate,
+-  parseDate,
+-} from "./test_deps.ts";
++import { assertEquals, base64, formatDate, parseDate } from "./test_deps.ts";
+ import { Client } from "../mod.ts";
+ import { getMainConfiguration } from "./config.ts";
+ import { getTestClient } from "./helpers.ts";
+@@ -51,16 +45,16 @@ const CLIENT = new Client(getMainConfiguration());
+ const testClient = getTestClient(CLIENT, SETUP);
+ 
+ testClient(async function inet() {
+-  const inet = "127.0.0.1";
++  const url = "127.0.0.1";
+   await CLIENT.queryArray(
+     "INSERT INTO data_types (inet_t) VALUES($1)",
+-    inet,
++    url,
+   );
+   const selectRes = await CLIENT.queryArray(
+     "SELECT inet_t FROM data_types WHERE inet_t=$1",
+-    inet,
++    url,
+   );
+-  assertEquals(selectRes.rows[0][0], inet);
++  assertEquals(selectRes.rows[0][0], url);
+ });
+ 
+ testClient(async function inetArray() {
+@@ -78,16 +72,17 @@ testClient(async function inetNestedArray() {
+ });
+ 
+ testClient(async function macaddr() {
+-  const macaddr = "08:00:2b:01:02:03";
++  const address = "08:00:2b:01:02:03";
++
+   await CLIENT.queryArray(
+     "INSERT INTO data_types (macaddr_t) VALUES($1)",
+-    macaddr,
++    address,
+   );
+   const selectRes = await CLIENT.queryArray(
+     "SELECT macaddr_t FROM data_types WHERE macaddr_t=$1",
+-    macaddr,
++    address,
+   );
+-  assertEquals(selectRes.rows, [[macaddr]]);
++  assertEquals(selectRes.rows[0][0], address);
+ });
+ 
+ testClient(async function macaddrArray() {
+@@ -108,16 +103,16 @@ testClient(async function macaddrNestedArray() {
+ });
+ 
+ testClient(async function cidr() {
+-  const cidr = "192.168.100.128/25";
++  const host = "192.168.100.128/25";
+   await CLIENT.queryArray(
+     "INSERT INTO data_types (cidr_t) VALUES($1)",
+-    cidr,
++    host,
+   );
+   const selectRes = await CLIENT.queryArray(
+     "SELECT cidr_t FROM data_types WHERE cidr_t=$1",
+-    cidr,
++    host,
+   );
+-  assertEquals(selectRes.rows, [[cidr]]);
++  assertEquals(selectRes.rows[0][0], host);
+ });
+ 
+ testClient(async function cidrArray() {
+@@ -297,9 +292,9 @@ testClient(async function bigintArray() {
+ });
+ 
+ testClient(async function numeric() {
+-  const numeric = "1234567890.1234567890";
+-  const result = await CLIENT.queryArray(`SELECT $1::numeric`, numeric);
+-  assertEquals(result.rows, [[numeric]]);
++  const number = "1234567890.1234567890";
++  const result = await CLIENT.queryArray(`SELECT $1::numeric`, number);
++  assertEquals(result.rows[0][0], number);
+ });
+ 
+ testClient(async function numericArray() {
+@@ -385,9 +380,10 @@ testClient(async function varcharNestedArray() {
+ });
+ 
+ testClient(async function uuid() {
+-  const uuid = "c4792ecb-c00a-43a2-bd74-5b0ed551c599";
+-  const result = await CLIENT.queryArray(`SELECT $1::uuid`, uuid);
+-  assertEquals(result.rows, [[uuid]]);
++  // deno-lint-ignore camelcase
++  const uuid_text = "c4792ecb-c00a-43a2-bd74-5b0ed551c599";
++  const result = await CLIENT.queryArray(`SELECT $1::uuid`, uuid_text);
++  assertEquals(result.rows[0][0], uuid_text);
+ });
+ 
+ testClient(async function uuidArray() {
+@@ -448,7 +444,8 @@ testClient(async function bpcharNestedArray() {
+ });
+ 
+ testClient(async function jsonArray() {
+-  const jsonArray = await CLIENT.queryArray(
++  // deno-lint-ignore camelcase
++  const json_array = await CLIENT.queryArray(
+     `SELECT ARRAY_AGG(A) FROM  (
+       SELECT JSON_BUILD_OBJECT( 'X', '1' ) AS A
+       UNION ALL
+@@ -456,7 +453,7 @@ testClient(async function jsonArray() {
+     )	A`,
+   );
+ 
+-  assertEquals(jsonArray.rows[0][0], [{ X: "1" }, { Y: "2" }]);
++  assertEquals(json_array.rows[0][0], [{ X: "1" }, { Y: "2" }]);
+ 
+   const jsonArrayNested = await CLIENT.queryArray(
+     `SELECT ARRAY[ARRAY[ARRAY_AGG(A), ARRAY_AGG(A)], ARRAY[ARRAY_AGG(A), ARRAY_AGG(A)]] FROM  (
+@@ -497,7 +494,7 @@ testClient(async function boolArray() {
+ 
+ const CHARS = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+ function randomBase64(): string {
+-  return encodeBase64(
++  return base64.encode(
+     Array.from(
+       { length: Math.ceil(Math.random() * 256) },
+       () => CHARS[Math.floor(Math.random() * CHARS.length)],
+@@ -506,13 +503,14 @@ function randomBase64(): string {
+ }
+ 
+ testClient(async function bytea() {
+-  const base64 = randomBase64();
++  // deno-lint-ignore camelcase
++  const base64_string = randomBase64();
+ 
+   const result = await CLIENT.queryArray(
+-    `SELECT decode('${base64}','base64')`,
++    `SELECT decode('${base64_string}','base64')`,
+   );
+ 
+-  assertEquals(result.rows[0][0], decodeBase64(base64));
++  assertEquals(result.rows[0][0], base64.decode(base64_string));
+ });
+ 
+ testClient(async function byteaArray() {
+@@ -529,7 +527,7 @@ testClient(async function byteaArray() {
+ 
+   assertEquals(
+     result.rows[0][0],
+-    strings.map(decodeBase64),
++    strings.map(base64.decode),
+   );
+ });
+ 
+@@ -572,13 +570,13 @@ testClient(async function timeArray() {
+ });
+ 
+ testClient(async function timestamp() {
+-  const timestamp = "1999-01-08 04:05:06";
++  const date = "1999-01-08 04:05:06";
+   const result = await CLIENT.queryArray<[Timestamp]>(
+     `SELECT $1::TIMESTAMP, 'INFINITY'::TIMESTAMP`,
+-    timestamp,
++    date,
+   );
+ 
+-  assertEquals(result.rows[0], [new Date(timestamp), Infinity]);
++  assertEquals(result.rows[0], [new Date(date), Infinity]);
+ });
+ 
+ testClient(async function timestampArray() {
+@@ -705,14 +703,15 @@ testClient(async function tidArray() {
+ });
+ 
+ testClient(async function date() {
+-  const date = "2020-01-01";
++  // deno-lint-ignore camelcase
++  const date_text = "2020-01-01";
+ 
+   const result = await CLIENT.queryArray<[Timestamp, Timestamp]>(
+     "SELECT $1::DATE, 'Infinity'::Date",
+-    date,
++    date_text,
+   );
+ 
+-  assertEquals(result.rows[0], [parseDate(date, "yyyy-MM-dd"), Infinity]);
++  assertEquals(result.rows[0], [parseDate(date_text, "yyyy-MM-dd"), Infinity]);
+ });
+ 
+ testClient(async function dateArray() {
+diff --git a/tests/pool_test.ts b/tests/pool_test.ts
+index 22e1cf21..659652b8 100644
+--- a/tests/pool_test.ts
++++ b/tests/pool_test.ts
+@@ -1,100 +1,92 @@
+-import { assertEquals, assertThrowsAsync, delay } from "./test_deps.ts";
++import { assertEquals, delay } from "./test_deps.ts";
+ import { Pool } from "../pool.ts";
+-import { DEFAULT_SETUP } from "./constants.ts";
+ import { getMainConfiguration } from "./config.ts";
+ 
+ function testPool(
++  name: string,
+   t: (pool: Pool) => void | Promise<void>,
+-  setupQueries?: Array<string> | null,
+   lazy?: boolean,
+ ) {
+-  // constructing Pool instantiates the connections,
+-  // so this has to be constructed for each test.
+   const fn = async () => {
+     const POOL = new Pool(getMainConfiguration(), 10, lazy);
++    // If the connection is not lazy, create a client to await
++    // for initialization
++    if (!lazy) {
++      const client = await POOL.connect();
++      await client.release();
++    }
+     try {
+-      for (const q of setupQueries || DEFAULT_SETUP) {
+-        await POOL.queryArray(q);
+-      }
+       await t(POOL);
+     } finally {
+       await POOL.end();
+     }
+   };
+-  const name = t.name;
+   Deno.test({ fn, name });
+ }
+ 
+-testPool(async function simpleQuery(POOL) {
+-  const result = await POOL.queryArray("SELECT * FROM ids;");
+-  assertEquals(result.rows.length, 2);
+-});
+-
+-testPool(async function parametrizedQuery(POOL) {
+-  const result = await POOL.queryObject("SELECT * FROM ids WHERE id < $1;", 2);
+-  assertEquals(result.rows, [{ id: 1 }]);
+-});
+-
+-testPool(async function aliasedObjectQuery(POOL) {
+-  const result = await POOL.queryObject({
+-    text: "SELECT ARRAY[1, 2, 3], 'DATA'",
+-    fields: ["IDS", "type"],
+-  });
+-
+-  assertEquals(result.rows, [{ ids: [1, 2, 3], type: "DATA" }]);
+-});
+-
+-testPool(async function objectQueryThrowsOnRepeatedFields(POOL) {
+-  await assertThrowsAsync(
+-    async () => {
+-      await POOL.queryObject({
+-        text: "SELECT 1",
+-        fields: ["FIELD_1", "FIELD_1"],
+-      });
+-    },
+-    TypeError,
+-    "The fields provided for the query must be unique",
+-  );
+-});
+-
+-testPool(async function objectQueryThrowsOnNotMatchingFields(POOL) {
+-  await assertThrowsAsync(
+-    async () => {
+-      await POOL.queryObject({
+-        text: "SELECT 1",
+-        fields: ["FIELD_1", "FIELD_2"],
+-      });
+-    },
+-    RangeError,
+-    "The fields provided for the query don't match the ones returned as a result (1 expected, 2 received)",
+-  );
+-});
+-
+-testPool(async function nativeType(POOL) {
+-  const result = await POOL.queryArray<[Date]>("SELECT * FROM timestamps;");
+-  const row = result.rows[0];
+-
+-  const expectedDate = Date.UTC(2019, 1, 10, 6, 0, 40, 5);
++testPool(
++  "Pool handles simultaneous connections correcly",
++  async function (POOL) {
++    assertEquals(POOL.available, 10);
++    const client = await POOL.connect();
++    const p = client.queryArray("SELECT pg_sleep(0.1) is null, -1 AS id");
++    await delay(1);
++    assertEquals(POOL.available, 9);
++    assertEquals(POOL.size, 10);
++    await p;
++    await client.release();
++    assertEquals(POOL.available, 10);
+ 
+-  assertEquals(row[0].toUTCString(), new Date(expectedDate).toUTCString());
++    const qsThunks = [...Array(25)].map(async (_, i) => {
++      const client = await POOL.connect();
++      const query = await client.queryArray(
++        "SELECT pg_sleep(0.1) is null, $1::text as id",
++        i,
++      );
++      await client.release();
++      return query;
++    });
++    const qsPromises = Promise.all(qsThunks);
++    await delay(1);
++    assertEquals(POOL.available, 0);
++    const qs = await qsPromises;
++    assertEquals(POOL.available, 10);
++    assertEquals(POOL.size, 10);
+ 
+-  await POOL.queryArray("INSERT INTO timestamps(dt) values($1);", new Date());
+-});
++    const result = qs.map((r) => r.rows[0][1]);
++    const expected = [...Array(25)].map((_, i) => i.toString());
++    assertEquals(result, expected);
++  },
++);
+ 
+ testPool(
+-  async function lazyPool(POOL) {
+-    await POOL.queryArray("SELECT 1;");
++  "Pool initializes lazy connections on demand",
++  async function (POOL) {
++    // deno-lint-ignore camelcase
++    const client_1 = await POOL.connect();
++    await client_1.queryArray("SELECT 1");
++    await client_1.release();
+     assertEquals(POOL.available, 1);
+-    const p = POOL.queryArray("SELECT pg_sleep(0.1) is null, -1 AS id;");
++
++    // deno-lint-ignore camelcase
++    const client_2 = await POOL.connect();
++    const p = client_2.queryArray("SELECT pg_sleep(0.1) is null, -1 AS id");
+     await delay(1);
+     assertEquals(POOL.available, 0);
+     assertEquals(POOL.size, 1);
+     await p;
++    await client_2.release();
+     assertEquals(POOL.available, 1);
+ 
+-    const qsThunks = [...Array(25)].map((_, i) =>
+-      POOL.queryArray("SELECT pg_sleep(0.1) is null, $1::text as id;", i)
+-    );
++    const qsThunks = [...Array(25)].map(async (_, i) => {
++      const client = await POOL.connect();
++      const query = await client.queryArray(
++        "SELECT pg_sleep(0.1) is null, $1::text as id",
++        i,
++      );
++      await client.release();
++      return query;
++    });
+     const qsPromises = Promise.all(qsThunks);
+     await delay(1);
+     assertEquals(POOL.available, 0);
+@@ -106,581 +98,29 @@ testPool(
+     const expected = [...Array(25)].map((_, i) => i.toString());
+     assertEquals(result, expected);
+   },
+-  null,
+   true,
+ );
+ 
+-/**
+- * @see https://github.com/bartlomieju/deno-postgres/issues/59
+- */
+-testPool(async function returnedConnectionOnErrorOccurs(POOL) {
+-  assertEquals(POOL.available, 10);
+-  await assertThrowsAsync(async () => {
+-    await POOL.queryArray("SELECT * FROM notexists");
+-  });
+-  assertEquals(POOL.available, 10);
+-});
+-
+-testPool(async function manyQueries(POOL) {
+-  assertEquals(POOL.available, 10);
+-  const p = POOL.queryArray("SELECT pg_sleep(0.1) is null, -1 AS id;");
+-  await delay(1);
+-  assertEquals(POOL.available, 9);
+-  assertEquals(POOL.size, 10);
+-  await p;
+-  assertEquals(POOL.available, 10);
+-
+-  const qsThunks = [...Array(25)].map((_, i) =>
+-    POOL.queryArray("SELECT pg_sleep(0.1) is null, $1::text as id;", i)
+-  );
+-  const qsPromises = Promise.all(qsThunks);
+-  await delay(1);
++testPool("Pool can be reinitialized after termination", async function (POOL) {
++  await POOL.end();
+   assertEquals(POOL.available, 0);
+-  const qs = await qsPromises;
+-  assertEquals(POOL.available, 10);
+-  assertEquals(POOL.size, 10);
+ 
+-  const result = qs.map((r) => r.rows[0][1]);
+-  const expected = [...Array(25)].map((_, i) => i.toString());
+-  assertEquals(result, expected);
+-});
+-
+-testPool(async function transaction(POOL) {
+   const client = await POOL.connect();
+-  // deno-lint-ignore camelcase
+-  const transaction_name = "x";
+-  const transaction = client.createTransaction(transaction_name);
+-
+-  await transaction.begin();
+-  assertEquals(
+-    client.current_transaction,
+-    transaction_name,
+-    "Client is locked out during transaction",
+-  );
+-  await transaction.queryArray`CREATE TEMP TABLE TEST (X INTEGER)`;
+-  const savepoint = await transaction.savepoint("table_creation");
+-  await transaction.queryArray`INSERT INTO TEST (X) VALUES (1)`;
+-  // deno-lint-ignore camelcase
+-  const query_1 = await transaction.queryObject<{ x: number }>
+-    `SELECT X FROM TEST`;
+-  assertEquals(
+-    query_1.rows[0].x,
+-    1,
+-    "Operation was not executed inside transaction",
+-  );
+-  await transaction.rollback(savepoint);
+-  // deno-lint-ignore camelcase
+-  const query_2 = await transaction.queryObject<{ x: number }>
+-    `SELECT X FROM TEST`;
+-  assertEquals(
+-    query_2.rowCount,
+-    0,
+-    "Rollback was not succesful inside transaction",
+-  );
+-  await transaction.commit();
+-  assertEquals(
+-    client.current_transaction,
+-    null,
+-    "Client was not released after transaction",
+-  );
+-  await client.release();
+-});
+-
+-testPool(async function transactionIsolationLevelRepeatableRead(POOL) {
+-  // deno-lint-ignore camelcase
+-  const client_1 = await POOL.connect();
+-  // deno-lint-ignore camelcase
+-  const client_2 = await POOL.connect();
+-
+-  await client_1.queryArray`DROP TABLE IF EXISTS FOR_TRANSACTION_TEST`;
+-  await client_1.queryArray`CREATE TABLE FOR_TRANSACTION_TEST (X INTEGER)`;
+-  await client_1.queryArray`INSERT INTO FOR_TRANSACTION_TEST (X) VALUES (1)`;
+-  // deno-lint-ignore camelcase
+-  const transaction_rr = client_1.createTransaction(
+-    "transactionIsolationLevelRepeatableRead",
+-    { isolation_level: "repeatable_read" },
+-  );
+-  await transaction_rr.begin();
+-
+-  // This locks the current value of the test table
+-  await transaction_rr.queryObject<{ x: number }>
+-    `SELECT X FROM FOR_TRANSACTION_TEST`;
+-
+-  // Modify data outside the transaction
+-  await client_2.queryArray`UPDATE FOR_TRANSACTION_TEST SET X = 2`;
+-  // deno-lint-ignore camelcase
+-  const { rows: query_1 } = await client_2.queryObject<{ x: number }>
+-    `SELECT X FROM FOR_TRANSACTION_TEST`;
+-  assertEquals(query_1, [{ x: 2 }]);
+-
+-  // deno-lint-ignore camelcase
+-  const { rows: query_2 } = await transaction_rr.queryObject<
+-    { x: number }
+-  >`SELECT X FROM FOR_TRANSACTION_TEST`;
+-  assertEquals(
+-    query_2,
+-    [{ x: 1 }],
+-    "Repeatable read transaction should not be able to observe changes that happened after the transaction start",
+-  );
+-
+-  await transaction_rr.commit();
+-
+-  // deno-lint-ignore camelcase
+-  const { rows: query_3 } = await client_1.queryObject<{ x: number }>
+-    `SELECT X FROM FOR_TRANSACTION_TEST`;
+-  assertEquals(
+-    query_3,
+-    [{ x: 2 }],
+-    "Main session should be able to observe changes after transaction ended",
+-  );
+-
+-  await client_1.queryArray`DROP TABLE FOR_TRANSACTION_TEST`;
+-
+-  await client_1.release();
+-  await client_2.release();
+-});
+-
+-testPool(async function transactionIsolationLevelSerializable(POOL) {
+-  // deno-lint-ignore camelcase
+-  const client_1 = await POOL.connect();
+-  // deno-lint-ignore camelcase
+-  const client_2 = await POOL.connect();
+-
+-  await client_1.queryArray`DROP TABLE IF EXISTS FOR_TRANSACTION_TEST`;
+-  await client_1.queryArray`CREATE TABLE FOR_TRANSACTION_TEST (X INTEGER)`;
+-  await client_1.queryArray`INSERT INTO FOR_TRANSACTION_TEST (X) VALUES (1)`;
+-  // deno-lint-ignore camelcase
+-  const transaction_rr = client_1.createTransaction(
+-    "transactionIsolationLevelRepeatableRead",
+-    { isolation_level: "serializable" },
+-  );
+-  await transaction_rr.begin();
+-
+-  // This locks the current value of the test table
+-  await transaction_rr.queryObject<{ x: number }>
+-    `SELECT X FROM FOR_TRANSACTION_TEST`;
+-
+-  // Modify data outside the transaction
+-  await client_2.queryArray`UPDATE FOR_TRANSACTION_TEST SET X = 2`;
+-
+-  await assertThrowsAsync(
+-    () => transaction_rr.queryArray`UPDATE FOR_TRANSACTION_TEST SET X = 3`,
+-    undefined,
+-    undefined,
+-    "A serializable transaction should throw if the data read in the transaction has been modified externally",
+-  );
+-
+-  // deno-lint-ignore camelcase
+-  const { rows: query_3 } = await client_1.queryObject<{ x: number }>
+-    `SELECT X FROM FOR_TRANSACTION_TEST`;
+-  assertEquals(
+-    query_3,
+-    [{ x: 2 }],
+-    "Main session should be able to observe changes after transaction ended",
+-  );
+-
+-  await client_1.queryArray`DROP TABLE FOR_TRANSACTION_TEST`;
+-
+-  await client_1.release();
+-  await client_2.release();
+-});
+-
+-testPool(async function transactionReadOnly(POOL) {
+-  const client = await POOL.connect();
+-
+-  await client.queryArray`DROP TABLE IF EXISTS FOR_TRANSACTION_TEST`;
+-  await client.queryArray`CREATE TABLE FOR_TRANSACTION_TEST (X INTEGER)`;
+-  const transaction = client.createTransaction("transactionReadOnly", {
+-    read_only: true,
+-  });
+-  await transaction.begin();
+-
+-  await assertThrowsAsync(
+-    () => transaction.queryArray`DELETE FROM FOR_TRANSACTION_TEST`,
+-    undefined,
+-    "cannot execute DELETE in a read-only transaction",
+-  );
+-
+-  await client.queryArray`DROP TABLE FOR_TRANSACTION_TEST`;
+-
+-  await client.release();
+-});
+-
+-testPool(async function transactionSnapshot(POOL) {
+-  // deno-lint-ignore camelcase
+-  const client_1 = await POOL.connect();
+-  // deno-lint-ignore camelcase
+-  const client_2 = await POOL.connect();
+-
+-  await client_1.queryArray`DROP TABLE IF EXISTS FOR_TRANSACTION_TEST`;
+-  await client_1.queryArray`CREATE TABLE FOR_TRANSACTION_TEST (X INTEGER)`;
+-  await client_1.queryArray`INSERT INTO FOR_TRANSACTION_TEST (X) VALUES (1)`;
+-  // deno-lint-ignore camelcase
+-  const transaction_1 = client_1.createTransaction(
+-    "transactionSnapshot1",
+-    { isolation_level: "repeatable_read" },
+-  );
+-  await transaction_1.begin();
+-
+-  // This locks the current value of the test table
+-  await transaction_1.queryObject<{ x: number }>
+-    `SELECT X FROM FOR_TRANSACTION_TEST`;
+-
+-  // Modify data outside the transaction
+-  await client_2.queryArray`UPDATE FOR_TRANSACTION_TEST SET X = 2`;
+-
+-  // deno-lint-ignore camelcase
+-  const { rows: query_1 } = await transaction_1.queryObject<{ x: number }>
+-    `SELECT X FROM FOR_TRANSACTION_TEST`;
+-  assertEquals(
+-    query_1,
+-    [{ x: 1 }],
+-    "External changes shouldn't affect repeatable read transaction",
+-  );
+-
+-  const snapshot = await transaction_1.getSnapshot();
+-
+-  // deno-lint-ignore camelcase
+-  const transaction_2 = client_2.createTransaction(
+-    "transactionSnapshot2",
+-    { isolation_level: "repeatable_read", snapshot },
+-  );
+-  await transaction_2.begin();
+-
+-  // deno-lint-ignore camelcase
+-  const { rows: query_2 } = await transaction_2.queryObject<{ x: number }>
+-    `SELECT X FROM FOR_TRANSACTION_TEST`;
+-  assertEquals(
+-    query_2,
+-    [{ x: 1 }],
+-    "External changes shouldn't affect repeatable read transaction with previous snapshot",
+-  );
+-
+-  await transaction_1.commit();
+-  await transaction_2.commit();
+-
+-  await client_1.queryArray`DROP TABLE FOR_TRANSACTION_TEST`;
+-
+-  await client_1.release();
+-  await client_2.release();
+-});
+-
+-testPool(async function transactionLock(POOL) {
+-  const client = await POOL.connect();
+-
+-  const transaction = client.createTransaction("x");
+-
+-  await transaction.begin();
+-  await transaction.queryArray`SELECT 1`;
+-  await assertThrowsAsync(
+-    () => client.queryArray`SELECT 1`,
+-    undefined,
+-    "This connection is currently locked",
+-    "The connection is not being locked by the transaction",
+-  );
+-  await transaction.commit();
+-
+   await client.queryArray`SELECT 1`;
+-  assertEquals(
+-    client.current_transaction,
+-    null,
+-    "Client was not released after transaction",
+-  );
+-
+-  await client.release();
+-});
+-
+-testPool(async function transactionCommitChain(POOL) {
+-  const client = await POOL.connect();
+-
+-  const name = "transactionCommitChain";
+-  const transaction = client.createTransaction(name);
+-
+-  await transaction.begin();
+-
+-  await transaction.commit({ chain: true });
+-  assertEquals(
+-    client.current_transaction,
+-    name,
+-    "Client shouldn't have been released on chained commit",
+-  );
+-
+-  await transaction.commit();
+-  assertEquals(
+-    client.current_transaction,
+-    null,
+-    "Client was not released after transaction ended",
+-  );
+-
+-  await client.release();
+-});
+-
+-testPool(async function transactionLockIsReleasedOnSavepointLessRollback(POOL) {
+-  const client = await POOL.connect();
+-
+-  const name = "transactionLockIsReleasedOnRollback";
+-  const transaction = client.createTransaction(name);
+-
+-  await client.queryArray`CREATE TEMP TABLE MY_TEST (X INTEGER)`;
+-  await transaction.begin();
+-  await transaction.queryArray`INSERT INTO MY_TEST (X) VALUES (1)`;
+-  // deno-lint-ignore camelcase
+-  const { rows: query_1 } = await transaction.queryObject<{ x: number }>
+-    `SELECT X FROM MY_TEST`;
+-  assertEquals(query_1, [{ x: 1 }]);
+-
+-  await transaction.rollback({ chain: true });
+-
+-  assertEquals(
+-    client.current_transaction,
+-    name,
+-    "Client shouldn't have been released after chained rollback",
+-  );
+-
+-  await transaction.rollback();
+-
+-  // deno-lint-ignore camelcase
+-  const { rowCount: query_2 } = await client.queryObject<{ x: number }>
+-    `SELECT X FROM MY_TEST`;
+-  assertEquals(query_2, 0);
+-
+-  assertEquals(
+-    client.current_transaction,
+-    null,
+-    "Client was not released after rollback",
+-  );
+-
+-  await client.release();
+-});
+-
+-testPool(async function transactionRollbackValidations(POOL) {
+-  const client = await POOL.connect();
+-
+-  const transaction = client.createTransaction(
+-    "transactionRollbackValidations",
+-  );
+-  await transaction.begin();
+-
+-  await assertThrowsAsync(
+-    // @ts-ignore This is made to check the two properties aren't passed at once
+-    () => transaction.rollback({ savepoint: "unexistent", chain: true }),
+-    undefined,
+-    "The chain option can't be used alongside a savepoint on a rollback operation",
+-  );
+-
+-  await transaction.commit();
+-
+-  await client.release();
+-});
+-
+-testPool(async function transactionLockIsReleasedOnUnrecoverableError(POOL) {
+-  const client = await POOL.connect();
+-
+-  const name = "transactionLockIsReleasedOnUnrecoverableError";
+-  const transaction = client.createTransaction(name);
+-
+-  await transaction.begin();
+-  await assertThrowsAsync(
+-    () => transaction.queryArray`SELECT []`,
+-    undefined,
+-    `The transaction "${name}" has been aborted due to \`PostgresError:`,
+-  );
+-  assertEquals(client.current_transaction, null);
+-
+-  await transaction.begin();
+-  await assertThrowsAsync(
+-    () => transaction.queryObject`SELECT []`,
+-    undefined,
+-    `The transaction "${name}" has been aborted due to \`PostgresError:`,
+-  );
+-  assertEquals(client.current_transaction, null);
+-
+-  await client.release();
+-});
+-
+-testPool(async function transactionSavepoints(POOL) {
+-  const client = await POOL.connect();
+-
+-  // deno-lint-ignore camelcase
+-  const savepoint_name = "a1";
+-  const transaction = client.createTransaction("x");
+-
+-  await transaction.begin();
+-  await transaction.queryArray`CREATE TEMP TABLE X (Y INT)`;
+-  await transaction.queryArray`INSERT INTO X VALUES (1)`;
+-  // deno-lint-ignore camelcase
+-  const { rows: query_1 } = await transaction.queryObject<{ y: number }>
+-    `SELECT Y FROM X`;
+-  assertEquals(query_1, [{ y: 1 }]);
+-
+-  const savepoint = await transaction.savepoint(savepoint_name);
+-
+-  await transaction.queryArray`DELETE FROM X`;
+-  // deno-lint-ignore camelcase
+-  const { rowCount: query_2 } = await transaction.queryObject<{ y: number }>
+-    `SELECT Y FROM X`;
+-  assertEquals(query_2, 0);
+-
+-  await savepoint.update();
+-
+-  await transaction.queryArray`INSERT INTO X VALUES (2)`;
+-  // deno-lint-ignore camelcase
+-  const { rows: query_3 } = await transaction.queryObject<{ y: number }>
+-    `SELECT Y FROM X`;
+-  assertEquals(query_3, [{ y: 2 }]);
+-
+-  await transaction.rollback(savepoint);
+-  // deno-lint-ignore camelcase
+-  const { rowCount: query_4 } = await transaction.queryObject<{ y: number }>
+-    `SELECT Y FROM X`;
+-  assertEquals(query_4, 0);
+-
+-  assertEquals(
+-    savepoint.instances,
+-    2,
+-    "An incorrect number of instances were created for a transaction savepoint",
+-  );
+-  await savepoint.release();
+-  assertEquals(
+-    savepoint.instances,
+-    1,
+-    "The instance for the savepoint was not released",
+-  );
+-
+-  // This checks that the savepoint can be called by name as well
+-  await transaction.rollback(savepoint_name);
+-  // deno-lint-ignore camelcase
+-  const { rows: query_5 } = await transaction.queryObject<{ y: number }>
+-    `SELECT Y FROM X`;
+-  assertEquals(query_5, [{ y: 1 }]);
+-
+-  await transaction.commit();
+-
+-  await client.release();
+-});
+-
+-testPool(async function transactionSavepointValidations(POOL) {
+-  const client = await POOL.connect();
+-
+-  const transaction = client.createTransaction("x");
+-  await transaction.begin();
+-
+-  await assertThrowsAsync(
+-    () => transaction.savepoint("1"),
+-    undefined,
+-    "The savepoint name can't begin with a number",
+-  );
+-
+-  await assertThrowsAsync(
+-    () =>
+-      transaction.savepoint(
+-        "this_savepoint_is_going_to_be_longer_than_sixty_three_characters",
+-      ),
+-    undefined,
+-    "The savepoint name can't be longer than 63 characters",
+-  );
+-
+-  await assertThrowsAsync(
+-    () => transaction.savepoint("+"),
+-    undefined,
+-    "The savepoint name can only contain alphanumeric characters",
+-  );
+-
+-  const savepoint = await transaction.savepoint("ABC1");
+-  assertEquals(savepoint.name, "abc1");
+-
+-  assertEquals(
+-    savepoint,
+-    await transaction.savepoint("abc1"),
+-    "Creating a savepoint with the same name should return the original one",
+-  );
+-  await savepoint.release();
+-
+-  await savepoint.release();
+-
+-  await assertThrowsAsync(
+-    () => savepoint.release(),
+-    undefined,
+-    "This savepoint has no instances to release",
+-  );
+-
+-  await assertThrowsAsync(
+-    () => transaction.rollback(savepoint),
+-    undefined,
+-    `There are no savepoints of "abc1" left to rollback to`,
+-  );
+-
+-  await assertThrowsAsync(
+-    () => transaction.rollback("UNEXISTENT"),
+-    undefined,
+-    `There is no "unexistent" savepoint registered in this transaction`,
+-  );
+-
+-  await transaction.commit();
+-
+   await client.release();
++  assertEquals(POOL.available, 10);
+ });
+ 
+-testPool(async function transactionOperationsThrowIfTransactionNotBegun(POOL) {
+-  const client = await POOL.connect();
+-
+-  // deno-lint-ignore camelcase
+-  const transaction_x = client.createTransaction("x");
+-  // deno-lint-ignore camelcase
+-  const transaction_y = client.createTransaction("y");
+-
+-  await transaction_x.begin();
+-
+-  await assertThrowsAsync(
+-    () => transaction_y.begin(),
+-    undefined,
+-    `This client already has an ongoing transaction "x"`,
+-  );
+-
+-  await transaction_x.commit();
+-  await transaction_y.begin();
+-  await assertThrowsAsync(
+-    () => transaction_y.begin(),
+-    undefined,
+-    "This transaction is already open",
+-  );
+-
+-  await transaction_y.commit();
+-  await assertThrowsAsync(
+-    () => transaction_y.commit(),
+-    undefined,
+-    `This transaction has not been started yet, make sure to use the "begin" method to do so`,
+-  );
+-
+-  await assertThrowsAsync(
+-    () => transaction_y.commit(),
+-    undefined,
+-    `This transaction has not been started yet, make sure to use the "begin" method to do so`,
+-  );
+-
+-  await assertThrowsAsync(
+-    () => transaction_y.queryArray`SELECT 1`,
+-    undefined,
+-    `This transaction has not been started yet, make sure to use the "begin" method to do so`,
+-  );
+-
+-  await assertThrowsAsync(
+-    () => transaction_y.queryObject`SELECT 1`,
+-    undefined,
+-    `This transaction has not been started yet, make sure to use the "begin" method to do so`,
+-  );
+-
+-  await assertThrowsAsync(
+-    () => transaction_y.rollback(),
+-    undefined,
+-    `This transaction has not been started yet, make sure to use the "begin" method to do so`,
+-  );
+-
+-  await assertThrowsAsync(
+-    () => transaction_y.savepoint("SOME"),
+-    undefined,
+-    `This transaction has not been started yet, make sure to use the "begin" method to do so`,
+-  );
++testPool(
++  "Lazy pool can be reinitialized after termination",
++  async function (POOL) {
++    await POOL.end();
++    assertEquals(POOL.available, 0);
+ 
+-  await client.release();
+-});
++    const client = await POOL.connect();
++    await client.queryArray`SELECT 1`;
++    await client.release();
++    assertEquals(POOL.available, 1);
++  },
++  true,
++);
+diff --git a/tests/queries_test.ts b/tests/queries_test.ts
+deleted file mode 100644
+index c1c33c0f..00000000
+--- a/tests/queries_test.ts
++++ /dev/null
+@@ -1,711 +0,0 @@
+-import { Client } from "../mod.ts";
+-import { assert, assertEquals, assertThrowsAsync } from "./test_deps.ts";
+-import { DEFAULT_SETUP } from "./constants.ts";
+-import { getMainConfiguration } from "./config.ts";
+-import { getTestClient } from "./helpers.ts";
+-
+-const CLIENT = new Client(getMainConfiguration());
+-const CLIENT_2 = new Client(getMainConfiguration());
+-
+-const testClient = getTestClient(CLIENT, DEFAULT_SETUP);
+-
+-testClient(async function simpleQuery() {
+-  const result = await CLIENT.queryArray("SELECT * FROM ids;");
+-  assertEquals(result.rows.length, 2);
+-});
+-
+-testClient(async function parametrizedQuery() {
+-  const result = await CLIENT.queryObject(
+-    "SELECT * FROM ids WHERE id < $1;",
+-    2,
+-  );
+-  assertEquals(result.rows, [{ id: 1 }]);
+-});
+-
+-testClient(async function objectQuery() {
+-  const result = await CLIENT.queryObject(
+-    "SELECT ARRAY[1, 2, 3] AS IDS, 'DATA' AS TYPE",
+-  );
+-
+-  assertEquals(result.rows, [{ ids: [1, 2, 3], type: "DATA" }]);
+-});
+-
+-testClient(async function aliasedObjectQuery() {
+-  const result = await CLIENT.queryObject({
+-    text: "SELECT ARRAY[1, 2, 3], 'DATA'",
+-    fields: ["IDS", "type"],
+-  });
+-
+-  assertEquals(result.rows, [{ ids: [1, 2, 3], type: "DATA" }]);
+-});
+-
+-testClient(async function objectQueryThrowsOnRepeatedFields() {
+-  await assertThrowsAsync(
+-    async () => {
+-      await CLIENT.queryObject({
+-        text: "SELECT 1",
+-        fields: ["FIELD_1", "FIELD_1"],
+-      });
+-    },
+-    TypeError,
+-    "The fields provided for the query must be unique",
+-  );
+-});
+-
+-testClient(async function objectQueryThrowsOnNotMatchingFields() {
+-  await assertThrowsAsync(
+-    async () => {
+-      await CLIENT.queryObject({
+-        text: "SELECT 1",
+-        fields: ["FIELD_1", "FIELD_2"],
+-      });
+-    },
+-    RangeError,
+-    "The fields provided for the query don't match the ones returned as a result (1 expected, 2 received)",
+-  );
+-});
+-
+-testClient(async function handleDebugNotice() {
+-  const { rows, warnings } = await CLIENT.queryArray(
+-    "SELECT * FROM CREATE_NOTICE();",
+-  );
+-  assertEquals(rows[0][0], 1);
+-  assertEquals(warnings[0].message, "NOTICED");
+-});
+-
+-// This query doesn't recreate the table and outputs
+-// a notice instead
+-testClient(async function handleQueryNotice() {
+-  await CLIENT.queryArray(
+-    "CREATE TEMP TABLE NOTICE_TEST (ABC INT);",
+-  );
+-  const { warnings } = await CLIENT.queryArray(
+-    "CREATE TEMP TABLE IF NOT EXISTS NOTICE_TEST (ABC INT);",
+-  );
+-
+-  assert(warnings[0].message.includes("already exists"));
+-});
+-
+-testClient(async function nativeType() {
+-  const result = await CLIENT.queryArray<[Date]>("SELECT * FROM timestamps;");
+-  const row = result.rows[0];
+-
+-  const expectedDate = Date.UTC(2019, 1, 10, 6, 0, 40, 5);
+-
+-  assertEquals(row[0].toUTCString(), new Date(expectedDate).toUTCString());
+-
+-  await CLIENT.queryArray("INSERT INTO timestamps(dt) values($1);", new Date());
+-});
+-
+-testClient(async function binaryType() {
+-  const result = await CLIENT.queryArray("SELECT * from bytes;");
+-  const row = result.rows[0];
+-
+-  const expectedBytes = new Uint8Array([102, 111, 111, 0, 128, 92, 255]);
+-
+-  assertEquals(row[0], expectedBytes);
+-
+-  await CLIENT.queryArray(
+-    "INSERT INTO bytes VALUES($1);",
+-    { args: expectedBytes },
+-  );
+-});
+-
+-testClient(async function resultMetadata() {
+-  let result;
+-
+-  // simple select
+-  result = await CLIENT.queryArray("SELECT * FROM ids WHERE id = 100");
+-  assertEquals(result.command, "SELECT");
+-  assertEquals(result.rowCount, 1);
+-
+-  // parameterized select
+-  result = await CLIENT.queryArray(
+-    "SELECT * FROM ids WHERE id IN ($1, $2)",
+-    200,
+-    300,
+-  );
+-  assertEquals(result.command, "SELECT");
+-  assertEquals(result.rowCount, 2);
+-
+-  // simple delete
+-  result = await CLIENT.queryArray("DELETE FROM ids WHERE id IN (100, 200)");
+-  assertEquals(result.command, "DELETE");
+-  assertEquals(result.rowCount, 2);
+-
+-  // parameterized delete
+-  result = await CLIENT.queryArray("DELETE FROM ids WHERE id = $1", 300);
+-  assertEquals(result.command, "DELETE");
+-  assertEquals(result.rowCount, 1);
+-
+-  // simple insert
+-  result = await CLIENT.queryArray("INSERT INTO ids VALUES (4), (5)");
+-  assertEquals(result.command, "INSERT");
+-  assertEquals(result.rowCount, 2);
+-
+-  // parameterized insert
+-  result = await CLIENT.queryArray("INSERT INTO ids VALUES ($1)", 3);
+-  assertEquals(result.command, "INSERT");
+-  assertEquals(result.rowCount, 1);
+-
+-  // simple update
+-  result = await CLIENT.queryArray(
+-    "UPDATE ids SET id = 500 WHERE id IN (500, 600)",
+-  );
+-  assertEquals(result.command, "UPDATE");
+-  assertEquals(result.rowCount, 2);
+-
+-  // parameterized update
+-  result = await CLIENT.queryArray(
+-    "UPDATE ids SET id = 400 WHERE id = $1",
+-    400,
+-  );
+-  assertEquals(result.command, "UPDATE");
+-  assertEquals(result.rowCount, 1);
+-}, [
+-  "DROP TABLE IF EXISTS ids",
+-  "CREATE UNLOGGED TABLE ids (id integer)",
+-  "INSERT INTO ids VALUES (100), (200), (300), (400), (500), (600)",
+-]);
+-
+-testClient(async function transactionWithConcurrentQueries() {
+-  const result = await CLIENT.queryArray("BEGIN");
+-
+-  assertEquals(result.rows.length, 0);
+-  const concurrentCount = 5;
+-  const queries = [...Array(concurrentCount)].map((_, i) => {
+-    return CLIENT.queryArray({
+-      text: "INSERT INTO ids (id) VALUES ($1) RETURNING id;",
+-      args: [i],
+-    });
+-  });
+-  const results = await Promise.all(queries);
+-
+-  results.forEach((r, i) => {
+-    assertEquals(r.rows[0][0], i);
+-  });
+-});
+-
+-testClient(async function handleNameTooLongError() {
+-  const result = await CLIENT.queryObject(`
+-    SELECT 1 AS "very_very_very_very_very_very_very_very_very_very_very_long_name"
+-  `);
+-  assertEquals(result.rows, [
+-    { "very_very_very_very_very_very_very_very_very_very_very_long_nam": 1 },
+-  ]);
+-});
+-
+-testClient(async function templateStringQueryObject() {
+-  const value = { x: "A", y: "B" };
+-
+-  const { rows } = await CLIENT.queryObject<{ x: string; y: string }>
+-    `SELECT ${value.x} AS X, ${value.y} AS Y`;
+-
+-  assertEquals(rows[0], value);
+-});
+-
+-testClient(async function templateStringQueryArray() {
+-  // deno-lint-ignore camelcase
+-  const [value_1, value_2] = ["A", "B"];
+-
+-  const { rows } = await CLIENT.queryArray<[string, string]>
+-    `SELECT ${value_1}, ${value_2}`;
+-
+-  assertEquals(rows[0], [value_1, value_2]);
+-});
+-
+-testClient(async function transaction() {
+-  // deno-lint-ignore camelcase
+-  const transaction_name = "x";
+-  const transaction = CLIENT.createTransaction(transaction_name);
+-
+-  await transaction.begin();
+-  assertEquals(
+-    CLIENT.current_transaction,
+-    transaction_name,
+-    "Client is locked out during transaction",
+-  );
+-  await transaction.queryArray`CREATE TEMP TABLE TEST (X INTEGER)`;
+-  const savepoint = await transaction.savepoint("table_creation");
+-  await transaction.queryArray`INSERT INTO TEST (X) VALUES (1)`;
+-  // deno-lint-ignore camelcase
+-  const query_1 = await transaction.queryObject<{ x: number }>
+-    `SELECT X FROM TEST`;
+-  assertEquals(
+-    query_1.rows[0].x,
+-    1,
+-    "Operation was not executed inside transaction",
+-  );
+-  await transaction.rollback(savepoint);
+-  // deno-lint-ignore camelcase
+-  const query_2 = await transaction.queryObject<{ x: number }>
+-    `SELECT X FROM TEST`;
+-  assertEquals(
+-    query_2.rowCount,
+-    0,
+-    "Rollback was not succesful inside transaction",
+-  );
+-  await transaction.commit();
+-  assertEquals(
+-    CLIENT.current_transaction,
+-    null,
+-    "Client was not released after transaction",
+-  );
+-});
+-
+-testClient(async function transactionIsolationLevelRepeatableRead() {
+-  await CLIENT_2.connect();
+-
+-  try {
+-    await CLIENT.queryArray`DROP TABLE IF EXISTS FOR_TRANSACTION_TEST`;
+-    await CLIENT.queryArray`CREATE TABLE FOR_TRANSACTION_TEST (X INTEGER)`;
+-    await CLIENT.queryArray`INSERT INTO FOR_TRANSACTION_TEST (X) VALUES (1)`;
+-    // deno-lint-ignore camelcase
+-    const transaction_rr = CLIENT.createTransaction(
+-      "transactionIsolationLevelRepeatableRead",
+-      { isolation_level: "repeatable_read" },
+-    );
+-    await transaction_rr.begin();
+-
+-    // This locks the current value of the test table
+-    await transaction_rr.queryObject<{ x: number }>
+-      `SELECT X FROM FOR_TRANSACTION_TEST`;
+-
+-    // Modify data outside the transaction
+-    await CLIENT_2.queryArray`UPDATE FOR_TRANSACTION_TEST SET X = 2`;
+-    // deno-lint-ignore camelcase
+-    const { rows: query_1 } = await CLIENT_2.queryObject<{ x: number }>
+-      `SELECT X FROM FOR_TRANSACTION_TEST`;
+-    assertEquals(query_1, [{ x: 2 }]);
+-
+-    // deno-lint-ignore camelcase
+-    const { rows: query_2 } = await transaction_rr.queryObject<
+-      { x: number }
+-    >`SELECT X FROM FOR_TRANSACTION_TEST`;
+-    assertEquals(
+-      query_2,
+-      [{ x: 1 }],
+-      "Repeatable read transaction should not be able to observe changes that happened after the transaction start",
+-    );
+-
+-    await transaction_rr.commit();
+-
+-    // deno-lint-ignore camelcase
+-    const { rows: query_3 } = await CLIENT.queryObject<{ x: number }>
+-      `SELECT X FROM FOR_TRANSACTION_TEST`;
+-    assertEquals(
+-      query_3,
+-      [{ x: 2 }],
+-      "Main session should be able to observe changes after transaction ended",
+-    );
+-
+-    await CLIENT.queryArray`DROP TABLE FOR_TRANSACTION_TEST`;
+-  } finally {
+-    await CLIENT_2.end();
+-  }
+-});
+-
+-testClient(async function transactionIsolationLevelSerializable() {
+-  await CLIENT_2.connect();
+-
+-  try {
+-    await CLIENT.queryArray`DROP TABLE IF EXISTS FOR_TRANSACTION_TEST`;
+-    await CLIENT.queryArray`CREATE TABLE FOR_TRANSACTION_TEST (X INTEGER)`;
+-    await CLIENT.queryArray`INSERT INTO FOR_TRANSACTION_TEST (X) VALUES (1)`;
+-    // deno-lint-ignore camelcase
+-    const transaction_rr = CLIENT.createTransaction(
+-      "transactionIsolationLevelRepeatableRead",
+-      { isolation_level: "serializable" },
+-    );
+-    await transaction_rr.begin();
+-
+-    // This locks the current value of the test table
+-    await transaction_rr.queryObject<{ x: number }>
+-      `SELECT X FROM FOR_TRANSACTION_TEST`;
+-
+-    // Modify data outside the transaction
+-    await CLIENT_2.queryArray`UPDATE FOR_TRANSACTION_TEST SET X = 2`;
+-
+-    await assertThrowsAsync(
+-      () => transaction_rr.queryArray`UPDATE FOR_TRANSACTION_TEST SET X = 3`,
+-      undefined,
+-      undefined,
+-      "A serializable transaction should throw if the data read in the transaction has been modified externally",
+-    );
+-
+-    // deno-lint-ignore camelcase
+-    const { rows: query_3 } = await CLIENT.queryObject<{ x: number }>
+-      `SELECT X FROM FOR_TRANSACTION_TEST`;
+-    assertEquals(
+-      query_3,
+-      [{ x: 2 }],
+-      "Main session should be able to observe changes after transaction ended",
+-    );
+-
+-    await CLIENT.queryArray`DROP TABLE FOR_TRANSACTION_TEST`;
+-  } finally {
+-    await CLIENT_2.end();
+-  }
+-});
+-
+-testClient(async function transactionReadOnly() {
+-  await CLIENT.queryArray`DROP TABLE IF EXISTS FOR_TRANSACTION_TEST`;
+-  await CLIENT.queryArray`CREATE TABLE FOR_TRANSACTION_TEST (X INTEGER)`;
+-  const transaction = CLIENT.createTransaction("transactionReadOnly", {
+-    read_only: true,
+-  });
+-  await transaction.begin();
+-
+-  await assertThrowsAsync(
+-    () => transaction.queryArray`DELETE FROM FOR_TRANSACTION_TEST`,
+-    undefined,
+-    "cannot execute DELETE in a read-only transaction",
+-  );
+-
+-  await CLIENT.queryArray`DROP TABLE FOR_TRANSACTION_TEST`;
+-});
+-
+-testClient(async function transactionSnapshot() {
+-  await CLIENT_2.connect();
+-
+-  try {
+-    await CLIENT.queryArray`DROP TABLE IF EXISTS FOR_TRANSACTION_TEST`;
+-    await CLIENT.queryArray`CREATE TABLE FOR_TRANSACTION_TEST (X INTEGER)`;
+-    await CLIENT.queryArray`INSERT INTO FOR_TRANSACTION_TEST (X) VALUES (1)`;
+-    // deno-lint-ignore camelcase
+-    const transaction_1 = CLIENT.createTransaction(
+-      "transactionSnapshot1",
+-      { isolation_level: "repeatable_read" },
+-    );
+-    await transaction_1.begin();
+-
+-    // This locks the current value of the test table
+-    await transaction_1.queryObject<{ x: number }>
+-      `SELECT X FROM FOR_TRANSACTION_TEST`;
+-
+-    // Modify data outside the transaction
+-    await CLIENT_2.queryArray`UPDATE FOR_TRANSACTION_TEST SET X = 2`;
+-
+-    // deno-lint-ignore camelcase
+-    const { rows: query_1 } = await transaction_1.queryObject<{ x: number }>
+-      `SELECT X FROM FOR_TRANSACTION_TEST`;
+-    assertEquals(
+-      query_1,
+-      [{ x: 1 }],
+-      "External changes shouldn't affect repeatable read transaction",
+-    );
+-
+-    const snapshot = await transaction_1.getSnapshot();
+-
+-    // deno-lint-ignore camelcase
+-    const transaction_2 = CLIENT_2.createTransaction(
+-      "transactionSnapshot2",
+-      { isolation_level: "repeatable_read", snapshot },
+-    );
+-    await transaction_2.begin();
+-
+-    // deno-lint-ignore camelcase
+-    const { rows: query_2 } = await transaction_2.queryObject<{ x: number }>
+-      `SELECT X FROM FOR_TRANSACTION_TEST`;
+-    assertEquals(
+-      query_2,
+-      [{ x: 1 }],
+-      "External changes shouldn't affect repeatable read transaction with previous snapshot",
+-    );
+-
+-    await transaction_1.commit();
+-    await transaction_2.commit();
+-
+-    await CLIENT.queryArray`DROP TABLE FOR_TRANSACTION_TEST`;
+-  } finally {
+-    await CLIENT_2.end();
+-  }
+-});
+-
+-testClient(async function transactionLock() {
+-  const transaction = CLIENT.createTransaction("x");
+-
+-  await transaction.begin();
+-  await transaction.queryArray`SELECT 1`;
+-  await assertThrowsAsync(
+-    () => CLIENT.queryArray`SELECT 1`,
+-    undefined,
+-    "This connection is currently locked",
+-    "The connection is not being locked by the transaction",
+-  );
+-  await transaction.commit();
+-
+-  await CLIENT.queryArray`SELECT 1`;
+-  assertEquals(
+-    CLIENT.current_transaction,
+-    null,
+-    "Client was not released after transaction",
+-  );
+-});
+-
+-testClient(async function transactionCommitChain() {
+-  const name = "transactionCommitChain";
+-  const transaction = CLIENT.createTransaction(name);
+-
+-  await transaction.begin();
+-
+-  await transaction.commit({ chain: true });
+-  assertEquals(
+-    CLIENT.current_transaction,
+-    name,
+-    "Client shouldn't have been released on chained commit",
+-  );
+-
+-  await transaction.commit();
+-  assertEquals(
+-    CLIENT.current_transaction,
+-    null,
+-    "Client was not released after transaction ended",
+-  );
+-});
+-
+-testClient(async function transactionLockIsReleasedOnSavepointLessRollback() {
+-  const name = "transactionLockIsReleasedOnRollback";
+-  const transaction = CLIENT.createTransaction(name);
+-
+-  await CLIENT.queryArray`CREATE TEMP TABLE MY_TEST (X INTEGER)`;
+-  await transaction.begin();
+-  await transaction.queryArray`INSERT INTO MY_TEST (X) VALUES (1)`;
+-  // deno-lint-ignore camelcase
+-  const { rows: query_1 } = await transaction.queryObject<{ x: number }>
+-    `SELECT X FROM MY_TEST`;
+-  assertEquals(query_1, [{ x: 1 }]);
+-
+-  await transaction.rollback({ chain: true });
+-
+-  assertEquals(
+-    CLIENT.current_transaction,
+-    name,
+-    "Client shouldn't have been released after chained rollback",
+-  );
+-
+-  await transaction.rollback();
+-
+-  // deno-lint-ignore camelcase
+-  const { rowCount: query_2 } = await CLIENT.queryObject<{ x: number }>
+-    `SELECT X FROM MY_TEST`;
+-  assertEquals(query_2, 0);
+-
+-  assertEquals(
+-    CLIENT.current_transaction,
+-    null,
+-    "Client was not released after rollback",
+-  );
+-});
+-
+-testClient(async function transactionRollbackValidations() {
+-  const transaction = CLIENT.createTransaction(
+-    "transactionRollbackValidations",
+-  );
+-  await transaction.begin();
+-
+-  await assertThrowsAsync(
+-    // @ts-ignore This is made to check the two properties aren't passed at once
+-    () => transaction.rollback({ savepoint: "unexistent", chain: true }),
+-    undefined,
+-    "The chain option can't be used alongside a savepoint on a rollback operation",
+-  );
+-
+-  await transaction.commit();
+-});
+-
+-testClient(async function transactionLockIsReleasedOnUnrecoverableError() {
+-  const name = "transactionLockIsReleasedOnUnrecoverableError";
+-  const transaction = CLIENT.createTransaction(name);
+-
+-  await transaction.begin();
+-  await assertThrowsAsync(
+-    () => transaction.queryArray`SELECT []`,
+-    undefined,
+-    `The transaction "${name}" has been aborted due to \`PostgresError:`,
+-  );
+-  assertEquals(CLIENT.current_transaction, null);
+-
+-  await transaction.begin();
+-  await assertThrowsAsync(
+-    () => transaction.queryObject`SELECT []`,
+-    undefined,
+-    `The transaction "${name}" has been aborted due to \`PostgresError:`,
+-  );
+-  assertEquals(CLIENT.current_transaction, null);
+-});
+-
+-testClient(async function transactionSavepoints() {
+-  // deno-lint-ignore camelcase
+-  const savepoint_name = "a1";
+-  const transaction = CLIENT.createTransaction("x");
+-
+-  await transaction.begin();
+-  await transaction.queryArray`CREATE TEMP TABLE X (Y INT)`;
+-  await transaction.queryArray`INSERT INTO X VALUES (1)`;
+-  // deno-lint-ignore camelcase
+-  const { rows: query_1 } = await transaction.queryObject<{ y: number }>
+-    `SELECT Y FROM X`;
+-  assertEquals(query_1, [{ y: 1 }]);
+-
+-  const savepoint = await transaction.savepoint(savepoint_name);
+-
+-  await transaction.queryArray`DELETE FROM X`;
+-  // deno-lint-ignore camelcase
+-  const { rowCount: query_2 } = await transaction.queryObject<{ y: number }>
+-    `SELECT Y FROM X`;
+-  assertEquals(query_2, 0);
+-
+-  await savepoint.update();
+-
+-  await transaction.queryArray`INSERT INTO X VALUES (2)`;
+-  // deno-lint-ignore camelcase
+-  const { rows: query_3 } = await transaction.queryObject<{ y: number }>
+-    `SELECT Y FROM X`;
+-  assertEquals(query_3, [{ y: 2 }]);
+-
+-  await transaction.rollback(savepoint);
+-  // deno-lint-ignore camelcase
+-  const { rowCount: query_4 } = await transaction.queryObject<{ y: number }>
+-    `SELECT Y FROM X`;
+-  assertEquals(query_4, 0);
+-
+-  assertEquals(
+-    savepoint.instances,
+-    2,
+-    "An incorrect number of instances were created for a transaction savepoint",
+-  );
+-  await savepoint.release();
+-  assertEquals(
+-    savepoint.instances,
+-    1,
+-    "The instance for the savepoint was not released",
+-  );
+-
+-  // This checks that the savepoint can be called by name as well
+-  await transaction.rollback(savepoint_name);
+-  // deno-lint-ignore camelcase
+-  const { rows: query_5 } = await transaction.queryObject<{ y: number }>
+-    `SELECT Y FROM X`;
+-  assertEquals(query_5, [{ y: 1 }]);
+-
+-  await transaction.commit();
+-});
+-
+-testClient(async function transactionSavepointValidations() {
+-  const transaction = CLIENT.createTransaction("x");
+-  await transaction.begin();
+-
+-  await assertThrowsAsync(
+-    () => transaction.savepoint("1"),
+-    undefined,
+-    "The savepoint name can't begin with a number",
+-  );
+-
+-  await assertThrowsAsync(
+-    () =>
+-      transaction.savepoint(
+-        "this_savepoint_is_going_to_be_longer_than_sixty_three_characters",
+-      ),
+-    undefined,
+-    "The savepoint name can't be longer than 63 characters",
+-  );
+-
+-  await assertThrowsAsync(
+-    () => transaction.savepoint("+"),
+-    undefined,
+-    "The savepoint name can only contain alphanumeric characters",
+-  );
+-
+-  const savepoint = await transaction.savepoint("ABC1");
+-  assertEquals(savepoint.name, "abc1");
+-
+-  assertEquals(
+-    savepoint,
+-    await transaction.savepoint("abc1"),
+-    "Creating a savepoint with the same name should return the original one",
+-  );
+-  await savepoint.release();
+-
+-  await savepoint.release();
+-
+-  await assertThrowsAsync(
+-    () => savepoint.release(),
+-    undefined,
+-    "This savepoint has no instances to release",
+-  );
+-
+-  await assertThrowsAsync(
+-    () => transaction.rollback(savepoint),
+-    undefined,
+-    `There are no savepoints of "abc1" left to rollback to`,
+-  );
+-
+-  await assertThrowsAsync(
+-    () => transaction.rollback("UNEXISTENT"),
+-    undefined,
+-    `There is no "unexistent" savepoint registered in this transaction`,
+-  );
+-
+-  await transaction.commit();
+-});
+-
+-testClient(async function transactionOperationsThrowIfTransactionNotBegun() {
+-  // deno-lint-ignore camelcase
+-  const transaction_x = CLIENT.createTransaction("x");
+-  // deno-lint-ignore camelcase
+-  const transaction_y = CLIENT.createTransaction("y");
+-
+-  await transaction_x.begin();
+-
+-  await assertThrowsAsync(
+-    () => transaction_y.begin(),
+-    undefined,
+-    `This client already has an ongoing transaction "x"`,
+-  );
+-
+-  await transaction_x.commit();
+-  await transaction_y.begin();
+-  await assertThrowsAsync(
+-    () => transaction_y.begin(),
+-    undefined,
+-    "This transaction is already open",
+-  );
+-
+-  await transaction_y.commit();
+-  await assertThrowsAsync(
+-    () => transaction_y.commit(),
+-    undefined,
+-    `This transaction has not been started yet, make sure to use the "begin" method to do so`,
+-  );
+-
+-  await assertThrowsAsync(
+-    () => transaction_y.commit(),
+-    undefined,
+-    `This transaction has not been started yet, make sure to use the "begin" method to do so`,
+-  );
+-
+-  await assertThrowsAsync(
+-    () => transaction_y.queryArray`SELECT 1`,
+-    undefined,
+-    `This transaction has not been started yet, make sure to use the "begin" method to do so`,
+-  );
+-
+-  await assertThrowsAsync(
+-    () => transaction_y.queryObject`SELECT 1`,
+-    undefined,
+-    `This transaction has not been started yet, make sure to use the "begin" method to do so`,
+-  );
+-
+-  await assertThrowsAsync(
+-    () => transaction_y.rollback(),
+-    undefined,
+-    `This transaction has not been started yet, make sure to use the "begin" method to do so`,
+-  );
+-
+-  await assertThrowsAsync(
+-    () => transaction_y.savepoint("SOME"),
+-    undefined,
+-    `This transaction has not been started yet, make sure to use the "begin" method to do so`,
+-  );
+-});
+diff --git a/tests/query_client_test.ts b/tests/query_client_test.ts
+new file mode 100644
+index 00000000..f95543a5
+--- /dev/null
++++ b/tests/query_client_test.ts
+@@ -0,0 +1,817 @@
++import { Client, Pool } from "../mod.ts";
++import { assert, assertEquals, assertThrowsAsync } from "./test_deps.ts";
++import { getMainConfiguration } from "./config.ts";
++import { PoolClient, QueryClient } from "../client.ts";
++
++function testClient(
++  name: string,
++  t: (getClient: () => Promise<QueryClient>) => void | Promise<void>,
++) {
++  async function clientWrapper() {
++    const clients: Client[] = [];
++    try {
++      await t(async () => {
++        const client = new Client(getMainConfiguration());
++        await client.connect();
++        clients.push(client);
++        return client;
++      });
++    } finally {
++      for (const client of clients) {
++        await client.end();
++      }
++    }
++  }
++
++  async function poolWrapper() {
++    const pool = new Pool(getMainConfiguration(), 10);
++    const clients: PoolClient[] = [];
++    try {
++      await t(async () => {
++        const client = await pool.connect();
++        clients.push(client);
++        return client;
++      });
++    } finally {
++      for (const client of clients) {
++        await client.release();
++      }
++      await pool.end();
++    }
++  }
++
++  Deno.test({ fn: clientWrapper, name: `Client: ${name}` });
++  Deno.test({ fn: poolWrapper, name: `Pool: ${name}` });
++}
++
++testClient("Simple query", async function (generateClient) {
++  const client = await generateClient();
++
++  const result = await client.queryArray("SELECT UNNEST(ARRAY[1, 2])");
++  assertEquals(result.rows.length, 2);
++});
++
++testClient("Prepared statements", async function (generateClient) {
++  const client = await generateClient();
++
++  const result = await client.queryObject(
++    "SELECT ID FROM ( SELECT UNNEST(ARRAY[1, 2]) AS ID ) A WHERE ID < $1",
++    2,
++  );
++  assertEquals(result.rows, [{ id: 1 }]);
++});
++
++testClient("Object query", async function (generateClient) {
++  const client = await generateClient();
++
++  const result = await client.queryObject(
++    "SELECT ARRAY[1, 2, 3] AS ID, 'DATA' AS TYPE",
++  );
++
++  assertEquals(result.rows, [{ id: [1, 2, 3], type: "DATA" }]);
++});
++
++testClient(
++  "Object query are mapped to user provided fields",
++  async function (generateClient) {
++    const client = await generateClient();
++
++    const result = await client.queryObject({
++      text: "SELECT ARRAY[1, 2, 3], 'DATA'",
++      fields: ["ID", "type"],
++    });
++
++    assertEquals(result.rows, [{ id: [1, 2, 3], type: "DATA" }]);
++  },
++);
++
++testClient(
++  "Object query throws if user provided fields aren't unique",
++  async function (generateClient) {
++    const client = await generateClient();
++
++    await assertThrowsAsync(
++      async () => {
++        await client.queryObject({
++          text: "SELECT 1",
++          fields: ["FIELD_1", "FIELD_1"],
++        });
++      },
++      TypeError,
++      "The fields provided for the query must be unique",
++    );
++  },
++);
++
++testClient(
++  "Object query throws if result columns don't match the user provided fields",
++  async function (generateClient) {
++    const client = await generateClient();
++
++    await assertThrowsAsync(
++      async () => {
++        await client.queryObject({
++          text: "SELECT 1",
++          fields: ["FIELD_1", "FIELD_2"],
++        });
++      },
++      RangeError,
++      "The fields provided for the query don't match the ones returned as a result (1 expected, 2 received)",
++    );
++  },
++);
++
++testClient("Handling of debug notices", async function (generateClient) {
++  const client = await generateClient();
++
++  // Create temporary function
++  await client.queryArray
++    `CREATE OR REPLACE FUNCTION PG_TEMP.CREATE_NOTICE () RETURNS INT AS $$ BEGIN RAISE NOTICE 'NOTICED'; RETURN (SELECT 1); END; $$ LANGUAGE PLPGSQL;`;
++
++  const { rows, warnings } = await client.queryArray(
++    "SELECT * FROM PG_TEMP.CREATE_NOTICE();",
++  );
++  assertEquals(rows[0][0], 1);
++  assertEquals(warnings[0].message, "NOTICED");
++});
++
++// This query doesn't recreate the table and outputs
++// a notice instead
++testClient("Handling of query notices", async function (generateClient) {
++  const client = await generateClient();
++
++  await client.queryArray(
++    "CREATE TEMP TABLE NOTICE_TEST (ABC INT);",
++  );
++  const { warnings } = await client.queryArray(
++    "CREATE TEMP TABLE IF NOT EXISTS NOTICE_TEST (ABC INT);",
++  );
++
++  assert(warnings[0].message.includes("already exists"));
++});
++
++testClient("nativeType", async function (generateClient) {
++  const client = await generateClient();
++
++  const result = await client.queryArray<[Date]>
++    `SELECT '2019-02-10T10:30:40.005+04:30'::TIMESTAMPTZ`;
++  const row = result.rows[0];
++
++  const expectedDate = Date.UTC(2019, 1, 10, 6, 0, 40, 5);
++
++  assertEquals(row[0].toUTCString(), new Date(expectedDate).toUTCString());
++});
++
++testClient("Binary data is parsed correctly", async function (generateClient) {
++  const client = await generateClient();
++
++  // deno-lint-ignore camelcase
++  const { rows: result_1 } = await client.queryArray
++    `SELECT E'foo\\\\000\\\\200\\\\\\\\\\\\377'::BYTEA`;
++
++  const expectedBytes = new Uint8Array([102, 111, 111, 0, 128, 92, 255]);
++
++  assertEquals(result_1[0][0], expectedBytes);
++
++  // deno-lint-ignore camelcase
++  const { rows: result_2 } = await client.queryArray(
++    "SELECT $1::BYTEA",
++    expectedBytes,
++  );
++  assertEquals(result_2[0][0], expectedBytes);
++});
++
++testClient("Result object metadata", async function (generateClient) {
++  const client = await generateClient();
++
++  await client.queryArray`CREATE TEMP TABLE METADATA (VALUE INTEGER)`;
++  await client.queryArray
++    `INSERT INTO METADATA VALUES (100), (200), (300), (400), (500), (600)`;
++
++  let result;
++
++  // simple select
++  result = await client.queryArray("SELECT * FROM METADATA WHERE VALUE = 100");
++  assertEquals(result.command, "SELECT");
++  assertEquals(result.rowCount, 1);
++
++  // parameterized select
++  result = await client.queryArray(
++    "SELECT * FROM METADATA WHERE VALUE IN ($1, $2)",
++    200,
++    300,
++  );
++  assertEquals(result.command, "SELECT");
++  assertEquals(result.rowCount, 2);
++
++  // simple delete
++  result = await client.queryArray(
++    "DELETE FROM METADATA WHERE VALUE IN (100, 200)",
++  );
++  assertEquals(result.command, "DELETE");
++  assertEquals(result.rowCount, 2);
++
++  // parameterized delete
++  result = await client.queryArray(
++    "DELETE FROM METADATA WHERE VALUE = $1",
++    300,
++  );
++  assertEquals(result.command, "DELETE");
++  assertEquals(result.rowCount, 1);
++
++  // simple insert
++  result = await client.queryArray("INSERT INTO METADATA VALUES (4), (5)");
++  assertEquals(result.command, "INSERT");
++  assertEquals(result.rowCount, 2);
++
++  // parameterized insert
++  result = await client.queryArray("INSERT INTO METADATA VALUES ($1)", 3);
++  assertEquals(result.command, "INSERT");
++  assertEquals(result.rowCount, 1);
++
++  // simple update
++  result = await client.queryArray(
++    "UPDATE METADATA SET VALUE = 500 WHERE VALUE IN (500, 600)",
++  );
++  assertEquals(result.command, "UPDATE");
++  assertEquals(result.rowCount, 2);
++
++  // parameterized update
++  result = await client.queryArray(
++    "UPDATE METADATA SET VALUE = 400 WHERE VALUE = $1",
++    400,
++  );
++  assertEquals(result.command, "UPDATE");
++  assertEquals(result.rowCount, 1);
++});
++
++testClient("Long column alias is truncated", async function (generateClient) {
++  const client = await generateClient();
++
++  const { rows: result, warnings } = await client.queryObject(`
++    SELECT 1 AS "very_very_very_very_very_very_very_very_very_very_very_long_name"
++  `);
++
++  assertEquals(result, [
++    { "very_very_very_very_very_very_very_very_very_very_very_long_nam": 1 },
++  ]);
++
++  assert(warnings[0].message.includes("will be truncated"));
++});
++
++testClient("Query array with template string", async function (generateClient) {
++  const client = await generateClient();
++
++  // deno-lint-ignore camelcase
++  const [value_1, value_2] = ["A", "B"];
++
++  const { rows } = await client.queryArray<[string, string]>
++    `SELECT ${value_1}, ${value_2}`;
++
++  assertEquals(rows[0], [value_1, value_2]);
++});
++
++testClient(
++  "Query object with template string",
++  async function (generateClient) {
++    const client = await generateClient();
++
++    const value = { x: "A", y: "B" };
++
++    const { rows } = await client.queryObject<{ x: string; y: string }>
++      `SELECT ${value.x} AS X, ${value.y} AS Y`;
++
++    assertEquals(rows[0], value);
++  },
++);
++
++testClient("Transaction", async function (generateClient) {
++  const client = await generateClient();
++
++  // deno-lint-ignore camelcase
++  const transaction_name = "x";
++  const transaction = client.createTransaction(transaction_name);
++
++  await transaction.begin();
++  assertEquals(
++    client.current_transaction,
++    transaction_name,
++    "Client is locked out during transaction",
++  );
++  await transaction.queryArray`CREATE TEMP TABLE TEST (X INTEGER)`;
++  const savepoint = await transaction.savepoint("table_creation");
++  await transaction.queryArray`INSERT INTO TEST (X) VALUES (1)`;
++  // deno-lint-ignore camelcase
++  const query_1 = await transaction.queryObject<{ x: number }>
++    `SELECT X FROM TEST`;
++  assertEquals(
++    query_1.rows[0].x,
++    1,
++    "Operation was not executed inside transaction",
++  );
++  await transaction.rollback(savepoint);
++  // deno-lint-ignore camelcase
++  const query_2 = await transaction.queryObject<{ x: number }>
++    `SELECT X FROM TEST`;
++  assertEquals(
++    query_2.rowCount,
++    0,
++    "Rollback was not succesful inside transaction",
++  );
++  await transaction.commit();
++  assertEquals(
++    client.current_transaction,
++    null,
++    "Client was not released after transaction",
++  );
++});
++
++testClient(
++  "Transaction with repeatable read isolation level",
++  async function (generateClient) {
++    // deno-lint-ignore camelcase
++    const client_1 = await generateClient();
++    // deno-lint-ignore camelcase
++    const client_2 = await generateClient();
++
++    await client_1.queryArray`DROP TABLE IF EXISTS FOR_TRANSACTION_TEST`;
++    await client_1.queryArray`CREATE TABLE FOR_TRANSACTION_TEST (X INTEGER)`;
++    await client_1.queryArray`INSERT INTO FOR_TRANSACTION_TEST (X) VALUES (1)`;
++    // deno-lint-ignore camelcase
++    const transaction_rr = client_1.createTransaction(
++      "transactionIsolationLevelRepeatableRead",
++      { isolation_level: "repeatable_read" },
++    );
++    await transaction_rr.begin();
++
++    // This locks the current value of the test table
++    await transaction_rr.queryObject<{ x: number }>
++      `SELECT X FROM FOR_TRANSACTION_TEST`;
++
++    // Modify data outside the transaction
++    await client_2.queryArray`UPDATE FOR_TRANSACTION_TEST SET X = 2`;
++    // deno-lint-ignore camelcase
++    const { rows: query_1 } = await client_2.queryObject<{ x: number }>
++      `SELECT X FROM FOR_TRANSACTION_TEST`;
++    assertEquals(query_1, [{ x: 2 }]);
++
++    // deno-lint-ignore camelcase
++    const { rows: query_2 } = await transaction_rr.queryObject<
++      { x: number }
++    >`SELECT X FROM FOR_TRANSACTION_TEST`;
++    assertEquals(
++      query_2,
++      [{ x: 1 }],
++      "Repeatable read transaction should not be able to observe changes that happened after the transaction start",
++    );
++
++    await transaction_rr.commit();
++
++    // deno-lint-ignore camelcase
++    const { rows: query_3 } = await client_1.queryObject<{ x: number }>
++      `SELECT X FROM FOR_TRANSACTION_TEST`;
++    assertEquals(
++      query_3,
++      [{ x: 2 }],
++      "Main session should be able to observe changes after transaction ended",
++    );
++
++    await client_1.queryArray`DROP TABLE FOR_TRANSACTION_TEST`;
++  },
++);
++
++testClient(
++  "Transaction with serializable isolation level",
++  async function (generateClient) {
++    // deno-lint-ignore camelcase
++    const client_1 = await generateClient();
++    // deno-lint-ignore camelcase
++    const client_2 = await generateClient();
++
++    await client_1.queryArray`DROP TABLE IF EXISTS FOR_TRANSACTION_TEST`;
++    await client_1.queryArray`CREATE TABLE FOR_TRANSACTION_TEST (X INTEGER)`;
++    await client_1.queryArray`INSERT INTO FOR_TRANSACTION_TEST (X) VALUES (1)`;
++    // deno-lint-ignore camelcase
++    const transaction_rr = client_1.createTransaction(
++      "transactionIsolationLevelRepeatableRead",
++      { isolation_level: "serializable" },
++    );
++    await transaction_rr.begin();
++
++    // This locks the current value of the test table
++    await transaction_rr.queryObject<{ x: number }>
++      `SELECT X FROM FOR_TRANSACTION_TEST`;
++
++    // Modify data outside the transaction
++    await client_2.queryArray`UPDATE FOR_TRANSACTION_TEST SET X = 2`;
++
++    await assertThrowsAsync(
++      () => transaction_rr.queryArray`UPDATE FOR_TRANSACTION_TEST SET X = 3`,
++      undefined,
++      undefined,
++      "A serializable transaction should throw if the data read in the transaction has been modified externally",
++    );
++
++    // deno-lint-ignore camelcase
++    const { rows: query_3 } = await client_1.queryObject<{ x: number }>
++      `SELECT X FROM FOR_TRANSACTION_TEST`;
++    assertEquals(
++      query_3,
++      [{ x: 2 }],
++      "Main session should be able to observe changes after transaction ended",
++    );
++
++    await client_1.queryArray`DROP TABLE FOR_TRANSACTION_TEST`;
++  },
++);
++
++testClient("Transaction read only", async function (generateClient) {
++  const client = await generateClient();
++
++  await client.queryArray`DROP TABLE IF EXISTS FOR_TRANSACTION_TEST`;
++  await client.queryArray`CREATE TABLE FOR_TRANSACTION_TEST (X INTEGER)`;
++  const transaction = client.createTransaction("transactionReadOnly", {
++    read_only: true,
++  });
++  await transaction.begin();
++
++  await assertThrowsAsync(
++    () => transaction.queryArray`DELETE FROM FOR_TRANSACTION_TEST`,
++    undefined,
++    "cannot execute DELETE in a read-only transaction",
++  );
++
++  await client.queryArray`DROP TABLE FOR_TRANSACTION_TEST`;
++});
++
++testClient("Transaction snapshot", async function (generateClient) {
++  // deno-lint-ignore camelcase
++  const client_1 = await generateClient();
++  // deno-lint-ignore camelcase
++  const client_2 = await generateClient();
++
++  await client_1.queryArray`DROP TABLE IF EXISTS FOR_TRANSACTION_TEST`;
++  await client_1.queryArray`CREATE TABLE FOR_TRANSACTION_TEST (X INTEGER)`;
++  await client_1.queryArray`INSERT INTO FOR_TRANSACTION_TEST (X) VALUES (1)`;
++  // deno-lint-ignore camelcase
++  const transaction_1 = client_1.createTransaction(
++    "transactionSnapshot1",
++    { isolation_level: "repeatable_read" },
++  );
++  await transaction_1.begin();
++
++  // This locks the current value of the test table
++  await transaction_1.queryObject<{ x: number }>
++    `SELECT X FROM FOR_TRANSACTION_TEST`;
++
++  // Modify data outside the transaction
++  await client_2.queryArray`UPDATE FOR_TRANSACTION_TEST SET X = 2`;
++
++  // deno-lint-ignore camelcase
++  const { rows: query_1 } = await transaction_1.queryObject<{ x: number }>
++    `SELECT X FROM FOR_TRANSACTION_TEST`;
++  assertEquals(
++    query_1,
++    [{ x: 1 }],
++    "External changes shouldn't affect repeatable read transaction",
++  );
++
++  const snapshot = await transaction_1.getSnapshot();
++
++  // deno-lint-ignore camelcase
++  const transaction_2 = client_2.createTransaction(
++    "transactionSnapshot2",
++    { isolation_level: "repeatable_read", snapshot },
++  );
++  await transaction_2.begin();
++
++  // deno-lint-ignore camelcase
++  const { rows: query_2 } = await transaction_2.queryObject<{ x: number }>
++    `SELECT X FROM FOR_TRANSACTION_TEST`;
++  assertEquals(
++    query_2,
++    [{ x: 1 }],
++    "External changes shouldn't affect repeatable read transaction with previous snapshot",
++  );
++
++  await transaction_1.commit();
++  await transaction_2.commit();
++
++  await client_1.queryArray`DROP TABLE FOR_TRANSACTION_TEST`;
++});
++
++testClient("Transaction locks client", async function (generateClient) {
++  const client = await generateClient();
++
++  const transaction = client.createTransaction("x");
++
++  await transaction.begin();
++  await transaction.queryArray`SELECT 1`;
++  await assertThrowsAsync(
++    () => client.queryArray`SELECT 1`,
++    undefined,
++    "This connection is currently locked",
++    "The connection is not being locked by the transaction",
++  );
++  await transaction.commit();
++
++  await client.queryArray`SELECT 1`;
++  assertEquals(
++    client.current_transaction,
++    null,
++    "Client was not released after transaction",
++  );
++});
++
++testClient("Transaction commit chain", async function (generateClient) {
++  const client = await generateClient();
++
++  const name = "transactionCommitChain";
++  const transaction = client.createTransaction(name);
++
++  await transaction.begin();
++
++  await transaction.commit({ chain: true });
++  assertEquals(
++    client.current_transaction,
++    name,
++    "Client shouldn't have been released on chained commit",
++  );
++
++  await transaction.commit();
++  assertEquals(
++    client.current_transaction,
++    null,
++    "Client was not released after transaction ended",
++  );
++});
++
++testClient(
++  "Transaction lock is released on savepoint-less rollback",
++  async function (generateClient) {
++    const client = await generateClient();
++
++    const name = "transactionLockIsReleasedOnRollback";
++    const transaction = client.createTransaction(name);
++
++    await client.queryArray`CREATE TEMP TABLE MY_TEST (X INTEGER)`;
++    await transaction.begin();
++    await transaction.queryArray`INSERT INTO MY_TEST (X) VALUES (1)`;
++    // deno-lint-ignore camelcase
++    const { rows: query_1 } = await transaction.queryObject<{ x: number }>
++      `SELECT X FROM MY_TEST`;
++    assertEquals(query_1, [{ x: 1 }]);
++
++    await transaction.rollback({ chain: true });
++
++    assertEquals(
++      client.current_transaction,
++      name,
++      "Client shouldn't have been released after chained rollback",
++    );
++
++    await transaction.rollback();
++
++    // deno-lint-ignore camelcase
++    const { rowCount: query_2 } = await client.queryObject<{ x: number }>
++      `SELECT X FROM MY_TEST`;
++    assertEquals(query_2, 0);
++
++    assertEquals(
++      client.current_transaction,
++      null,
++      "Client was not released after rollback",
++    );
++  },
++);
++
++testClient("Transaction rollback validations", async function (generateClient) {
++  const client = await generateClient();
++
++  const transaction = client.createTransaction(
++    "transactionRollbackValidations",
++  );
++  await transaction.begin();
++
++  await assertThrowsAsync(
++    // @ts-ignore This is made to check the two properties aren't passed at once
++    () => transaction.rollback({ savepoint: "unexistent", chain: true }),
++    undefined,
++    "The chain option can't be used alongside a savepoint on a rollback operation",
++  );
++
++  await transaction.commit();
++});
++
++testClient(
++  "Transaction lock is released after unrecoverable error",
++  async function (generateClient) {
++    const client = await generateClient();
++
++    const name = "transactionLockIsReleasedOnUnrecoverableError";
++    const transaction = client.createTransaction(name);
++
++    await transaction.begin();
++    await assertThrowsAsync(
++      () => transaction.queryArray`SELECT []`,
++      undefined,
++      `The transaction "${name}" has been aborted due to \`PostgresError:`,
++    );
++    assertEquals(client.current_transaction, null);
++
++    await transaction.begin();
++    await assertThrowsAsync(
++      () => transaction.queryObject`SELECT []`,
++      undefined,
++      `The transaction "${name}" has been aborted due to \`PostgresError:`,
++    );
++    assertEquals(client.current_transaction, null);
++  },
++);
++
++testClient("Transaction savepoints", async function (generateClient) {
++  const client = await generateClient();
++
++  // deno-lint-ignore camelcase
++  const savepoint_name = "a1";
++  const transaction = client.createTransaction("x");
++
++  await transaction.begin();
++  await transaction.queryArray`CREATE TEMP TABLE X (Y INT)`;
++  await transaction.queryArray`INSERT INTO X VALUES (1)`;
++  // deno-lint-ignore camelcase
++  const { rows: query_1 } = await transaction.queryObject<{ y: number }>
++    `SELECT Y FROM X`;
++  assertEquals(query_1, [{ y: 1 }]);
++
++  const savepoint = await transaction.savepoint(savepoint_name);
++
++  await transaction.queryArray`DELETE FROM X`;
++  // deno-lint-ignore camelcase
++  const { rowCount: query_2 } = await transaction.queryObject<{ y: number }>
++    `SELECT Y FROM X`;
++  assertEquals(query_2, 0);
++
++  await savepoint.update();
++
++  await transaction.queryArray`INSERT INTO X VALUES (2)`;
++  // deno-lint-ignore camelcase
++  const { rows: query_3 } = await transaction.queryObject<{ y: number }>
++    `SELECT Y FROM X`;
++  assertEquals(query_3, [{ y: 2 }]);
++
++  await transaction.rollback(savepoint);
++  // deno-lint-ignore camelcase
++  const { rowCount: query_4 } = await transaction.queryObject<{ y: number }>
++    `SELECT Y FROM X`;
++  assertEquals(query_4, 0);
++
++  assertEquals(
++    savepoint.instances,
++    2,
++    "An incorrect number of instances were created for a transaction savepoint",
++  );
++  await savepoint.release();
++  assertEquals(
++    savepoint.instances,
++    1,
++    "The instance for the savepoint was not released",
++  );
++
++  // This checks that the savepoint can be called by name as well
++  await transaction.rollback(savepoint_name);
++  // deno-lint-ignore camelcase
++  const { rows: query_5 } = await transaction.queryObject<{ y: number }>
++    `SELECT Y FROM X`;
++  assertEquals(query_5, [{ y: 1 }]);
++
++  await transaction.commit();
++});
++
++testClient(
++  "Transaction savepoint validations",
++  async function (generateClient) {
++    const client = await generateClient();
++
++    const transaction = client.createTransaction("x");
++    await transaction.begin();
++
++    await assertThrowsAsync(
++      () => transaction.savepoint("1"),
++      undefined,
++      "The savepoint name can't begin with a number",
++    );
++
++    await assertThrowsAsync(
++      () =>
++        transaction.savepoint(
++          "this_savepoint_is_going_to_be_longer_than_sixty_three_characters",
++        ),
++      undefined,
++      "The savepoint name can't be longer than 63 characters",
++    );
++
++    await assertThrowsAsync(
++      () => transaction.savepoint("+"),
++      undefined,
++      "The savepoint name can only contain alphanumeric characters",
++    );
++
++    const savepoint = await transaction.savepoint("ABC1");
++    assertEquals(savepoint.name, "abc1");
++
++    assertEquals(
++      savepoint,
++      await transaction.savepoint("abc1"),
++      "Creating a savepoint with the same name should return the original one",
++    );
++    await savepoint.release();
++
++    await savepoint.release();
++
++    await assertThrowsAsync(
++      () => savepoint.release(),
++      undefined,
++      "This savepoint has no instances to release",
++    );
++
++    await assertThrowsAsync(
++      () => transaction.rollback(savepoint),
++      undefined,
++      `There are no savepoints of "abc1" left to rollback to`,
++    );
++
++    await assertThrowsAsync(
++      () => transaction.rollback("UNEXISTENT"),
++      undefined,
++      `There is no "unexistent" savepoint registered in this transaction`,
++    );
++
++    await transaction.commit();
++  },
++);
++
++testClient(
++  "Transaction operations throw if transaction has not been initialized",
++  async function (generateClient) {
++    const client = await generateClient();
++
++    // deno-lint-ignore camelcase
++    const transaction_x = client.createTransaction("x");
++    // deno-lint-ignore camelcase
++    const transaction_y = client.createTransaction("y");
++
++    await transaction_x.begin();
++
++    await assertThrowsAsync(
++      () => transaction_y.begin(),
++      undefined,
++      `This client already has an ongoing transaction "x"`,
++    );
++
++    await transaction_x.commit();
++    await transaction_y.begin();
++    await assertThrowsAsync(
++      () => transaction_y.begin(),
++      undefined,
++      "This transaction is already open",
++    );
++
++    await transaction_y.commit();
++    await assertThrowsAsync(
++      () => transaction_y.commit(),
++      undefined,
++      `This transaction has not been started yet, make sure to use the "begin" method to do so`,
++    );
++
++    await assertThrowsAsync(
++      () => transaction_y.commit(),
++      undefined,
++      `This transaction has not been started yet, make sure to use the "begin" method to do so`,
++    );
++
++    await assertThrowsAsync(
++      () => transaction_y.queryArray`SELECT 1`,
++      undefined,
++      `This transaction has not been started yet, make sure to use the "begin" method to do so`,
++    );
++
++    await assertThrowsAsync(
++      () => transaction_y.queryObject`SELECT 1`,
++      undefined,
++      `This transaction has not been started yet, make sure to use the "begin" method to do so`,
++    );
++
++    await assertThrowsAsync(
++      () => transaction_y.rollback(),
++      undefined,
++      `This transaction has not been started yet, make sure to use the "begin" method to do so`,
++    );
++
++    await assertThrowsAsync(
++      () => transaction_y.savepoint("SOME"),
++      undefined,
++      `This transaction has not been started yet, make sure to use the "begin" method to do so`,
++    );
++  },
++);
+diff --git a/tests/test_deps.ts b/tests/test_deps.ts
+index 2a3e4ef4..d469391c 100644
+--- a/tests/test_deps.ts
++++ b/tests/test_deps.ts
+@@ -5,12 +5,8 @@ export {
+   assertNotEquals,
+   assertThrows,
+   assertThrowsAsync,
+-} from "https://deno.land/std@0.85.0/testing/asserts.ts";
+-export {
+-  decode as decodeBase64,
+-  encode as encodeBase64,
+-} from "https://deno.land/std@0.85.0/encoding/base64.ts";
++} from "https://deno.land/std@0.93.0/testing/asserts.ts";
+ export {
+   format as formatDate,
+   parse as parseDate,
+-} from "https://deno.land/std@0.85.0/datetime/mod.ts";
++} from "https://deno.land/std@0.93.0/datetime/mod.ts";

@@ -1,0 +1,607 @@
+diff --git a/README.md b/README.md
+index 17859ea7..e480c2e1 100644
+--- a/README.md
++++ b/README.md
+@@ -12,7 +12,15 @@ A lightweight PostgreSQL driver for Deno focused on developer experience.
+ [node-postgres](https://github.com/brianc/node-postgres) and
+ [pq](https://github.com/lib/pq).
+ 
+-## Example
++## Documentation
++
++The documentation is available on the `deno-postgres` website
++[https://deno-postgres.com/](https://deno-postgres.com/)
++
++Join the [Discord](https://discord.gg/HEdTCvZUSf) as well! It's a good place to
++discuss bugs and features before opening issues.
++
++## Examples
+ 
+ ```ts
+ // deno run --allow-net --allow-read mod.ts
+@@ -51,17 +59,6 @@ await client.connect();
+ await client.end();
+ ```
+ 
+-For more examples, visit the documentation available at
+-[https://deno-postgres.com/](https://deno-postgres.com/)
+-
+-## Documentation
+-
+-The documentation is available on the deno-postgres website
+-[https://deno-postgres.com/](https://deno-postgres.com/)
+-
+-Join the [Discord](https://discord.gg/HEdTCvZUSf) as well! It's a good place to
+-discuss bugs and features before opening issues.
+-
+ ## Contributing
+ 
+ ### Prerequisites
+@@ -156,6 +153,22 @@ This situation will stabilize as `std` and `deno-postgres` approach version 1.0.
+ | 1.17.0        | 0.15.0             | 0.17.1             |                      |
+ | 1.40.0        | 0.17.2             |                    | Now available on JSR |
+ 
++## Breaking changes
++
++Although `deno-postgres` is reasonably stable and robust, it is a WIP, and we're
++still exploring the design. Expect some breaking changes as we reach version 1.0
++and enhance the feature set. Please check the Releases for more info on breaking
++changes. Please reach out if there are any undocumented breaking changes.
++
++## Found issues?
++
++Please
++[file an issue](https://github.com/denodrivers/postgres/issues/new/choose) with
++any problems with the driver in this repository's issue section. If you would
++like to help, please look at the
++[issues](https://github.com/denodrivers/postgres/issues) as well. You can pick
++up one of them and try to implement it.
++
+ ## Contributing guidelines
+ 
+ When contributing to the repository, make sure to:
+diff --git a/client/error.ts b/client/error.ts
+index a7b97566..7fc4cccd 100644
+--- a/client/error.ts
++++ b/client/error.ts
+@@ -35,12 +35,18 @@ export class PostgresError extends Error {
+    */
+   public fields: Notice;
+ 
++  /**
++   * The query that caused the error
++   */
++  public query: string | undefined;
++
+   /**
+    * Create a new PostgresError
+    */
+-  constructor(fields: Notice) {
++  constructor(fields: Notice, query?: string) {
+     super(fields.message);
+     this.fields = fields;
++    this.query = query;
+     this.name = "PostgresError";
+   }
+ }
+diff --git a/connection/connection.ts b/connection/connection.ts
+index c062553c..7ce3d38d 100644
+--- a/connection/connection.ts
++++ b/connection/connection.ts
+@@ -32,6 +32,7 @@ import {
+   BufWriter,
+   delay,
+   joinPath,
++  rgb24,
+   yellow,
+ } from "../deps.ts";
+ import { DeferredStack } from "../utils/deferred.ts";
+@@ -68,6 +69,7 @@ import {
+   INCOMING_TLS_MESSAGES,
+ } from "./message_code.ts";
+ import { hashMd5Password } from "./auth.ts";
++import { isDebugOptionEnabled } from "../debug.ts";
+ 
+ // Work around unstable limitation
+ type ConnectOptions =
+@@ -97,7 +99,25 @@ function assertSuccessfulAuthentication(auth_message: Message) {
+ }
+ 
+ function logNotice(notice: Notice) {
+-  console.error(`${bold(yellow(notice.severity))}: ${notice.message}`);
++  if (notice.severity === "INFO") {
++    console.info(
++      `[ ${bold(rgb24(notice.severity, 0xff99ff))} ] : ${notice.message}`,
++    );
++  } else if (notice.severity === "NOTICE") {
++    console.info(`[ ${bold(yellow(notice.severity))} ] : ${notice.message}`);
++  } else if (notice.severity === "WARNING") {
++    console.warn(
++      `[ ${bold(rgb24(notice.severity, 0xff9900))} ] : ${notice.message}`,
++    );
++  }
++}
++
++function logQuery(query: string) {
++  console.info(`[ ${bold(rgb24("QUERY", 0x00ccff))} ] : ${query}`);
++}
++
++function logResults(rows: unknown[]) {
++  console.info(`[ ${bold(rgb24("RESULTS", 0x00cc00))} ] :`, rows);
+ }
+ 
+ const decoder = new TextDecoder();
+@@ -674,7 +694,15 @@ export class Connection {
+     while (current_message.type !== INCOMING_QUERY_MESSAGES.READY) {
+       switch (current_message.type) {
+         case ERROR_MESSAGE:
+-          error = new PostgresError(parseNoticeMessage(current_message));
++          error = new PostgresError(
++            parseNoticeMessage(current_message),
++            isDebugOptionEnabled(
++                "queryInError",
++                this.#connection_params.controls?.debug,
++              )
++              ? query.text
++              : undefined,
++          );
+           break;
+         case INCOMING_QUERY_MESSAGES.COMMAND_COMPLETE: {
+           result.handleCommandComplete(
+@@ -695,7 +723,14 @@ export class Connection {
+           break;
+         case INCOMING_QUERY_MESSAGES.NOTICE_WARNING: {
+           const notice = parseNoticeMessage(current_message);
+-          logNotice(notice);
++          if (
++            isDebugOptionEnabled(
++              "notices",
++              this.#connection_params.controls?.debug,
++            )
++          ) {
++            logNotice(notice);
++          }
+           result.warnings.push(notice);
+           break;
+         }
+@@ -819,6 +854,12 @@ export class Connection {
+   /**
+    * https://www.postgresql.org/docs/14/protocol-flow.html#PROTOCOL-FLOW-EXT-QUERY
+    */
++  async #preparedQuery(
++    query: Query<ResultType.ARRAY>,
++  ): Promise<QueryArrayResult>;
++  async #preparedQuery(
++    query: Query<ResultType.OBJECT>,
++  ): Promise<QueryObjectResult>;
+   async #preparedQuery<T extends ResultType>(
+     query: Query<T>,
+   ): Promise<QueryResult> {
+@@ -848,7 +889,15 @@ export class Connection {
+     while (current_message.type !== INCOMING_QUERY_MESSAGES.READY) {
+       switch (current_message.type) {
+         case ERROR_MESSAGE: {
+-          error = new PostgresError(parseNoticeMessage(current_message));
++          error = new PostgresError(
++            parseNoticeMessage(current_message),
++            isDebugOptionEnabled(
++                "queryInError",
++                this.#connection_params.controls?.debug,
++              )
++              ? query.text
++              : undefined,
++          );
+           break;
+         }
+         case INCOMING_QUERY_MESSAGES.BIND_COMPLETE:
+@@ -872,7 +921,14 @@ export class Connection {
+           break;
+         case INCOMING_QUERY_MESSAGES.NOTICE_WARNING: {
+           const notice = parseNoticeMessage(current_message);
+-          logNotice(notice);
++          if (
++            isDebugOptionEnabled(
++              "notices",
++              this.#connection_params.controls?.debug,
++            )
++          ) {
++            logNotice(notice);
++          }
+           result.warnings.push(notice);
+           break;
+         }
+@@ -911,11 +967,23 @@ export class Connection {
+ 
+     await this.#queryLock.pop();
+     try {
++      if (
++        isDebugOptionEnabled("queries", this.#connection_params.controls?.debug)
++      ) {
++        logQuery(query.text);
++      }
++      let result: QueryArrayResult | QueryObjectResult;
+       if (query.args.length === 0) {
+-        return await this.#simpleQuery(query);
++        result = await this.#simpleQuery(query);
+       } else {
+-        return await this.#preparedQuery(query);
++        result = await this.#preparedQuery(query);
++      }
++      if (
++        isDebugOptionEnabled("results", this.#connection_params.controls?.debug)
++      ) {
++        logResults(result.rows);
+       }
++      return result;
+     } catch (e) {
+       if (e instanceof ConnectionError) {
+         await this.end();
+diff --git a/connection/connection_params.ts b/connection/connection_params.ts
+index 82016253..7b68ea9c 100644
+--- a/connection/connection_params.ts
++++ b/connection/connection_params.ts
+@@ -2,6 +2,7 @@ import { parseConnectionUri } from "../utils/utils.ts";
+ import { ConnectionParamsError } from "../client/error.ts";
+ import { fromFileUrl, isAbsolute } from "../deps.ts";
+ import { OidType } from "../query/oid.ts";
++import { DebugControls } from "../debug.ts";
+ 
+ /**
+  * The connection string must match the following URI structure. All parameters but database and user are optional
+@@ -115,6 +116,10 @@ export type DecoderFunction = (value: string, oid: number) => unknown;
+  * Control the behavior for the client instance
+  */
+ export type ClientControls = {
++  /**
++   * Debugging options
++   */
++  debug?: DebugControls;
+   /**
+    * The strategy to use when decoding results data
+    *
+diff --git a/debug.ts b/debug.ts
+new file mode 100644
+index 00000000..1b477888
+--- /dev/null
++++ b/debug.ts
+@@ -0,0 +1,30 @@
++/**
++ * Controls debugging behavior. If set to `true`, all debug options are enabled.
++ * If set to `false`, all debug options are disabled. Can also be an object with
++ * specific debug options to enable.
++ *
++ * {@default false}
++ */
++export type DebugControls = DebugOptions | boolean;
++
++type DebugOptions = {
++  /** Log all queries */
++  queries?: boolean;
++  /** Log all INFO, NOTICE, and WARNING raised database messages */
++  notices?: boolean;
++  /** Log all results */
++  results?: boolean;
++  /** Include the SQL query that caused an error in the PostgresError object */
++  queryInError?: boolean;
++};
++
++export const isDebugOptionEnabled = (
++  option: keyof DebugOptions,
++  options?: DebugControls,
++): boolean => {
++  if (typeof options === "boolean") {
++    return options;
++  }
++
++  return !!options?.[option];
++};
+diff --git a/deno.json b/deno.json
+index 10162a4f..51a2bcf8 100644
+--- a/deno.json
++++ b/deno.json
+@@ -1,6 +1,6 @@
+ {
+   "lock": false,
+   "name": "@bartlomieju/postgres",
+-  "version": "0.18.1",
++  "version": "0.19.0",
+   "exports": "./mod.ts"
+ }
+diff --git a/deps.ts b/deps.ts
+index 1dcd6cea..3d10e31c 100644
+--- a/deps.ts
++++ b/deps.ts
+@@ -6,7 +6,11 @@ export { BufWriter } from "https://deno.land/std@0.214.0/io/buf_writer.ts";
+ export { copy } from "https://deno.land/std@0.214.0/bytes/copy.ts";
+ export { crypto } from "https://deno.land/std@0.214.0/crypto/crypto.ts";
+ export { delay } from "https://deno.land/std@0.214.0/async/delay.ts";
+-export { bold, yellow } from "https://deno.land/std@0.214.0/fmt/colors.ts";
++export {
++  bold,
++  rgb24,
++  yellow,
++} from "https://deno.land/std@0.214.0/fmt/colors.ts";
+ export {
+   fromFileUrl,
+   isAbsolute,
+diff --git a/docs/README.md b/docs/README.md
+index 528c2d25..477b86f4 100644
+--- a/docs/README.md
++++ b/docs/README.md
+@@ -856,14 +856,14 @@ for that such as aliasing every query field that is done to the database, one
+ easy built-in solution allows developers to transform the incoming query names
+ into the casing of their preference without any extra steps
+ 
+-##### Camelcase
++##### Camel case
+ 
+-To transform a query result into camelcase, you only need to provide the
+-`camelcase` option on your query call
++To transform a query result into camel case, you only need to provide the
++`camelCase` option on your query call
+ 
+ ```ts
+ const { rows: result } = await client.queryObject({
+-  camelcase: true,
++  camelCase: true,
+   text: "SELECT FIELD_X, FIELD_Y FROM MY_TABLE",
+ });
+ 
+@@ -1393,3 +1393,61 @@ await transaction.queryArray`INSERT INTO DONT_DELETE_ME VALUES (2)`; // Still in
+ await transaction.commit();
+ // Transaction ends, client gets unlocked
+ ```
++
++## Debugging
++
++The driver can provide different types of logs if as needed. By default, logs
++are disabled to keep your environment as uncluttered as possible. Logging can be
++enabled by using the `debug` option in the Client `controls` parameter. Pass
++`true` to enable all logs, or turn on logs granulary by enabling the following
++options:
++
++- `queries` : Logs all SQL queries executed by the client
++- `notices` : Logs all database messages (INFO, NOTICE, WARNING))
++- `results` : Logs all the result of the queries
++- `queryInError` : Includes the SQL query that caused an error in the
++  PostgresError object
++
++### Example
++
++```ts
++// debug_test.ts
++import { Client } from "./mod.ts";
++
++const client = new Client({
++  user: "postgres",
++  database: "postgres",
++  hostname: "localhost",
++  port: 5432,
++  password: "postgres",
++  controls: {
++    debug: {
++      queries: true,
++      notices: true,
++      results: true,
++    },
++  },
++});
++
++await client.connect();
++
++await client.queryObject`SELECT public.get_uuid()`;
++
++await client.end();
++```
++
++```sql
++-- example database function that raises messages
++CREATE OR REPLACE FUNCTION public.get_uuid()
++  RETURNS uuid LANGUAGE plpgsql
++AS $function$
++  BEGIN
++    RAISE INFO 'This function generates a random UUID :)';
++    RAISE NOTICE 'A UUID takes up 128 bits in memory.';
++    RAISE WARNING 'UUIDs must follow a specific format and lenght in order to be valid!';
++    RETURN gen_random_uuid();
++  END;
++$function$;;
++```
++
++![debug-output](debug-output.png)
+diff --git a/docs/debug-output.png b/docs/debug-output.png
+new file mode 100644
+index 00000000..02277a8d
+Binary files /dev/null and b/docs/debug-output.png differ
+diff --git a/query/query.ts b/query/query.ts
+index 0bb39d7b..58977459 100644
+--- a/query/query.ts
++++ b/query/query.ts
+@@ -132,19 +132,19 @@ export interface QueryObjectOptions extends QueryOptions {
+   // TODO
+   // Support multiple case options
+   /**
+-   * Enabling camelcase will transform any snake case field names coming from the database into camel case ones
++   * Enabling camel case will transform any snake case field names coming from the database into camel case ones
+    *
+    * Ex: `SELECT 1 AS my_field` will return `{ myField: 1 }`
+    *
+    * This won't have any effect if you explicitly set the field names with the `fields` parameter
+    */
+-  camelcase?: boolean;
++  camelCase?: boolean;
+   /**
+    * This parameter supersedes query column names coming from the databases in the order they were provided.
+    * Fields must be unique and be in the range of (a-zA-Z0-9_), otherwise the query will throw before execution.
+    * A field can not start with a number, just like JavaScript variables
+    *
+-   * This setting overrides the camelcase option
++   * This setting overrides the camel case option
+    *
+    * Ex: `SELECT 'A', 'B' AS my_field` with fields `["field_1", "field_2"]` will return `{ field_1: "A", field_2: "B" }`
+    */
+@@ -324,7 +324,7 @@ export class QueryObjectResult<
+         this.columns = this.query.fields;
+       } else {
+         let column_names: string[];
+-        if (this.query.camelcase) {
++        if (this.query.camelCase) {
+           column_names = this.rowDescription.columns.map((column) =>
+             snakecaseToCamelcase(column.name)
+           );
+@@ -380,7 +380,7 @@ export class QueryObjectResult<
+  */
+ export class Query<T extends ResultType> {
+   public args: EncodedArg[];
+-  public camelcase?: boolean;
++  public camelCase?: boolean;
+   /**
+    * The explicitly set fields for the query result, they have been validated beforehand
+    * for duplicates and invalid names
+@@ -408,7 +408,7 @@ export class Query<T extends ResultType> {
+       this.text = config_or_text;
+       this.args = args.map(encodeArgument);
+     } else {
+-      const { camelcase, encoder = encodeArgument, fields } = config_or_text;
++      const { camelCase, encoder = encodeArgument, fields } = config_or_text;
+       let { args = [], text } = config_or_text;
+ 
+       // Check that the fields passed are valid and can be used to map
+@@ -432,7 +432,7 @@ export class Query<T extends ResultType> {
+         this.fields = fields;
+       }
+ 
+-      this.camelcase = camelcase;
++      this.camelCase = camelCase;
+ 
+       if (!Array.isArray(args)) {
+         [text, args] = objectQueryToQueryArgs(text, args);
+diff --git a/tests/query_client_test.ts b/tests/query_client_test.ts
+index 84e05f94..0e71da69 100644
+--- a/tests/query_client_test.ts
++++ b/tests/query_client_test.ts
+@@ -8,6 +8,7 @@ import {
+ import {
+   assert,
+   assertEquals,
++  assertInstanceOf,
+   assertObjectMatch,
+   assertRejects,
+   assertThrows,
+@@ -284,6 +285,43 @@ Deno.test(
+   ),
+ );
+ 
++Deno.test(
++  "Debug query not in error",
++  withClient(async (client) => {
++    const invalid_query = "SELECT this_has $ 'syntax_error';";
++    try {
++      await client.queryObject(invalid_query);
++    } catch (error) {
++      assertInstanceOf(error, PostgresError);
++      assertEquals(error.message, 'syntax error at or near "$"');
++      assertEquals(error.query, undefined);
++    }
++  }),
++);
++
++Deno.test(
++  "Debug query in error",
++  withClient(
++    async (client) => {
++      const invalid_query = "SELECT this_has $ 'syntax_error';";
++      try {
++        await client.queryObject(invalid_query);
++      } catch (error) {
++        assertInstanceOf(error, PostgresError);
++        assertEquals(error.message, 'syntax error at or near "$"');
++        assertEquals(error.query, invalid_query);
++      }
++    },
++    {
++      controls: {
++        debug: {
++          queryInError: true,
++        },
++      },
++    },
++  ),
++);
++
+ Deno.test(
+   "Array arguments",
+   withClient(async (client) => {
+@@ -796,7 +834,7 @@ Deno.test(
+ );
+ 
+ Deno.test(
+-  "Object query field names aren't transformed when camelcase is disabled",
++  "Object query field names aren't transformed when camel case is disabled",
+   withClient(async (client) => {
+     const record = {
+       pos_x: "100",
+@@ -806,7 +844,7 @@ Deno.test(
+ 
+     const { rows: result } = await client.queryObject({
+       args: [record.pos_x, record.pos_y, record.prefix_name_suffix],
+-      camelcase: false,
++      camelCase: false,
+       text: "SELECT $1 AS POS_X, $2 AS POS_Y, $3 AS PREFIX_NAME_SUFFIX",
+     });
+ 
+@@ -815,7 +853,7 @@ Deno.test(
+ );
+ 
+ Deno.test(
+-  "Object query field names are transformed when camelcase is enabled",
++  "Object query field names are transformed when camel case is enabled",
+   withClient(async (client) => {
+     const record = {
+       posX: "100",
+@@ -825,7 +863,7 @@ Deno.test(
+ 
+     const { rows: result } = await client.queryObject({
+       args: [record.posX, record.posY, record.prefixNameSuffix],
+-      camelcase: true,
++      camelCase: true,
+       text: "SELECT $1 AS POS_X, $2 AS POS_Y, $3 AS PREFIX_NAME_SUFFIX",
+     });
+ 
+@@ -846,13 +884,13 @@ Deno.test(
+ );
+ 
+ Deno.test(
+-  "Object query explicit fields override camelcase",
++  "Object query explicit fields override camel case",
+   withClient(async (client) => {
+     const record = { field_1: "A", field_2: "B", field_3: "C" };
+ 
+     const { rows: result } = await client.queryObject({
+       args: [record.field_1, record.field_2, record.field_3],
+-      camelcase: true,
++      camelCase: true,
+       fields: ["field_1", "field_2", "field_3"],
+       text: "SELECT $1 AS POS_X, $2 AS POS_Y, $3 AS PREFIX_NAME_SUFFIX",
+     });
+@@ -888,7 +926,7 @@ Deno.test(
+     await assertRejects(
+       () =>
+         client.queryObject({
+-          camelcase: true,
++          camelCase: true,
+           text: `SELECT 1 AS "fieldX", 2 AS field_x`,
+         }),
+       Error,
+diff --git a/tests/test_deps.ts b/tests/test_deps.ts
+index 1fce7027..3ec05aaa 100644
+--- a/tests/test_deps.ts
++++ b/tests/test_deps.ts
+@@ -2,6 +2,7 @@ export * from "../deps.ts";
+ export {
+   assert,
+   assertEquals,
++  assertInstanceOf,
+   assertNotEquals,
+   assertObjectMatch,
+   assertRejects,

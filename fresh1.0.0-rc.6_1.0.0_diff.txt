@@ -1,0 +1,366 @@
+diff --git a/README.md b/README.md
+index 8f3f8f15bf0..a0293dd0e54 100644
+--- a/README.md
++++ b/README.md
+@@ -1,27 +1,18 @@
+-> **Warning** Not yet 1.0. Many things are subject to change. Documentation is
+-> lacking in many places. Try it out and give us feedback!
+-
+ # fresh
+ 
+ <img align="right" src="./www/static/logo.svg" height="150px" alt="the fresh logo: a sliced lemon dripping with juice">
+ 
+ The next-gen web framework.
+ 
+-Fresh is a web framework that lets you build projects very fast, highly dynamic,
+-and without the need of a build step. Fresh embraces isomorphic JavaScript like
+-never before. Write a JSX component, have it render on the edge just-in-time,
+-and then enhance it with client side JS for great interactivity.
+-
+-Fresh does not have a build step - you write your code, deploy it to
+-[Deno Deploy](https://deno.com/deploy), and from there everything is handled by
+-the framework.
+-
+-- No build step
+-- Zero config necessary
+-- JIT rendering on the edge
+-- Tiny (example is 0-3KB of runtime JS)<sup>1</sup>
+-- Optional client side hydration
+-- TypeScript out of the box
++Fresh is a next generation web framework, built for speed, reliability, and
++simplicity. Some stand out features:
++
++- Just-in-time rendering on the edge.
++- Island based client hydration for maximum interactivity.
++- Zero runtime overhead: no JS is shipped to the client by default.
++- No build step.
++- No configuration necessary.
++- TypeScript support out of the box.
+ - File-system routing à la Next.js
+ 
+ ## Documentation
+@@ -45,8 +36,8 @@ deno task start
+ ```
+ 
+ To deploy the script to [Deno Deploy](https://deno.com/deploy), push your
+-project to GitHub, create a Fresh project, and link it to **`main.ts`** file in
+-the created repository.
++project to GitHub, [create a Deno Deploy project](https://dash.deno.com/new),
++and link it to the **`main.ts`** file in the root of the created repository.
+ 
+ For a more in-depth getting started guide, visit the
+ [Getting Started](https://fresh.deno.dev/docs/getting-started) page in the Fresh
+diff --git a/docs/concepts/data-fetching.md b/docs/concepts/data-fetching.md
+index 86e8c7f4a5f..91ae8beba04 100644
+--- a/docs/concepts/data-fetching.md
++++ b/docs/concepts/data-fetching.md
+@@ -1 +1,45 @@
+-> TODO(lucacasonato): this page still needs to be written
++---
++description: |
++  Data fetching in Fresh happens inside of route handler functions. These can pass route data to the page via page props.
++---
++
++Server side data fetching in Fresh is acomplished through asynchronous
++[handler functions][route-handlers]. These handler functions can call a
++`ctx.render()` function with the data to be rendered as an argument. This data
++can then be retreived by the page component through the `data` property on the
++`props`.
++
++Here is an example:
++
++```tsx
++interface Project {
++  name: string;
++  stars: number;
++}
++
++export const handler: Handlers<Project> = {
++  async GET(_req, ctx) {
++    const project = await db.projects.findOne({ id: ctx.params.id });
++    if (!project) {
++      return new Response("Project not found", { status: 404 });
++    }
++    return ctx.render(project);
++  },
++};
++
++export default function ProjectPage(props: PageProps<Project>) {
++  return (
++    <div>
++      <h1>{props.data.name}</h1>
++      <p>{props.data.stars} stars</p>
++    </div>
++  );
++}
++```
++
++The type parameter on the `PageProps`, `Handlers`, `Handler`, and
++`HandlerContext` can be used to enforce a TypeScript type to use for the render
++data. Fresh enforces during type checking that the types in all of these fields
++are compatible within a single page.
++
++[route-handlers]: ./route-handlers
+diff --git a/docs/concepts/error-pages.md b/docs/concepts/error-pages.md
+index 86e8c7f4a5f..84511da8518 100644
+--- a/docs/concepts/error-pages.md
++++ b/docs/concepts/error-pages.md
+@@ -1 +1,37 @@
+-> TODO(lucacasonato): this page still needs to be written
++---
++description: |
++  Error pages can be used to customize the page that is shown when an error occurs in the application.
++---
++
++Fresh supports customizing the `404 Not Found`, and the
++`500 Internal Server Error` pages. These are shown when a request is made but no
++matching route exists, and when a middelware, route handler, or page component
++throws an error respectively.
++
++The 404 page can be customized by creating a `_404.tsx` file in the `routes/`
++folder. The file must have a default export that is a regular Preact component.
++A props object of type `UnknownPageProps` is passed in as an argument.
++
++```tsx
++/** @jsx h */
++import { h } from "preact";
++import { UnknownPageProps } from "$fresh/server.ts";
++
++export default function NotFoundPage({ url }: UnknownPageProps) {
++  return <p>404 not found: {url.pathname}</p>;
++}
++```
++
++The 500 page can be customized by creating a `_500.tsx` file in the `routes/`
++folder. The file must have a default export that is a regular Preact component.
++A props object of type `ErrorPageProps` is passed in as an argument.
++
++```tsx
++/** @jsx h */
++import { h } from "preact";
++import { ErrorPageProps } from "$fresh/server.ts";
++
++export default function Error500Page({ error }: ErrorPageProps) {
++  return <p>500 internal error: {(error as Error).message}</p>;
++}
++```
+diff --git a/docs/concepts/islands.md b/docs/concepts/islands.md
+index 86e8c7f4a5f..cc6bb5d3ef4 100644
+--- a/docs/concepts/islands.md
++++ b/docs/concepts/islands.md
+@@ -1 +1,42 @@
+-> TODO(lucacasonato): this page still needs to be written
++---
++description: |
++  Islands enable client side interactivity in Fresh. They are hydrated on the client in addition to being rendered on the server.
++---
++
++Islands enable client side interactivity in Fresh. Islands are isolated Preact
++components that are are rendered on the client. This is different from all other
++components in Fresh, as they are ususally just rendered on the server.
++
++Islands are defined by creating a file in the `islands/` folder in a Fresh
++project. The name of this file must be a PascalCase name of the island. The file
++must have a default export that is a regular preact component.
++
++```tsx
++// islands/MyIsland.tsx
++
++/** @jsx h */
++import { h } from "preact";
++import { useState } from "preact/hooks";
++
++export default function MyIsland() {
++  const [count, setCount] = useState(0);
++
++  return (
++    <div>
++      Counter is at {count}.{" "}
++      <button onClick={() => setCount(count + 1)}>+</button>
++    </div>
++  );
++}
++```
++
++An island can be used in a page like a regular Preact component. Fresh will take
++care of automatically re-hydrating the island on the client.
++
++Passing props to islands is supported, but only if the props are JSON
++serializable. This means that you can only pass primitive types, plain objects,
++and arrays. It is currently not possible to pass complex objects like `Date`,
++custom classes, or functions. This means that it is not possible to pass
++`children` to an island, as `children` are VNodes, which are not serializable.
++
++It is also not supported to nest islands within other islands.
+diff --git a/docs/concepts/middleware.md b/docs/concepts/middleware.md
+index 8d1680e0834..0aa3f23ff08 100644
+--- a/docs/concepts/middleware.md
++++ b/docs/concepts/middleware.md
+@@ -1,7 +1,6 @@
+ ---
+ description: |
+-  Add middleware routes to intercept requests or responses for analytics
+-  purposes, access control, or anything else.
++  Add middleware routes to intercept requests or responses for analytics purposes, access control, or anything else.
+ ---
+ 
+ A middleware is defined in a `_middleware.ts` file. It will intercept the
+diff --git a/docs/concepts/route-handlers.md b/docs/concepts/route-handlers.md
+deleted file mode 100644
+index 86e8c7f4a5f..00000000000
+--- a/docs/concepts/route-handlers.md
++++ /dev/null
+@@ -1 +0,0 @@
+-> TODO(lucacasonato): this page still needs to be written
+diff --git a/docs/concepts/routes.md b/docs/concepts/routes.md
+index d6180caf9f0..fc672a32247 100644
+--- a/docs/concepts/routes.md
++++ b/docs/concepts/routes.md
+@@ -1,3 +1,8 @@
++---
++description: |
++  Routes are the basic building block of fresh applications. They are used to define the behaviour the application when a given path is requested.
++---
++
+ At their core, routes describe how a request for a given path should be handled,
+ and what the response should be. To do this, routes have two main parts: the
+ handler, and the component. A route can have either one, or both, but never
+@@ -7,13 +12,13 @@ The handler is a function that is called for every request to the route. It
+ needs to return a response that is then sent to the client. The response could
+ be anything: a plain text string, a JSON object, an HTML page, a WebSocket
+ connection, a streaming file, or pretty much anything else. The handler is
+-passed a `render` function that it can call to invoke rendering the component.
++passed a `render` function that it can call to invoke rendering a component.
+ 
+ The component is the template for a page. It is a JSX element that is rendered
+ on the server. The page component gets passed props that can be used by it to
+-determine exactly what should be rendered. By default the request URL, the
+-matches from the URL pattern match, and any data passed to the handler's
+-`render` function are passed to the component as props.
++determine exactly what should be rendered. By default components receives props
++consisting of: the request URL, the matches from the URL pattern match, and any
++data passed to the handler's `render` function.
+ 
+ Let's look at a basic route that returns a plain text string:
+ 
+@@ -33,9 +38,10 @@ To define a handler, one needs to export a `handler` function or object from the
+ route module. If the handler is an object, each key in the object is the name of
+ the HTTP method that the handler should be called for. For example the `GET`
+ handler above is called for `GET` requests. If the handler is a function, it is
+-called for all requests regardless of the method.
++called for all requests regardless of the method. If a HTTP method does not have
++a corresponding handler, a 405 HTTP error is returned.
+ 
+-Now, let's render some HTML using the route component. Another example:
++Now, let's render some HTML using the route component:
+ 
+ ```tsx
+ // routes/html.tsx
+diff --git a/docs/concepts/static-files.md b/docs/concepts/static-files.md
+index 43e0d4a2b1b..6457aa5db6e 100644
+--- a/docs/concepts/static-files.md
++++ b/docs/concepts/static-files.md
+@@ -1,5 +1,3 @@
+-> TODO(lucacasonato): this page still needs to be completed
+-
+ Fresh automatically serves static assets placed in a `static/` directory in the
+ project root. These assets are served at the root of the webserver, with a
+ higher priority than routes. This means that if a given request matches a file
+diff --git a/docs/concepts/styling.md b/docs/concepts/styling.md
+deleted file mode 100644
+index 86e8c7f4a5f..00000000000
+--- a/docs/concepts/styling.md
++++ /dev/null
+@@ -1 +0,0 @@
+-> TODO(lucacasonato): this page still needs to be written
+diff --git a/docs/toc.json b/docs/toc.json
+index d07e20b6434..4ae6617370e 100644
+--- a/docs/toc.json
++++ b/docs/toc.json
+@@ -21,14 +21,12 @@
+     "pages": [
+       ["architechture", "Architecture"],
+       ["routes", "Routes"],
+-      ["route-handlers", "Route handlers"],
+       ["islands", "Interactive islands"],
+       ["static-files", "Static files"],
+       ["middleware", "Route middleware"],
+       ["error-pages", "Error pages"],
+       ["routing", "Routing"],
+-      ["data-fetching", "Data fetching"],
+-      ["styling", "Styling"]
++      ["data-fetching", "Data fetching"]
+     ]
+   }
+ }
+diff --git a/versions.json b/versions.json
+index 8fde6e20a29..8117da3b6c2 100644
+--- a/versions.json
++++ b/versions.json
+@@ -1,4 +1,5 @@
+ [
++  "1.0.0",
+   "1.0.0-rc.6",
+   "1.0.0-rc.5",
+   "1.0.0-rc.4",
+diff --git a/www/components/WarningBanner.tsx b/www/components/WarningBanner.tsx
+deleted file mode 100644
+index d0df8e0bf9a..00000000000
+--- a/www/components/WarningBanner.tsx
++++ /dev/null
+@@ -1,15 +0,0 @@
+-/** @jsx h */
+-import { h } from "preact";
+-import { tw } from "@twind";
+-
+-export default function WarningBanner() {
+-  const warning = tw`bg-yellow-100 border(1 yellow-200) p-4 mb-4`;
+-  return (
+-    <div class={warning}>
+-      ⚠️ Do not use Fresh for production usecases yet, unless you are very
+-      actively tracking the Fresh repository for updates. The framework is still
+-      undergoing very frequent core functionality changes. You can expect a
+-      mostly stable release very soon.
+-    </div>
+-  );
+-}
+diff --git a/www/routes/docs/[...slug].tsx b/www/routes/docs/[...slug].tsx
+index 5d718276b7e..1273387cdeb 100644
+--- a/www/routes/docs/[...slug].tsx
++++ b/www/routes/docs/[...slug].tsx
+@@ -9,7 +9,6 @@ import { frontMatter, gfm } from "../../utils/markdown.ts";
+ import DocsSidebar from "../../components/DocsSidebar.tsx";
+ import Footer from "../../components/Footer.tsx";
+ import NavigationBar from "../../components/NavigationBar.tsx";
+-import WarningBanner from "../../components/WarningBanner.tsx";
+ import {
+   SLUGS,
+   TABLE_OF_CONTENTS,
+@@ -213,7 +212,6 @@ function Content(props: { page: Page }) {
+   const html = gfm.render(props.page.markdown);
+   return (
+     <main class={main}>
+-      <WarningBanner />
+       <h1 class={title}>{props.page.title}</h1>
+       <div
+         class={`${body} markdown-body`}
+diff --git a/www/routes/index.tsx b/www/routes/index.tsx
+index 20690c7855d..9e350cb7688 100644
+--- a/www/routes/index.tsx
++++ b/www/routes/index.tsx
+@@ -7,7 +7,6 @@ import { tw } from "@twind";
+ import Counter from "../islands/Counter.tsx";
+ import LemonDrop from "../islands/LemonDrop.tsx";
+ import Footer from "../components/Footer.tsx";
+-import WarningBanner from "../components/WarningBanner.tsx";
+ import { Leaf } from "../components/Icons.tsx";
+ import VERSIONS from "../../versions.json" assert { type: "json" };
+ 
+@@ -159,7 +158,6 @@ function GettingStarted(props: { origin: string }) {
+           Getting started
+         </a>
+       </h2>
+-      <WarningBanner />
+       <p class={tw`text-gray-600`}>
+         To get started, make sure you have the{" "}
+         <a href="https://deno.land" class={tw`text-blue-600 hover:underline`}>

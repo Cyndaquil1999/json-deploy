@@ -1,0 +1,25 @@
+diff --git a/deno.json b/deno.json
+index a95580a..d387deb 100644
+--- a/deno.json
++++ b/deno.json
+@@ -1,6 +1,6 @@
+ {
+   "lock": false,
+   "name": "@bartlomieju/postgres",
+-  "version": "0.19.1",
++  "version": "0.19.2",
+   "exports": "./mod.ts"
+ }
+diff --git a/query/decode.ts b/query/decode.ts
+index fb13afa..38df157 100644
+--- a/query/decode.ts
++++ b/query/decode.ts
+@@ -226,7 +226,7 @@ export function decode(
+       return decoderFunc(strValue, column.typeOid, parseArray);
+     } // if no custom decoder is found and the oid is for an array type, check if there is
+     // a decoder for the base type and use that with the array parser
+-    else if (oidType.includes("_array")) {
++    else if (oidType?.includes("_array")) {
+       const baseOidType = oidType.replace("_array", "") as OidType;
+       // check if the base type is in the Oid object
+       if (baseOidType in Oid) {

@@ -1,0 +1,2556 @@
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+index c6d1c749460..b391b575256 100644
+--- a/.github/workflows/ci.yml
++++ b/.github/workflows/ci.yml
+@@ -14,7 +14,7 @@ jobs:
+     strategy:
+       fail-fast: false
+       matrix:
+-        deno: ["v1.x", "canary"]
++        deno: ["v1.x"]
+         os: [macOS-latest, windows-latest, ubuntu-latest]
+         include:
+         - os: ubuntu-latest
+@@ -26,7 +26,7 @@ jobs:
+ 
+     steps:
+       - name: Checkout repo
+-        uses: actions/checkout@v3
++        uses: actions/checkout@v4
+ 
+       - name: Setup Deno
+         uses: denoland/setup-deno@v1
+@@ -40,7 +40,7 @@ jobs:
+         run: deno lint
+ 
+       - name: Spell-check
+-        if: startsWith(matrix.os, 'ubuntu') && matrix.deno == 'canary'
++        if: startsWith(matrix.os, 'ubuntu') && matrix.deno == 'v1.x'
+         uses: crate-ci/typos@master
+ 
+       - name: Cache dependencies and Chrome
+diff --git a/.github/workflows/deploy.yml b/.github/workflows/deploy.yml
+index 9be233d19f1..ee46a41c459 100644
+--- a/.github/workflows/deploy.yml
++++ b/.github/workflows/deploy.yml
+@@ -16,7 +16,7 @@ jobs:
+ 
+     steps:
+       - name: Clone repository
+-        uses: actions/checkout@v3
++        uses: actions/checkout@v4
+ 
+       - name: Install Deno
+         uses: denoland/setup-deno@v1
+diff --git a/.github/workflows/lighthouse.yml b/.github/workflows/lighthouse.yml
+index 67c2b49fabc..561988d2e57 100644
+--- a/.github/workflows/lighthouse.yml
++++ b/.github/workflows/lighthouse.yml
+@@ -14,7 +14,7 @@ jobs:
+ 
+     steps:
+       - name: Setup repo
+-        uses: actions/checkout@v3
++        uses: actions/checkout@v4
+ 
+       - name: Audit URLs using Lighthouse
+         uses: treosh/lighthouse-ci-action@v10
+diff --git a/.github/workflows/post_publish.yml b/.github/workflows/post_publish.yml
+index 196ed172986..1e6fb2f5a1c 100644
+--- a/.github/workflows/post_publish.yml
++++ b/.github/workflows/post_publish.yml
+@@ -11,7 +11,7 @@ jobs:
+     if: github.repository == 'denoland/fresh'
+     steps:
+       - name: Checkout repo
+-        uses: actions/checkout@v3
++        uses: actions/checkout@v4
+ 
+       - name: Authenticate with Google Cloud
+         uses: google-github-actions/auth@v1
+diff --git a/.vscode/settings.json b/.vscode/settings.json
+index 1fb8e806636..dd9c96476c7 100644
+--- a/.vscode/settings.json
++++ b/.vscode/settings.json
+@@ -16,5 +16,8 @@
+   },
+   "[javascript]": {
+     "editor.defaultFormatter": "denoland.vscode-deno"
++  },
++  "[markdown]": {
++    "editor.defaultFormatter": "denoland.vscode-deno"
+   }
+ }
+diff --git a/docs/latest/concepts/app-wrapper.md b/docs/latest/concepts/app-wrapper.md
+index 4927e600f3e..a564591b5bb 100644
+--- a/docs/latest/concepts/app-wrapper.md
++++ b/docs/latest/concepts/app-wrapper.md
+@@ -94,9 +94,11 @@ Rendering the app wrapper can be skipped on a route or layout basis. To do that,
+ set `skipAppWrapper: true` to the layout or route config.
+ 
+ ```tsx routes/my-special-route.tsx
+-export const config: RouteConfig {
+-  skipAppWrapper: true; // Skip the app wrapper during rendering
+-}
++import { RouteConfig } from "$fresh/server.ts";
++
++export const config: RouteConfig = {
++  skipAppWrapper: true, // Skip the app wrapper during rendering
++};
+ 
+ export default function Page() {
+   // ...
+diff --git a/docs/latest/concepts/islands.md b/docs/latest/concepts/islands.md
+index 5a65765cb4b..3bd3d0c5980 100644
+--- a/docs/latest/concepts/islands.md
++++ b/docs/latest/concepts/islands.md
+@@ -4,8 +4,9 @@ description: |
+ ---
+ 
+ Islands enable client side interactivity in Fresh. Islands are isolated Preact
+-components that are rendered on the client. This is different from all other
+-components in Fresh, as they are usually just rendered on the server.
++components that are rendered on the server and then hydrated on the client. This
++is different from all other components in Fresh, as they are usually rendered on
++the server only.
+ 
+ Islands are defined by creating a file in the `islands/` folder in a Fresh
+ project. The name of this file must be a PascalCase or kebab-case name of the
+@@ -140,7 +141,8 @@ export default function MyIsland({ children, foo }: Props) {
+     <div>
+       <p>String from props: {foo}</p>
+       <p>
+-        <button onClick={() => (number.value = randomNumber())}>Random</button>{" "}
++        <button onClick={() => (number.value = randomNumber())}>Random</button>
++        {" "}
+         number is: {number}.
+       </p>
+     </div>
+@@ -167,3 +169,31 @@ export default function Home() {
+   );
+ }
+ ```
++
++## Rendering islands on client only
++
++When using client-only APIs, like `EventSource` or `navigator.getUserMedia`,
++this component will not run on the server as it will produce an error like:
++
++```
++An error occurred during route handling or page rendering. ReferenceError: EventSource is not defined
++    at Object.MyIsland (file:///Users/someuser/fresh-project/islandsmy-island.tsx:6:18)
++    at m (https://esm.sh/v129/preact-render-to-string@6.2.0/X-ZS8q/denonext/preact-render-to-string.mjs:2:2602)
++    at m (https://esm.sh/v129/preact-render-to-string@6.2.0/X-ZS8q/denonext/preact-render-to-string.mjs:2:2113)
++    ....
++```
++
++Use the `IS_BROWSER` flag as a guard to fix the issue:
++
++```tsx islands/my-island.tsx
++import { IS_BROWSER } from "$fresh/runtime.ts";
++
++export function MyIsland() {
++  // Return any prerenderable JSX here which makes sense for your island
++  if (!IS_BROWSER) return <div></div>;
++
++  // All the code which must run in the browser comes here!
++  // Like: EventSource, navigator.getUserMedia, etc.
++  return <div></div>;
++}
++```
+diff --git a/docs/latest/concepts/middleware.md b/docs/latest/concepts/middleware.md
+index f232ac399dc..d0a53ee3c6c 100644
+--- a/docs/latest/concepts/middleware.md
++++ b/docs/latest/concepts/middleware.md
+@@ -15,7 +15,7 @@ be used to pass arbitrary data to downstream (or upstream) handlers. This
+ special [\_app](/docs/concepts/app-wrapper.md) wrapper and normal
+ [routes](/docs/concepts/routes.md). `ctx.state` is normally set by modifying its
+ properties, e.g. `ctx.state.loggedIn = true`, but you can also replace the
+-entire object like `ctx.state = { loggedIn = true }`.
++entire object like `ctx.state = { loggedIn: true }`.
+ 
+ ```ts routes/_middleware.ts
+ import { MiddlewareHandlerContext } from "$fresh/server.ts";
+@@ -26,7 +26,7 @@ interface State {
+ 
+ export async function handler(
+   req: Request,
+-  ctx: MiddlewareHandlerContext<State>
++  ctx: MiddlewareHandlerContext<State>,
+ ) {
+   ctx.state.data = "myData";
+   const resp = await ctx.next();
+diff --git a/docs/latest/concepts/routes.md b/docs/latest/concepts/routes.md
+index b517c5efd70..7c31b87f824 100644
+--- a/docs/latest/concepts/routes.md
++++ b/docs/latest/concepts/routes.md
+@@ -98,7 +98,7 @@ interface Data {
+ export const handler: Handlers<Data> = {
+   async GET(req, ctx) {
+     const value = await loadFooValue();
+-    ctx.render({ foo: value });
++    return ctx.render({ foo: value });
+   },
+ };
+ 
+diff --git a/docs/latest/examples/dealing-with-cors.md b/docs/latest/examples/dealing-with-cors.md
+index d98c0d7a23b..0f9061a7cd4 100644
+--- a/docs/latest/examples/dealing-with-cors.md
++++ b/docs/latest/examples/dealing-with-cors.md
+@@ -27,11 +27,11 @@ export async function handler(req: Request, ctx: MiddlewareHandlerContext) {
+   headers.set("Access-Control-Allow-Credentials", "true");
+   headers.set(
+     "Access-Control-Allow-Headers",
+-    "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With"
++    "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With",
+   );
+   headers.set(
+     "Access-Control-Allow-Methods",
+-    "POST, OPTIONS, GET, PUT, DELETE"
++    "POST, OPTIONS, GET, PUT, DELETE",
+   );
+ 
+   return resp;
+@@ -66,11 +66,11 @@ export async function handler(_req: Request, ctx: MiddlewareHandlerContext) {
+   headers.set("Access-Control-Allow-Credentials", "true");
+   headers.set(
+     "Access-Control-Allow-Headers",
+-    "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With"
++    "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With",
+   );
+   headers.set(
+     "Access-Control-Allow-Methods",
+-    "POST, OPTIONS, GET, PUT, DELETE"
++    "POST, OPTIONS, GET, PUT, DELETE",
+   );
+ 
+   return resp;
+diff --git a/docs/latest/examples/handling-complex-routes.md b/docs/latest/examples/handling-complex-routes.md
+index edf0a110200..ccd975ba9a4 100644
+--- a/docs/latest/examples/handling-complex-routes.md
++++ b/docs/latest/examples/handling-complex-routes.md
+@@ -3,8 +3,8 @@ description: |
+   Sometimes URL based routing isn't enough.
+ ---
+ 
+-The page on [routing](/concepts/routing) hints at complex routing based on URL
+-patterns using a `RouteConfig` object. Let's dive into this in a bit more
++The page on [routing](/docs/concepts/routing) hints at complex routing based on
++URL patterns using a `RouteConfig` object. Let's dive into this in a bit more
+ detail.
+ 
+ A `RouteConfig` has a `routeOverride` string property, which makes use of the
+diff --git a/docs/latest/examples/init-the-server.md b/docs/latest/examples/init-the-server.md
+index 1e5aad83f01..358a6088bc2 100644
+--- a/docs/latest/examples/init-the-server.md
++++ b/docs/latest/examples/init-the-server.md
+@@ -66,7 +66,7 @@ export class Context {
+ 
+ export async function handler(
+   req: Request,
+-  ctx: MiddlewareHandlerContext<State>
++  ctx: MiddlewareHandlerContext<State>,
+ ) {
+   ctx.state.context = Context.instance();
+   const resp = await ctx.next();
+diff --git a/docs/latest/examples/rendering-markdown.md b/docs/latest/examples/rendering-markdown.md
+index 1647f81f86c..8dafdf0f3f2 100644
+--- a/docs/latest/examples/rendering-markdown.md
++++ b/docs/latest/examples/rendering-markdown.md
+@@ -30,7 +30,7 @@ export const handler: Handlers<Page> = {
+     let rawMarkdown = "";
+     if (ctx.params.slug === "remote") {
+       const resp = await fetch(
+-        `https://raw.githubusercontent.com/denoland/fresh/main/docs/latest/introduction/index.md`
++        `https://raw.githubusercontent.com/denoland/fresh/main/docs/latest/introduction/index.md`,
+       );
+       if (resp.status !== 200) {
+         return ctx.render(undefined);
+diff --git a/docs/latest/examples/using-csp.md b/docs/latest/examples/using-csp.md
+index 04365751a68..5e3b5ee6ee5 100644
+--- a/docs/latest/examples/using-csp.md
++++ b/docs/latest/examples/using-csp.md
+@@ -270,8 +270,8 @@ export default function Home(req: Request, ctx: RouteContext) {
+     <>
+       <h1>
+         This page violates our configured CSP. But we don't have a{" "}
+-        <code>RouteConfig</code> enabled, so Fresh doesn't know to use the CSP.
+-        Styles will be applied.
++        <code>RouteConfig</code>{" "}
++        enabled, so Fresh doesn't know to use the CSP. Styles will be applied.
+       </h1>
+       <link rel="stylesheet" type="text/css" href="example.css" />
+     </>
+diff --git a/docs/latest/examples/using-deno-kv-oauth.md b/docs/latest/examples/using-deno-kv-oauth.md
+index d97159fb920..12f66d2de67 100644
+--- a/docs/latest/examples/using-deno-kv-oauth.md
++++ b/docs/latest/examples/using-deno-kv-oauth.md
+@@ -122,7 +122,14 @@ available.
+    }
+    ```
+ 
+-5. Start your project with the necessary environment variables.
++5. ⚠️ While Deno KV is still **experimental** you need to add the `--unstable`
++   option to the `start` task in the `deno.json` file.
++
++   ```json
++   "start": "deno run -A --watch=static/,routes/ --unstable dev.ts",
++   ```
++
++6. Start your project with the necessary environment variables.
+ 
+    ```sh
+    GITHUB_CLIENT_ID=xxx GITHUB_CLIENT_SECRET=xxx deno task start
+diff --git a/docs/latest/getting-started/adding-interactivity.md b/docs/latest/getting-started/adding-interactivity.md
+index 2fdcb2cdf9c..c9614d8f05d 100644
+--- a/docs/latest/getting-started/adding-interactivity.md
++++ b/docs/latest/getting-started/adding-interactivity.md
+@@ -53,7 +53,7 @@ export default function Countdown(props: { target: string }) {
+   }, [props.target]);
+ 
+   const secondsLeft = Math.floor(
+-    (target.getTime() - now.value.getTime()) / 1000
++    (target.getTime() - now.value.getTime()) / 1000,
+   );
+ 
+   // If the target date has passed, we stop counting down.
+diff --git a/docs/latest/getting-started/fetching-data.md b/docs/latest/getting-started/fetching-data.md
+index ca5aca2237b..998c591e66e 100644
+--- a/docs/latest/getting-started/fetching-data.md
++++ b/docs/latest/getting-started/fetching-data.md
+@@ -28,7 +28,7 @@ interface GitHubResponse {
+ 
+ export default async function Page(_req: Request, ctx: RouteContext) {
+   const resp = await fetch(
+-    `https://api.github.com/users/${ctx.params.username}`
++    `https://api.github.com/users/${ctx.params.username}`,
+   );
+ 
+   if (!resp.ok) {
+diff --git a/docs/latest/getting-started/form-submissions.md b/docs/latest/getting-started/form-submissions.md
+index eecd1d8db7b..6c33220810c 100644
+--- a/docs/latest/getting-started/form-submissions.md
++++ b/docs/latest/getting-started/form-submissions.md
+@@ -57,9 +57,7 @@ export default function Page({ data }: PageProps<Data>) {
+         <button type="submit">Search</button>
+       </form>
+       <ul>
+-        {results.map((name) => (
+-          <li key={name}>{name}</li>
+-        ))}
++        {results.map((name) => <li key={name}>{name}</li>)}
+       </ul>
+     </div>
+   );
+diff --git a/init.ts b/init.ts
+index 8f9d9418a18..fd7969edbee 100644
+--- a/init.ts
++++ b/init.ts
+@@ -538,6 +538,8 @@ const DEV_TS = `#!/usr/bin/env -S deno run -A --watch=static/,routes/
+ import dev from "$fresh/dev.ts";
+ import config from "./fresh.config.ts";
+ 
++import "$std/dotenv/load.ts";
++
+ await dev(import.meta.url, "./main.ts", config);
+ `;
+ const DEV_TS_PATH = join(resolvedDirectory, "dev.ts");
+diff --git a/src/build/aot_snapshot.ts b/src/build/aot_snapshot.ts
+new file mode 100644
+index 00000000000..5d6618a96fa
+--- /dev/null
++++ b/src/build/aot_snapshot.ts
+@@ -0,0 +1,37 @@
++import type { BuildSnapshot } from "./mod.ts";
++
++export class AotSnapshot implements BuildSnapshot {
++  #files: Map<string, string>;
++  #dependencies: Map<string, string[]>;
++
++  constructor(
++    files: Map<string, string>,
++    dependencies: Map<string, string[]>,
++  ) {
++    this.#files = files;
++    this.#dependencies = dependencies;
++  }
++
++  get paths(): string[] {
++    return Array.from(this.#files.keys());
++  }
++
++  async read(path: string): Promise<ReadableStream<Uint8Array> | null> {
++    const filePath = this.#files.get(path);
++    if (filePath !== undefined) {
++      try {
++        const file = await Deno.open(filePath, { read: true });
++        return file.readable;
++      } catch (_err) {
++        return null;
++      }
++    }
++
++    // Handler will turn this into a 404
++    return null;
++  }
++
++  dependencies(path: string): string[] {
++    return this.#dependencies.get(path) ?? [];
++  }
++}
+diff --git a/src/build/mod.ts b/src/build/mod.ts
+index a23a58af742..c9a6e57efe0 100644
+--- a/src/build/mod.ts
++++ b/src/build/mod.ts
+@@ -4,6 +4,7 @@ export {
+   EsbuildSnapshot,
+   type JSXConfig,
+ } from "./esbuild.ts";
++export { AotSnapshot } from "./aot_snapshot.ts";
+ export interface Builder {
+   build(): Promise<BuildSnapshot>;
+ }
+@@ -14,10 +15,21 @@ export interface BuildSnapshot {
+ 
+   /** For a given file, return it's contents.
+    * @throws If the file is not contained in this snapshot. */
+-  read(path: string): ReadableStream<Uint8Array> | Uint8Array | null;
++  read(
++    path: string,
++  ):
++    | ReadableStream<Uint8Array>
++    | Uint8Array
++    | null
++    | Promise<ReadableStream<Uint8Array> | Uint8Array | null>;
+ 
+   /** For a given entrypoint, return it's list of dependencies.
+    *
+    * Returns an empty array if the entrypoint does not exist. */
+   dependencies(path: string): string[];
+ }
++
++export interface BuildSnapshotJson {
++  build_id: string;
++  files: Record<string, string[]>;
++}
+diff --git a/src/dev/build.ts b/src/dev/build.ts
+index 7780ec36d20..ddc3ad4a68b 100644
+--- a/src/dev/build.ts
++++ b/src/dev/build.ts
+@@ -2,6 +2,8 @@ import { ServerContext } from "../server/context.ts";
+ import { FreshOptions, Manifest } from "../server/mod.ts";
+ import { dirname, fromFileUrl, join, toFileUrl } from "../server/deps.ts";
+ import { fs } from "./deps.ts";
++import { BuildSnapshotJson } from "../build/mod.ts";
++import { BUILD_ID } from "$fresh/src/server/build_id.ts";
+ 
+ export async function build(
+   manifestPath: string,
+@@ -24,20 +26,23 @@ export async function build(
+   const snapshot = await ctx.buildSnapshot();
+ 
+   // Write output files to disk
+-  await Promise.all(snapshot.paths.map((fileName) => {
+-    const data = snapshot.read(fileName);
++  await Promise.all(snapshot.paths.map(async (fileName) => {
++    const data = await snapshot.read(fileName);
+     if (data === null) return;
+ 
+     return Deno.writeFile(join(outDir, fileName), data);
+   }));
+ 
+   // Write dependency snapshot file to disk
+-  const deps: Record<string, string[]> = {};
++  const jsonSnapshot: BuildSnapshotJson = {
++    build_id: BUILD_ID,
++    files: {},
++  };
+   for (const filePath of snapshot.paths) {
+     const dependencies = snapshot.dependencies(filePath);
+-    deps[filePath] = dependencies;
++    jsonSnapshot.files[filePath] = dependencies;
+   }
+ 
+   const snapshotPath = join(outDir, "snapshot.json");
+-  await Deno.writeTextFile(snapshotPath, JSON.stringify(deps, null, 2));
++  await Deno.writeTextFile(snapshotPath, JSON.stringify(jsonSnapshot, null, 2));
+ }
+diff --git a/src/dev/dev_command.ts b/src/dev/dev_command.ts
+index d092b0ee992..8e7c780a2ec 100644
+--- a/src/dev/dev_command.ts
++++ b/src/dev/dev_command.ts
+@@ -1,8 +1,13 @@
+ import { updateCheck } from "./update_check.ts";
+-import { DAY, dirname, fromFileUrl, join } from "./deps.ts";
+-import { FreshOptions } from "../server/mod.ts";
++import { DAY, dirname, fromFileUrl, fs, join, toFileUrl } from "./deps.ts";
++import {
++  FreshOptions,
++  Manifest as ServerManifest,
++  ServerContext,
++} from "../server/mod.ts";
+ import { build } from "./build.ts";
+ import { collect, ensureMinDenoVersion, generate, Manifest } from "./mod.ts";
++import { startFromContext } from "../server/boot.ts";
+ 
+ export async function dev(
+   base: string,
+@@ -34,9 +39,28 @@ export async function dev(
+ 
+   if (manifestChanged) await generate(dir, newManifest);
+ 
+-  if (Deno.args.includes("build")) {
++  const manifest = (await import(toFileUrl(join(dir, "fresh.gen.ts")).href))
++    .default as ServerManifest;
++
++  const outDir = join(dir, "_fresh");
++
++  const isBuild = Deno.args.includes("build");
++  const ctx = await ServerContext.fromManifest(manifest, {
++    ...options,
++    skipSnapshot: true,
++    dev: !isBuild,
++  });
++
++  if (isBuild) {
++    // Ensure that build dir is empty
++    await fs.emptyDir(outDir);
+     await build(join(dir, "fresh.gen.ts"), options);
++  } else if (options) {
++    await startFromContext(ctx, options);
+   } else {
++    // Legacy entry point: Back then `dev.ts` would call `main.ts` but
++    // this causes duplicate plugin instantiation if both `dev.ts` and
++    // `main.ts` instantiate plugins.
+     await import(entrypoint);
+   }
+ }
+diff --git a/src/dev/update_check.ts b/src/dev/update_check.ts
+index e5642d71088..d327c841299 100644
+--- a/src/dev/update_check.ts
++++ b/src/dev/update_check.ts
+@@ -2,6 +2,7 @@ import { colors, join, semver } from "./deps.ts";
+ 
+ export interface CheckFile {
+   last_checked: string;
++  last_shown?: string;
+   latest_version: string;
+   current_version: string;
+ }
+@@ -115,8 +116,12 @@ export async function updateCheck(
+   const currentVersion = semver.parse(checkFile.current_version);
+   const latestVersion = semver.parse(checkFile.latest_version);
+   if (
++    (!checkFile.last_shown ||
++      Date.now() >= new Date(checkFile.last_shown).getTime() + interval) &&
+     semver.lt(currentVersion, latestVersion)
+   ) {
++    checkFile.last_shown = new Date().toISOString();
++
+     const current = colors.bold(colors.rgb8(checkFile.current_version, 208));
+     const latest = colors.bold(colors.rgb8(checkFile.latest_version, 121));
+     console.log(
+@@ -130,6 +135,11 @@ export async function updateCheck(
+     console.log();
+   }
+ 
++  // Migrate old format to current
++  if (!checkFile.last_shown) {
++    checkFile.last_shown = new Date().toISOString();
++  }
++
+   const raw = JSON.stringify(checkFile, null, 2);
+   await Deno.writeTextFile(filePath, raw);
+ }
+diff --git a/src/runtime/entrypoints/main.ts b/src/runtime/entrypoints/main.ts
+index 75555661999..96ecc883b2d 100644
+--- a/src/runtime/entrypoints/main.ts
++++ b/src/runtime/entrypoints/main.ts
+@@ -323,7 +323,14 @@ function _walkInner(
+         };
+         for (let i = 0; i < sib.attributes.length; i++) {
+           const attr = sib.attributes[i];
+-          props[attr.nodeName] = attr.nodeValue;
++
++          // Boolean attributes are always `true` when present.
++          // See: https://developer.mozilla.org/en-US/docs/Glossary/Boolean/HTML
++          props[attr.nodeName] =
++            // deno-lint-ignore no-explicit-any
++            typeof (sib as any)[attr.nodeName] === "boolean"
++              ? true
++              : attr.nodeValue;
+         }
+         const vnode = h(sib.localName, props);
+         addPropsChild(parentVNode, vnode);
+diff --git a/src/server/boot.ts b/src/server/boot.ts
+new file mode 100644
+index 00000000000..b949289e60d
+--- /dev/null
++++ b/src/server/boot.ts
+@@ -0,0 +1,68 @@
++import { ServerContext } from "./context.ts";
++import { colors } from "./deps.ts";
++import { ServeHandler, StartOptions } from "./types.ts";
++
++export async function startFromContext(ctx: ServerContext, opts: StartOptions) {
++  if (!opts.onListen) {
++    opts.onListen = (params) => {
++      console.log();
++      console.log(
++        colors.bgRgb8(colors.black(colors.bold(" 🍋 Fresh ready ")), 121),
++      );
++
++      const address = colors.cyan(`http://localhost:${params.port}/`);
++      const localLabel = colors.bold("Local:");
++      console.log(`    ${localLabel} ${address}\n`);
++    };
++  }
++
++  const portEnv = Deno.env.get("PORT");
++  if (portEnv !== undefined) {
++    opts.port ??= parseInt(portEnv, 10);
++  }
++
++  const handler = ctx.handler();
++
++  if (opts.port) {
++    await bootServer(handler, opts);
++  } else {
++    // No port specified, check for a free port. Instead of picking just
++    // any port we'll check if the next one is free for UX reasons.
++    // That way the user only needs to increment a number when running
++    // multiple apps vs having to remember completely different ports.
++    let firstError;
++    for (let port = 8000; port < 8020; port++) {
++      try {
++        await bootServer(handler, { ...opts, port });
++        firstError = undefined;
++        break;
++      } catch (err) {
++        if (err instanceof Deno.errors.AddrInUse) {
++          // Throw first EADDRINUSE error
++          // if no port is free
++          if (!firstError) {
++            firstError = err;
++          }
++          continue;
++        }
++
++        throw err;
++      }
++    }
++
++    if (firstError) {
++      throw firstError;
++    }
++  }
++}
++
++async function bootServer(handler: ServeHandler, opts: StartOptions) {
++  // @ts-ignore Ignore type error when type checking with Deno versions
++  if (typeof Deno.serve === "function") {
++    // @ts-ignore Ignore type error when type checking with Deno versions
++    await Deno.serve(opts, handler).finished;
++  } else {
++    // @ts-ignore Deprecated std serve way
++    await serve(handler, opts);
++  }
++}
+diff --git a/src/server/build_id.ts b/src/server/build_id.ts
+index f347c425038..cf1b2271147 100644
+--- a/src/server/build_id.ts
++++ b/src/server/build_id.ts
+@@ -1,10 +1,16 @@
+ import { toHashString } from "./deps.ts";
+ 
+ const deploymentId = Deno.env.get("DENO_DEPLOYMENT_ID") ||
++  // For CI
++  Deno.env.get("GITHUB_SHA") ||
+   crypto.randomUUID();
+ const buildIdHash = await crypto.subtle.digest(
+   "SHA-1",
+   new TextEncoder().encode(deploymentId),
+ );
+ 
+-export const BUILD_ID = toHashString(buildIdHash, "hex");
++export let BUILD_ID = toHashString(buildIdHash, "hex");
++
++export function setBuildId(buildId: string) {
++  BUILD_ID = buildId;
++}
+diff --git a/src/server/context.ts b/src/server/context.ts
+index 9eb5b919c24..5491c4a9b64 100644
+--- a/src/server/context.ts
++++ b/src/server/context.ts
+@@ -14,7 +14,7 @@ import { ComponentType, h } from "preact";
+ import * as router from "./router.ts";
+ import { DenoConfig, Manifest } from "./mod.ts";
+ import { ALIVE_URL, JS_PREFIX, REFRESH_JS_URL } from "./constants.ts";
+-import { BUILD_ID } from "./build_id.ts";
++import { BUILD_ID, setBuildId } from "./build_id.ts";
+ import DefaultErrorHandler from "./default_error_page.ts";
+ import {
+   AppModule,
+@@ -49,10 +49,11 @@ import {
+ } from "../runtime/csp.ts";
+ import { ASSET_CACHE_BUST_KEY, INTERNAL_PREFIX } from "../runtime/utils.ts";
+ import {
++  AotSnapshot,
+   Builder,
+   BuildSnapshot,
++  BuildSnapshotJson,
+   EsbuildBuilder,
+-  EsbuildSnapshot,
+   JSXConfig,
+ } from "../build/mod.ts";
+ import { InternalRoute } from "./router.ts";
+@@ -147,7 +148,7 @@ export class ServerContext {
+    */
+   static async fromManifest(
+     manifest: Manifest,
+-    opts: FreshOptions & { skipSnapshot?: boolean },
++    opts: FreshOptions & { skipSnapshot?: boolean; dev?: boolean },
+   ): Promise<ServerContext> {
+     // Get the manifest' base URL.
+     const baseUrl = new URL("./", manifest.baseUrl).href;
+@@ -174,19 +175,22 @@ export class ServerContext {
+           );
+ 
+           const snapshotPath = join(snapshotDirPath, "snapshot.json");
+-          const json = JSON.parse(await Deno.readTextFile(snapshotPath));
++          const json = JSON.parse(
++            await Deno.readTextFile(snapshotPath),
++          ) as BuildSnapshotJson;
++          setBuildId(json.build_id);
++
+           const dependencies = new Map<string, string[]>(
+-            Object.entries(json),
++            Object.entries(json.files),
+           );
+ 
+-          const files = new Map();
+-          const names = Object.keys(json);
+-          await Promise.all(names.map(async (name) => {
++          const files = new Map<string, string>();
++          Object.keys(json.files).forEach((name) => {
+             const filePath = join(snapshotDirPath, name);
+-            files.set(name, await Deno.readFile(filePath));
+-          }));
++            files.set(name, filePath);
++          });
+ 
+-          snapshot = new EsbuildSnapshot(files, dependencies);
++          snapshot = new AotSnapshot(files, dependencies);
+         }
+       } catch (err) {
+         if (!(err instanceof Deno.errors.NotFound)) {
+@@ -431,7 +435,7 @@ export class ServerContext {
+       }
+     }
+ 
+-    const dev = isDevMode();
++    const dev = opts.dev ?? isDevMode();
+     if (dev) {
+       // Ensure that debugging hooks are set up for SSR rendering
+       await import("preact/debug");
+@@ -899,7 +903,7 @@ export class ServerContext {
+         {
+           ...ctx,
+           error,
+-          render: errorHandlerRender(req, {}, undefined, error),
++          render: errorHandlerRender(req, {}, ctx, error),
+         },
+       );
+     };
+@@ -989,7 +993,7 @@ export class ServerContext {
+   #bundleAssetRoute = (): router.MatchHandler => {
+     return async (_req, _ctx, params) => {
+       const snapshot = await this.buildSnapshot();
+-      const contents = snapshot.read(params.path);
++      const contents = await snapshot.read(params.path);
+       if (!contents) return new Response(null, { status: 404 });
+ 
+       const headers: Record<string, string> = {
+@@ -1179,6 +1183,11 @@ export function pathToPattern(path: string): string {
+     route += "/" + pattern;
+   }
+ 
++  // Case: /(group)/index.tsx
++  if (route === "") {
++    route = "/";
++  }
++
+   return route;
+ }
+ 
+@@ -1213,7 +1222,7 @@ function toPascalCase(text: string): string {
+ }
+ 
+ function sanitizeIslandName(name: string): string {
+-  const fileName = name.replaceAll(/[/\\\\\(\)]/g, "_");
++  const fileName = name.replaceAll(/[/\\\\\(\)\[\]]/g, "_");
+   return toPascalCase(fileName);
+ }
+ 
+diff --git a/src/server/mod.ts b/src/server/mod.ts
+index 3f715e6c337..2ca0572dd29 100644
+--- a/src/server/mod.ts
++++ b/src/server/mod.ts
+@@ -2,7 +2,6 @@ import { LayoutConfig } from "$fresh/server.ts";
+ import { ComponentChildren } from "preact";
+ import { ServerContext } from "./context.ts";
+ export { Status } from "./deps.ts";
+-import { colors, serve } from "./deps.ts";
+ import {
+   ErrorHandler,
+   Handler,
+@@ -10,11 +9,11 @@ import {
+   IslandModule,
+   MiddlewareModule,
+   RouteConfig,
+-  ServeHandler,
+   ServeHandlerInfo,
+   StartOptions,
+   UnknownHandler,
+ } from "./types.ts";
++import { startFromContext } from "./boot.ts";
+ export {
+   defineApp,
+   defineConfig,
+@@ -58,6 +57,7 @@ export type {
+ } from "./types.ts";
+ export { RenderContext } from "./render.ts";
+ export type { InnerRenderFunction } from "./render.ts";
++export type { DestinationKind } from "./router.ts";
+ 
+ export interface Manifest {
+   routes: Record<
+@@ -111,67 +111,5 @@ export async function createHandler(
+ 
+ export async function start(routes: Manifest, opts: StartOptions = {}) {
+   const ctx = await ServerContext.fromManifest(routes, opts);
+-
+-  if (!opts.onListen) {
+-    opts.onListen = (params) => {
+-      console.log();
+-      console.log(
+-        colors.bgRgb8(colors.black(colors.bold(" 🍋 Fresh ready ")), 121),
+-      );
+-
+-      const address = colors.cyan(`http://localhost:${params.port}/`);
+-      const localLabel = colors.bold("Local:");
+-      console.log(`    ${localLabel} ${address}\n`);
+-    };
+-  }
+-
+-  const portEnv = Deno.env.get("PORT");
+-  if (portEnv !== undefined) {
+-    opts.port ??= parseInt(portEnv, 10);
+-  }
+-
+-  const handler = ctx.handler();
+-
+-  if (opts.port) {
+-    await bootServer(handler, opts);
+-  } else {
+-    // No port specified, check for a free port. Instead of picking just
+-    // any port we'll check if the next one is free for UX reasons.
+-    // That way the user only needs to increment a number when running
+-    // multiple apps vs having to remember completely different ports.
+-    let firstError;
+-    for (let port = 8000; port < 8020; port++) {
+-      try {
+-        await bootServer(handler, { ...opts, port });
+-        firstError = undefined;
+-        break;
+-      } catch (err) {
+-        if (err instanceof Deno.errors.AddrInUse) {
+-          // Throw first EADDRINUSE error
+-          // if no port is free
+-          if (!firstError) {
+-            firstError = err;
+-          }
+-          continue;
+-        }
+-
+-        throw err;
+-      }
+-    }
+-
+-    if (firstError) {
+-      throw firstError;
+-    }
+-  }
+-}
+-
+-async function bootServer(handler: ServeHandler, opts: StartOptions) {
+-  // @ts-ignore Ignore type error when type checking with Deno versions
+-  if (typeof Deno.serve === "function") {
+-    // @ts-ignore Ignore type error when type checking with Deno versions
+-    await Deno.serve(opts, handler).finished;
+-  } else {
+-    // @ts-ignore Deprecated std serve way
+-    await serve(handler, opts);
+-  }
++  await startFromContext(ctx, opts);
+ }
+diff --git a/src/server/rendering/preact_hooks.ts b/src/server/rendering/preact_hooks.ts
+index 9b0f6626416..122f5106540 100644
+--- a/src/server/rendering/preact_hooks.ts
++++ b/src/server/rendering/preact_hooks.ts
+@@ -3,6 +3,7 @@ import {
+   type ComponentChildren,
+   Fragment,
+   h,
++  isValidElement,
+   type Options as PreactOptions,
+   options as preactOptions,
+   type VNode,
+@@ -233,6 +234,23 @@ options.__b = (vnode: VNode<Record<string, unknown>>) => {
+           const id = islandProps.length;
+           if ("children" in props) {
+             let children = props.children;
++
++            // Guard against passing objects as children to JSX
++            if (
++              typeof children === "function" || (
++                children !== null && typeof children === "object" &&
++                !Array.isArray(children) &&
++                !isValidElement(children)
++              )
++            ) {
++              const name = originalType.displayName || originalType.name ||
++                "Anonymous";
++
++              throw new Error(
++                `Invalid JSX child passed to island <${name} />. To resolve this error, pass the data as a standard prop instead.`,
++              );
++            }
++
+             const markerText =
+               `frsh-slot-${island.id}:${island.exportName}:${id}:children`;
+             // @ts-ignore nonono
+diff --git a/tests/build_test.ts b/tests/build_test.ts
+index 7a9de0e30f0..7b80910a982 100644
+--- a/tests/build_test.ts
++++ b/tests/build_test.ts
+@@ -2,6 +2,9 @@ import * as path from "$std/path/mod.ts";
+ import { puppeteer } from "./deps.ts";
+ import { assert } from "$std/_util/asserts.ts";
+ import { startFreshServer, waitForText } from "$fresh/tests/test_utils.ts";
++import { BuildSnapshotJson } from "$fresh/src/build/mod.ts";
++import { assertStringIncludes } from "$std/testing/asserts.ts";
++import { assertNotMatch } from "$std/testing/asserts.ts";
+ 
+ Deno.test("build snapshot and restore from it", async (t) => {
+   const fixture = path.join(Deno.cwd(), "tests", "fixture_build");
+@@ -16,6 +19,10 @@ Deno.test("build snapshot and restore from it", async (t) => {
+           path.join(fixture, "dev.ts"),
+           "build",
+         ],
++        env: {
++          GITHUB_SHA: "__BUILD_ID__",
++          DENO_DEPLOYMENT_ID: "__BUILD_ID__",
++        },
+         stdin: "null",
+         stdout: "piped",
+         stderr: "inherit",
+@@ -31,26 +38,31 @@ Deno.test("build snapshot and restore from it", async (t) => {
+       assert((await Deno.stat(outDir)).isDirectory, "Missing output directory");
+     });
+ 
++    const snapshot = JSON.parse(
++      await Deno.readTextFile(path.join(outDir, "snapshot.json")),
++    ) as BuildSnapshotJson;
++
+     await t.step("check snapshot file", async () => {
+-      const snapshot = JSON.parse(
+-        await Deno.readTextFile(path.join(outDir, "snapshot.json")),
+-      );
+       assert(
+-        Array.isArray(snapshot["island-counter_default.js"]),
++        Array.isArray(snapshot.files["island-counter_default.js"]),
+         "Island output file not found in snapshot",
+       );
+       assert(
+-        Array.isArray(snapshot["main.js"]),
++        Array.isArray(snapshot.files["main.js"]),
+         "main.js output file not found in snapshot",
+       );
+       assert(
+-        Array.isArray(snapshot["signals.js"]),
++        Array.isArray(snapshot.files["signals.js"]),
+         "signals.js output file not found in snapshot",
+       );
+       assert(
+-        Array.isArray(snapshot["deserializer.js"]),
++        Array.isArray(snapshot.files["deserializer.js"]),
+         "deserializer.js output file not found in snapshot",
+       );
++
++      // Should not include `preact/debug`
++      const mainJs = await Deno.readTextFile(path.join(outDir, "main.js"));
++      assertNotMatch(mainJs, /Undefined parent passed to render()/);
+     });
+ 
+     await t.step("restore from snapshot", async () => {
+@@ -79,6 +91,23 @@ Deno.test("build snapshot and restore from it", async (t) => {
+           await page.click("button");
+ 
+           await waitForText(page, "p", "1");
++
++          // Ensure that it uses the build id from the snapshot
++          const assetUrls = await page.evaluate(() => {
++            const links = Array.from(document.querySelectorAll("link")).map(
++              (link) => link.href,
++            );
++            const scripts = Array.from(document.querySelectorAll("script"))
++              .filter((script) =>
++                script.src && !script.src.endsWith("refresh.js")
++              ).map((script) => script.src);
++
++            return [...links, ...scripts];
++          });
++
++          for (let i = 0; i < assetUrls.length; i++) {
++            assertStringIncludes(assetUrls[i], snapshot.build_id);
++          }
+         } finally {
+           await browser.close();
+         }
+@@ -88,6 +117,28 @@ Deno.test("build snapshot and restore from it", async (t) => {
+         await serverProcess.status;
+       }
+     });
++
++    await t.step("should not restore from snapshot in dev mode", async () => {
++      const { lines, serverProcess, output } = await startFreshServer({
++        args: [
++          "run",
++          "-A",
++          path.join(fixture, "./dev.ts"),
++        ],
++      });
++
++      try {
++        // Check that restore snapshot message was NOT printed
++        assert(
++          !output.find((line) => line.includes("Using snapshot found at")),
++          "Restoring from snapshot message should not appear in dev mode",
++        );
++      } finally {
++        await lines.cancel();
++        serverProcess.kill("SIGTERM");
++        await serverProcess.status;
++      }
++    });
+   } finally {
+     await Deno.remove(path.join(fixture, "_fresh"), { recursive: true });
+   }
+diff --git a/tests/cli_test.ts b/tests/cli_test.ts
+index c70f3e48513..0d34eb7f77c 100644
+--- a/tests/cli_test.ts
++++ b/tests/cli_test.ts
+@@ -12,7 +12,9 @@ import {
+   retry,
+ } from "./deps.ts";
+ import {
++  assertTextMany,
+   clickWhenListenerReady,
++  fetchHtml,
+   startFreshServer,
+   waitForText,
+ } from "./test_utils.ts";
+@@ -367,6 +369,84 @@ Deno.test({
+   sanitizeResources: false,
+ });
+ 
++Deno.test({
++  name: "fresh-init loads env variables",
++  async fn(t) {
++    // Preparation
++    const tmpDirName = await Deno.makeTempDir();
++
++    const cliProcess = new Deno.Command(Deno.execPath(), {
++      args: [
++        "run",
++        "-A",
++        "init.ts",
++        tmpDirName,
++        "--twind",
++        "--vscode",
++      ],
++      stdin: "null",
++      stdout: "piped",
++      stderr: "inherit",
++    });
++
++    await cliProcess.output();
++
++    // Add .env file
++    await Deno.writeTextFile(path.join(tmpDirName, ".env"), "FOO=true\n");
++    await Deno.writeTextFile(
++      path.join(tmpDirName, "routes", "env.tsx"),
++      `export default function Page() { return <h1>{Deno.env.get("FOO")}</h1> }`,
++    );
++
++    await t.step("start up the server", async () => {
++      const { serverProcess, lines, address } = await startFreshServer({
++        args: ["run", "-A", "--no-check", "dev.ts"],
++        cwd: tmpDirName,
++      });
++
++      const doc = await fetchHtml(`${address}/env`);
++      assertTextMany(doc, "h1", ["true"]);
++
++      await lines.cancel();
++      serverProcess.kill("SIGTERM");
++      await serverProcess.status;
++    });
++
++    await t.step("build code and start server again", async () => {
++      await new Deno.Command(Deno.execPath(), {
++        args: [
++          "task",
++          "build",
++        ],
++        cwd: tmpDirName,
++        stdin: "null",
++        stdout: "piped",
++        stderr: "inherit",
++      }).output();
++
++      const { serverProcess, lines, address, output } = await startFreshServer({
++        args: ["run", "-A", "--no-check", "main.ts"],
++        cwd: tmpDirName,
++      });
++
++      assert(
++        output.find((line) => /Using snapshot found a/.test(line)),
++        "Snapshot message not printed",
++      );
++
++      const doc = await fetchHtml(`${address}/env`);
++      assertTextMany(doc, "h1", ["true"]);
++
++      await lines.cancel();
++      serverProcess.kill("SIGTERM");
++      await serverProcess.status;
++    });
++
++    await retry(() => Deno.remove(tmpDirName, { recursive: true }));
++  },
++  sanitizeResources: false,
++});
++
+ Deno.test("fresh-update", async function fn(t) {
+   // Preparation
+   const tmpDirName = await Deno.makeTempDir();
+@@ -548,3 +628,189 @@ Deno.test("fresh-update add _app.tsx if not present", async function fn(t) {
+     assertEquals(code, 0);
+   }
+ });
++
++Deno.test(
++  "fresh-update add _fresh to .gitignore if not present",
++  async function fn(t) {
++    // Preparation
++    const tmpDirName = await Deno.makeTempDir();
++
++    const cliProcess = new Deno.Command(Deno.execPath(), {
++      args: [
++        "run",
++        "-A",
++        path.join(Deno.cwd(), "init.ts"),
++        ".",
++      ],
++      cwd: tmpDirName,
++      stdin: "null",
++      stdout: "null",
++    });
++
++    await cliProcess.output();
++
++    const gitignore = path.join(tmpDirName, ".gitignore");
++    await Deno.writeTextFile(gitignore, ""); // clear .gitignore
++
++    await t.step("execute update command", async () => {
++      await updateAndVerify(
++        /The manifest has been generated for \d+ routes and \d+ islands./,
++      );
++    });
++
++    await t.step("append _fresh to .gitignore", async () => {
++      const raw = await Deno.readTextFile(gitignore);
++      assertStringIncludes(raw, "_fresh", "_fresh not found in .gitignore");
++    });
++
++    async function updateAndVerify(expected: RegExp) {
++      const cliProcess = new Deno.Command(Deno.execPath(), {
++        args: [
++          "run",
++          "-A",
++          path.join(Deno.cwd(), "update.ts"),
++          ".",
++        ],
++        cwd: tmpDirName,
++        stdin: "null",
++        stdout: "piped",
++      });
++
++      const { code, stdout } = await cliProcess.output();
++      const output = new TextDecoder().decode(stdout);
++
++      assertMatch(
++        output,
++        expected,
++      );
++      assertEquals(code, 0);
++    }
++  },
++);
++
++Deno.test(
++  "fresh-update do not add _fresh to .gitignore if already present",
++  async function fn(t) {
++    // Preparation
++    const tmpDirName = await Deno.makeTempDir();
++
++    const cliProcess = new Deno.Command(Deno.execPath(), {
++      args: [
++        "run",
++        "-A",
++        path.join(Deno.cwd(), "init.ts"),
++        ".",
++      ],
++      cwd: tmpDirName,
++      stdin: "null",
++      stdout: "null",
++    });
++
++    await cliProcess.output();
++
++    const gitignore = path.join(tmpDirName, ".gitignore");
++    await Deno.writeTextFile(gitignore, "_fresh");
++
++    await t.step("execute update command", async () => {
++      await updateAndVerify(
++        /The manifest has been generated for \d+ routes and \d+ islands./,
++      );
++    });
++
++    await t.step("do not append _fresh to .gitignore", async () => {
++      const raw = await Deno.readTextFile(gitignore);
++      // Count the number of times "_fresh" appears in .gitignore
++      const count = (raw.match(/_fresh/g) ?? []).length;
++      assertEquals(count, 1, "_fresh found in .gitignore");
++    });
++
++    async function updateAndVerify(expected: RegExp) {
++      const cliProcess = new Deno.Command(Deno.execPath(), {
++        args: [
++          "run",
++          "-A",
++          path.join(Deno.cwd(), "update.ts"),
++          ".",
++        ],
++        cwd: tmpDirName,
++        stdin: "null",
++        stdout: "piped",
++      });
++
++      const { code, stdout } = await cliProcess.output();
++      const output = new TextDecoder().decode(stdout);
++
++      assertMatch(
++        output,
++        expected,
++      );
++      assertEquals(code, 0);
++    }
++  },
++);
++
++Deno.test(
++  "fresh-update do not create a .gitignore if none exist",
++  async function fn(t) {
++    // Preparation
++    const tmpDirName = await Deno.makeTempDir();
++
++    const cliProcess = new Deno.Command(Deno.execPath(), {
++      args: [
++        "run",
++        "-A",
++        path.join(Deno.cwd(), "init.ts"),
++        ".",
++      ],
++      cwd: tmpDirName,
++      stdin: "null",
++      stdout: "null",
++    });
++
++    await cliProcess.output();
++
++    const gitignore = path.join(tmpDirName, ".gitignore");
++    await Deno.remove(gitignore);
++
++    await t.step("execute update command", async () => {
++      await updateAndVerify(
++        /The manifest has been generated for \d+ routes and \d+ islands./,
++      );
++    });
++
++    await t.step("do not create a .gitignore", async () => {
++      let exists = true;
++      try {
++        await Deno.open(gitignore);
++      } catch (error) {
++        if (error instanceof Deno.errors.NotFound) {
++          exists = false;
++        }
++      }
++      assert(!exists, "found .gitignore");
++    });
++
++    async function updateAndVerify(expected: RegExp) {
++      const cliProcess = new Deno.Command(Deno.execPath(), {
++        args: [
++          "run",
++          "-A",
++          path.join(Deno.cwd(), "update.ts"),
++          ".",
++        ],
++        cwd: tmpDirName,
++        stdin: "null",
++        stdout: "piped",
++      });
++
++      const { code, stdout } = await cliProcess.output();
++      const output = new TextDecoder().decode(stdout);
++
++      assertMatch(
++        output,
++        expected,
++      );
++      assertEquals(code, 0);
++    }
++  },
++);
+diff --git a/tests/cli_update_check_test.ts b/tests/cli_update_check_test.ts
+index 4a48ffa5da6..af19f4c34f6 100644
+--- a/tests/cli_update_check_test.ts
++++ b/tests/cli_update_check_test.ts
+@@ -1,13 +1,27 @@
+ import { colors, join } from "../src/server/deps.ts";
+ import {
++  assert,
+   assertEquals,
+   assertMatch,
++  assertNotEquals,
+   assertNotMatch,
+ } from "$std/testing/asserts.ts";
+ import versions from "../versions.json" assert { type: "json" };
+ import { CheckFile } from "$fresh/src/dev/update_check.ts";
+ import { WEEK } from "$fresh/src/dev/deps.ts";
+ 
++function getStdOutput(
++  out: Deno.CommandOutput,
++): { stdout: string; stderr: string } {
++  const decoder = new TextDecoder();
++  const stdout = colors.stripColor(decoder.decode(out.stdout));
++
++  const decoderErr = new TextDecoder();
++  const stderr = colors.stripColor(decoderErr.decode(out.stderr));
++
++  return { stdout, stderr };
++}
++
+ Deno.test({
+   name: "stores update check file in $HOME/fresh",
+   async fn() {
+@@ -18,7 +32,7 @@ Deno.test({
+       args: ["run", "-A", "./tests/fixture_update_check/mod.ts"],
+       env: {
+         CI: "false",
+-        HOME: tmpDirName,
++        TEST_HOME: tmpDirName,
+       },
+     }).output();
+ 
+@@ -27,6 +41,7 @@ Deno.test({
+       current_version: versions[0],
+       latest_version: "99.99.999",
+       last_checked: text.last_checked,
++      last_shown: text.last_shown,
+     });
+ 
+     await Deno.remove(tmpDirName, { recursive: true });
+@@ -45,13 +60,14 @@ Deno.test({
+           args: ["run", "-A", "./tests/fixture_update_check/mod.ts"],
+           env: {
+             [env]: "true",
+-            HOME: tmpDirName,
++            TEST_HOME: tmpDirName,
+             LATEST_VERSION: "1.30.0",
+           },
++          stderr: "piped",
++          stdout: "piped",
+         }).output();
+ 
+-        const decoder = new TextDecoder();
+-        const stdout = colors.stripColor(decoder.decode(out.stdout));
++        const { stdout } = getStdOutput(out);
+         assertNotMatch(stdout, /Fresh 1\.30\.0 is available/);
+ 
+         await Deno.remove(tmpDirName, { recursive: true });
+@@ -79,14 +95,14 @@ Deno.test({
+       args: ["run", "-A", "./tests/fixture_update_check/mod.ts"],
+       env: {
+         CI: "false",
+-        HOME: tmpDirName,
++        TEST_HOME: tmpDirName,
+         LATEST_VERSION: "999.999.0",
+       },
++      stderr: "piped",
++      stdout: "piped",
+     }).output();
+ 
+-    const decoder = new TextDecoder();
+-
+-    const stdout = colors.stripColor(decoder.decode(out.stdout));
++    const { stdout } = getStdOutput(out);
+     assertMatch(stdout, /Fresh 999\.999\.0 is available/);
+ 
+     // Updates check file
+@@ -95,6 +111,7 @@ Deno.test({
+       current_version: versions[0],
+       latest_version: "999.999.0",
+       last_checked: text.last_checked,
++      last_shown: text.last_shown,
+     });
+ 
+     await Deno.remove(tmpDirName, { recursive: true });
+@@ -106,7 +123,6 @@ Deno.test({
+   name: "only fetch new version defined by interval",
+   async fn(t) {
+     const tmpDirName = await Deno.makeTempDir();
+-    const decoder = new TextDecoder();
+ 
+     await t.step("fetches latest version initially", async () => {
+       const out = await new Deno.Command(Deno.execPath(), {
+@@ -114,12 +130,14 @@ Deno.test({
+         env: {
+           CI: "false",
+           UPDATE_INTERVAL: "100000",
+-          HOME: tmpDirName,
++          TEST_HOME: tmpDirName,
+           LATEST_VERSION: "1.30.0",
+         },
++        stderr: "piped",
++        stdout: "piped",
+       }).output();
+ 
+-      const stdout = colors.stripColor(decoder.decode(out.stdout));
++      const { stdout } = getStdOutput(out);
+       assertMatch(stdout, /fetching latest version/);
+     });
+ 
+@@ -129,12 +147,14 @@ Deno.test({
+         env: {
+           CI: "false",
+           UPDATE_INTERVAL: "100000",
+-          HOME: tmpDirName,
++          TEST_HOME: tmpDirName,
+           LATEST_VERSION: "1.30.0",
+         },
++        stderr: "piped",
++        stdout: "piped",
+       }).output();
+ 
+-      const stdout = colors.stripColor(decoder.decode(out.stdout));
++      const { stdout } = getStdOutput(out);
+       assertNotMatch(stdout, /fetching latest version/);
+     });
+ 
+@@ -144,12 +164,12 @@ Deno.test({
+         env: {
+           CI: "false",
+           UPDATE_INTERVAL: "1 ",
+-          HOME: tmpDirName,
++          TEST_HOME: tmpDirName,
+           LATEST_VERSION: "1.30.0",
+         },
+       }).output();
+ 
+-      const stdout = colors.stripColor(decoder.decode(out.stdout));
++      const { stdout } = getStdOutput(out);
+       assertMatch(stdout, /fetching latest version/);
+     });
+ 
+@@ -176,13 +196,15 @@ Deno.test({
+     const out = await new Deno.Command(Deno.execPath(), {
+       args: ["run", "-A", "./tests/fixture_update_check/mod.ts"],
+       env: {
+-        HOME: tmpDirName,
++        CI: "false",
++        TEST_HOME: tmpDirName,
+         LATEST_VERSION: versions[0],
+       },
++      stderr: "piped",
++      stdout: "piped",
+     }).output();
+ 
+-    const decoder = new TextDecoder();
+-    const stdout = colors.stripColor(decoder.decode(out.stdout));
++    const { stdout } = getStdOutput(out);
+     assertNotMatch(stdout, /Fresh .* is available/);
+ 
+     await Deno.remove(tmpDirName, { recursive: true });
+@@ -208,16 +230,144 @@ Deno.test({
+     const out = await new Deno.Command(Deno.execPath(), {
+       args: ["run", "-A", "./tests/fixture_update_check/mod.ts"],
+       env: {
+-        HOME: tmpDirName,
++        CI: "false",
++        TEST_HOME: tmpDirName,
+         LATEST_VERSION: versions[0],
+-        CURRENT_VERSION: "99999.9999.00",
++        CURRENT_VERSION: "99999.9999.0",
+       },
++      stderr: "piped",
++      stdout: "piped",
+     }).output();
+ 
+-    const decoder = new TextDecoder();
+-    const stdout = colors.stripColor(decoder.decode(out.stdout));
++    const { stdout } = getStdOutput(out);
+     assertNotMatch(stdout, /Fresh .* is available/);
+ 
+     await Deno.remove(tmpDirName, { recursive: true });
+   },
+ });
++
++Deno.test("migrates to last_shown property", async () => {
++  const tmpDirName = await Deno.makeTempDir();
++
++  const checkFile: CheckFile = {
++    latest_version: "1.4.0",
++    current_version: "1.2.0",
++    last_checked: new Date().toISOString(),
++  };
++
++  await Deno.writeTextFile(
++    join(tmpDirName, "latest.json"),
++    JSON.stringify(checkFile, null, 2),
++  );
++
++  const out = await new Deno.Command(Deno.execPath(), {
++    args: ["run", "-A", "./tests/fixture_update_check/mod.ts"],
++    env: {
++      CI: "false",
++      TEST_HOME: tmpDirName,
++      CURRENT_VERSION: "1.2.0",
++      LATEST_VERSION: "99999.9999.0",
++    },
++    stderr: "piped",
++    stdout: "piped",
++  }).output();
++
++  const { stdout } = getStdOutput(out);
++  assertMatch(stdout, /Fresh .* is available/);
++
++  const checkFileAfter = JSON.parse(
++    await Deno.readTextFile(
++      join(tmpDirName, "latest.json"),
++    ),
++  );
++
++  assert(
++    typeof checkFileAfter.last_shown === "string",
++    "Did not write last_shown " + JSON.stringify(checkFileAfter, null, 2),
++  );
++
++  await Deno.remove(tmpDirName, { recursive: true });
++});
++
++Deno.test("doesn't show update if last_shown + interval >= today", async () => {
++  const tmpDirName = await Deno.makeTempDir();
++
++  const todayMinus1Hour = new Date();
++  todayMinus1Hour.setHours(todayMinus1Hour.getHours() - 1);
++
++  const checkFile: CheckFile = {
++    current_version: "1.2.0",
++    latest_version: "1.6.0",
++    last_checked: new Date().toISOString(),
++    last_shown: todayMinus1Hour.toISOString(),
++  };
++
++  await Deno.writeTextFile(
++    join(tmpDirName, "latest.json"),
++    JSON.stringify(checkFile, null, 2),
++  );
++
++  const out = await new Deno.Command(Deno.execPath(), {
++    args: ["run", "-A", "./tests/fixture_update_check/mod.ts"],
++    env: {
++      CI: "false",
++      TEST_HOME: tmpDirName,
++      CURRENT_VERSION: "1.2.0",
++      LATEST_VERSION: "99999.9999.0",
++    },
++    stderr: "piped",
++    stdout: "piped",
++  }).output();
++
++  const { stdout } = getStdOutput(out);
++  assertNotMatch(stdout, /Fresh .* is available/);
++
++  await Deno.remove(tmpDirName, { recursive: true });
++});
++
++Deno.test(
++  "shows update if last_shown + interval < today",
++  async () => {
++    const tmpDirName = await Deno.makeTempDir();
++
++    const yesterday = new Date();
++    yesterday.setDate(yesterday.getDate() - 1);
++
++    const checkFile: CheckFile = {
++      current_version: "1.2.0",
++      latest_version: "1.8.0",
++      last_checked: new Date().toISOString(),
++      last_shown: yesterday.toISOString(),
++    };
++
++    await Deno.writeTextFile(
++      join(tmpDirName, "latest.json"),
++      JSON.stringify(checkFile, null, 2),
++    );
++
++    const out = await new Deno.Command(Deno.execPath(), {
++      args: ["run", "-A", "./tests/fixture_update_check/mod.ts"],
++      env: {
++        CI: "false",
++        TEST_HOME: tmpDirName,
++        CURRENT_VERSION: versions[0],
++        LATEST_VERSION: "99999.9999.0",
++      },
++      stderr: "piped",
++      stdout: "piped",
++    }).output();
++
++    const { stdout } = getStdOutput(out);
++    assertMatch(stdout, /Fresh .* is available/);
++
++    const checkFileAfter = JSON.parse(
++      await Deno.readTextFile(
++        join(tmpDirName, "latest.json"),
++      ),
++    );
++
++    assertNotEquals(checkFileAfter.last_shown, yesterday.toISOString());
++
++    await Deno.remove(tmpDirName, { recursive: true });
++  },
++);
+diff --git a/tests/fixture/fresh.gen.ts b/tests/fixture/fresh.gen.ts
+index 310cb341780..8b79bb55461 100644
+--- a/tests/fixture/fresh.gen.ts
++++ b/tests/fixture/fresh.gen.ts
+@@ -47,38 +47,40 @@ import * as $41 from "./routes/movies/[foo].json.ts";
+ import * as $42 from "./routes/movies/[foo]@[bar].ts";
+ import * as $43 from "./routes/not_found.ts";
+ import * as $44 from "./routes/params.tsx";
+-import * as $45 from "./routes/props/[id].tsx";
+-import * as $46 from "./routes/route-groups-islands/index.tsx";
+-import * as $47 from "./routes/route-groups/(bar)/(baz)/_layout.tsx";
+-import * as $48 from "./routes/route-groups/(bar)/(baz)/baz.tsx";
+-import * as $49 from "./routes/route-groups/(bar)/_layout.tsx";
+-import * as $50 from "./routes/route-groups/(bar)/bar.tsx";
+-import * as $51 from "./routes/route-groups/(bar)/boof/index.tsx";
+-import * as $52 from "./routes/route-groups/(foo)/_layout.tsx";
+-import * as $53 from "./routes/route-groups/(foo)/index.tsx";
+-import * as $54 from "./routes/signal_shared.tsx";
+-import * as $55 from "./routes/state-in-props/_middleware.ts";
+-import * as $56 from "./routes/state-in-props/index.tsx";
+-import * as $57 from "./routes/state-middleware/_middleware.ts";
+-import * as $58 from "./routes/state-middleware/foo/_middleware.ts";
+-import * as $59 from "./routes/state-middleware/foo/index.tsx";
+-import * as $60 from "./routes/static.tsx";
+-import * as $61 from "./routes/status_overwrite.tsx";
+-import * as $62 from "./routes/umlaut-äöüß.tsx";
+-import * as $63 from "./routes/wildcard.tsx";
++import * as $45 from "./routes/preact/boolean_attrs.tsx";
++import * as $46 from "./routes/props/[id].tsx";
++import * as $47 from "./routes/route-groups-islands/index.tsx";
++import * as $48 from "./routes/route-groups/(bar)/(baz)/_layout.tsx";
++import * as $49 from "./routes/route-groups/(bar)/(baz)/baz.tsx";
++import * as $50 from "./routes/route-groups/(bar)/_layout.tsx";
++import * as $51 from "./routes/route-groups/(bar)/bar.tsx";
++import * as $52 from "./routes/route-groups/(bar)/boof/index.tsx";
++import * as $53 from "./routes/route-groups/(foo)/_layout.tsx";
++import * as $54 from "./routes/route-groups/(foo)/index.tsx";
++import * as $55 from "./routes/signal_shared.tsx";
++import * as $56 from "./routes/state-in-props/_middleware.ts";
++import * as $57 from "./routes/state-in-props/index.tsx";
++import * as $58 from "./routes/state-middleware/_middleware.ts";
++import * as $59 from "./routes/state-middleware/foo/_middleware.ts";
++import * as $60 from "./routes/state-middleware/foo/index.tsx";
++import * as $61 from "./routes/static.tsx";
++import * as $62 from "./routes/status_overwrite.tsx";
++import * as $63 from "./routes/umlaut-äöüß.tsx";
++import * as $64 from "./routes/wildcard.tsx";
+ import * as $$0 from "./islands/Counter.tsx";
+-import * as $$1 from "./islands/Greeter.tsx";
+-import * as $$2 from "./islands/MultipleCounters.tsx";
+-import * as $$3 from "./islands/ReturningNull.tsx";
+-import * as $$4 from "./islands/RootFragment.tsx";
+-import * as $$5 from "./islands/RootFragmentWithConditionalFirst.tsx";
+-import * as $$6 from "./islands/StringEventIsland.tsx";
+-import * as $$7 from "./islands/Test.tsx";
+-import * as $$8 from "./islands/folder/Counter.tsx";
+-import * as $$9 from "./islands/folder/subfolder/Counter.tsx";
+-import * as $$10 from "./islands/kebab-case-counter-test.tsx";
+-import * as $$11 from "./routes/route-groups-islands/(_islands)/Counter.tsx";
+-import * as $$12 from "./routes/route-groups-islands/(_islands)/invalid.tsx";
++import * as $$1 from "./islands/FormIsland.tsx";
++import * as $$2 from "./islands/Greeter.tsx";
++import * as $$3 from "./islands/MultipleCounters.tsx";
++import * as $$4 from "./islands/ReturningNull.tsx";
++import * as $$5 from "./islands/RootFragment.tsx";
++import * as $$6 from "./islands/RootFragmentWithConditionalFirst.tsx";
++import * as $$7 from "./islands/StringEventIsland.tsx";
++import * as $$8 from "./islands/Test.tsx";
++import * as $$9 from "./islands/folder/Counter.tsx";
++import * as $$10 from "./islands/folder/subfolder/Counter.tsx";
++import * as $$11 from "./islands/kebab-case-counter-test.tsx";
++import * as $$12 from "./routes/route-groups-islands/(_islands)/Counter.tsx";
++import * as $$13 from "./routes/route-groups-islands/(_islands)/invalid.tsx";
+ 
+ const manifest = {
+   routes: {
+@@ -127,40 +129,42 @@ const manifest = {
+     "./routes/movies/[foo]@[bar].ts": $42,
+     "./routes/not_found.ts": $43,
+     "./routes/params.tsx": $44,
+-    "./routes/props/[id].tsx": $45,
+-    "./routes/route-groups-islands/index.tsx": $46,
+-    "./routes/route-groups/(bar)/(baz)/_layout.tsx": $47,
+-    "./routes/route-groups/(bar)/(baz)/baz.tsx": $48,
+-    "./routes/route-groups/(bar)/_layout.tsx": $49,
+-    "./routes/route-groups/(bar)/bar.tsx": $50,
+-    "./routes/route-groups/(bar)/boof/index.tsx": $51,
+-    "./routes/route-groups/(foo)/_layout.tsx": $52,
+-    "./routes/route-groups/(foo)/index.tsx": $53,
+-    "./routes/signal_shared.tsx": $54,
+-    "./routes/state-in-props/_middleware.ts": $55,
+-    "./routes/state-in-props/index.tsx": $56,
+-    "./routes/state-middleware/_middleware.ts": $57,
+-    "./routes/state-middleware/foo/_middleware.ts": $58,
+-    "./routes/state-middleware/foo/index.tsx": $59,
+-    "./routes/static.tsx": $60,
+-    "./routes/status_overwrite.tsx": $61,
+-    "./routes/umlaut-äöüß.tsx": $62,
+-    "./routes/wildcard.tsx": $63,
++    "./routes/preact/boolean_attrs.tsx": $45,
++    "./routes/props/[id].tsx": $46,
++    "./routes/route-groups-islands/index.tsx": $47,
++    "./routes/route-groups/(bar)/(baz)/_layout.tsx": $48,
++    "./routes/route-groups/(bar)/(baz)/baz.tsx": $49,
++    "./routes/route-groups/(bar)/_layout.tsx": $50,
++    "./routes/route-groups/(bar)/bar.tsx": $51,
++    "./routes/route-groups/(bar)/boof/index.tsx": $52,
++    "./routes/route-groups/(foo)/_layout.tsx": $53,
++    "./routes/route-groups/(foo)/index.tsx": $54,
++    "./routes/signal_shared.tsx": $55,
++    "./routes/state-in-props/_middleware.ts": $56,
++    "./routes/state-in-props/index.tsx": $57,
++    "./routes/state-middleware/_middleware.ts": $58,
++    "./routes/state-middleware/foo/_middleware.ts": $59,
++    "./routes/state-middleware/foo/index.tsx": $60,
++    "./routes/static.tsx": $61,
++    "./routes/status_overwrite.tsx": $62,
++    "./routes/umlaut-äöüß.tsx": $63,
++    "./routes/wildcard.tsx": $64,
+   },
+   islands: {
+     "./islands/Counter.tsx": $$0,
+-    "./islands/Greeter.tsx": $$1,
+-    "./islands/MultipleCounters.tsx": $$2,
+-    "./islands/ReturningNull.tsx": $$3,
+-    "./islands/RootFragment.tsx": $$4,
+-    "./islands/RootFragmentWithConditionalFirst.tsx": $$5,
+-    "./islands/StringEventIsland.tsx": $$6,
+-    "./islands/Test.tsx": $$7,
+-    "./islands/folder/Counter.tsx": $$8,
+-    "./islands/folder/subfolder/Counter.tsx": $$9,
+-    "./islands/kebab-case-counter-test.tsx": $$10,
+-    "./routes/route-groups-islands/(_islands)/Counter.tsx": $$11,
+-    "./routes/route-groups-islands/(_islands)/invalid.tsx": $$12,
++    "./islands/FormIsland.tsx": $$1,
++    "./islands/Greeter.tsx": $$2,
++    "./islands/MultipleCounters.tsx": $$3,
++    "./islands/ReturningNull.tsx": $$4,
++    "./islands/RootFragment.tsx": $$5,
++    "./islands/RootFragmentWithConditionalFirst.tsx": $$6,
++    "./islands/StringEventIsland.tsx": $$7,
++    "./islands/Test.tsx": $$8,
++    "./islands/folder/Counter.tsx": $$9,
++    "./islands/folder/subfolder/Counter.tsx": $$10,
++    "./islands/kebab-case-counter-test.tsx": $$11,
++    "./routes/route-groups-islands/(_islands)/Counter.tsx": $$12,
++    "./routes/route-groups-islands/(_islands)/invalid.tsx": $$13,
+   },
+   baseUrl: import.meta.url,
+ };
+diff --git a/tests/fixture/islands/FormIsland.tsx b/tests/fixture/islands/FormIsland.tsx
+new file mode 100644
+index 00000000000..e9e335cd8ec
+--- /dev/null
++++ b/tests/fixture/islands/FormIsland.tsx
+@@ -0,0 +1,18 @@
++import { useEffect, useRef } from "preact/hooks";
++import { ComponentChildren } from "preact";
++
++export function FormIsland({ children }: { children: ComponentChildren }) {
++  const ref = useRef<HTMLParagraphElement | null>(null);
++
++  useEffect(() => {
++    if (!ref.current) return;
++    ref.current.textContent = "Revived: true";
++  }, []);
++
++  return (
++    <form onSubmit={(e) => e.preventDefault()}>
++      <p class="form-revived" ref={ref}>Revived: false</p>
++      {children}
++    </form>
++  );
++}
+diff --git a/tests/fixture/routes/preact/boolean_attrs.tsx b/tests/fixture/routes/preact/boolean_attrs.tsx
+new file mode 100644
+index 00000000000..ad82cdf614b
+--- /dev/null
++++ b/tests/fixture/routes/preact/boolean_attrs.tsx
+@@ -0,0 +1,45 @@
++import { defineRoute } from "$fresh/src/server/defines.ts";
++import { FormIsland } from "$fresh/tests/fixture/islands/FormIsland.tsx";
++
++export default defineRoute(() => {
++  return (
++    <div>
++      <h1>Boolean attributes</h1>
++      <p>All input elements should be checked or selected</p>
++      <FormIsland>
++        <p>
++          <label for="check">
++            checked
++          </label>
++          <input name="check" type="checkbox" checked />
++        </p>
++        <p>
++          <label for="text">
++            is required
++          </label>
++          <input name="text" type="text" required />
++        </p>
++        <p>
++          <label for="foo-1">
++            not selected
++          </label>
++          <input id="foo-1" type="radio" name="foo" value="1" />
++          <label for="foo-2">
++            selected
++          </label>
++
++          <input id="foo-2" type="radio" name="foo" value="2" checked />
++        </p>
++        <p>
++          <label for="select">
++            select value should be "bar"
++          </label>
++          <select name="select">
++            <option value="foo">foo</option>
++            <option value="bar" selected>bar</option>
++          </select>
++        </p>
++      </FormIsland>
++    </div>
++  );
++});
+diff --git a/tests/fixture_build/routes/index.tsx b/tests/fixture_build/routes/index.tsx
+index 36fc6506e87..7473a787edb 100644
+--- a/tests/fixture_build/routes/index.tsx
++++ b/tests/fixture_build/routes/index.tsx
+@@ -1,10 +1,14 @@
+ import { useSignal } from "@preact/signals";
+ import Counter from "../islands/Counter.tsx";
++import { asset, Head } from "$fresh/runtime.ts";
+ 
+ export default function Home() {
+   const signal = useSignal(0);
+   return (
+     <div>
++      <Head>
++        <link rel="stylesheet" href={asset("/style.css")} />
++      </Head>
+       <Counter id="counter" count={signal} />
+     </div>
+   );
+diff --git a/tests/fixture_build/static/style.css b/tests/fixture_build/static/style.css
+new file mode 100644
+index 00000000000..573746210c7
+--- /dev/null
++++ b/tests/fixture_build/static/style.css
+@@ -0,0 +1,3 @@
++body {
++  background: peachpuff;
++}
+diff --git a/tests/fixture_group_index/deno.json b/tests/fixture_group_index/deno.json
+new file mode 100644
+index 00000000000..2b2fa78e147
+--- /dev/null
++++ b/tests/fixture_group_index/deno.json
+@@ -0,0 +1,13 @@
++{
++  "lock": false,
++  "imports": {
++    "$fresh/": "../../",
++    "preact": "https://esm.sh/preact@10.15.1",
++    "preact/": "https://esm.sh/preact@10.15.1/",
++    "preact-render-to-string": "https://esm.sh/*preact-render-to-string@6.2.1"
++  },
++  "compilerOptions": {
++    "jsx": "react-jsx",
++    "jsxImportSource": "preact"
++  }
++}
+diff --git a/tests/fixture_group_index/dev.ts b/tests/fixture_group_index/dev.ts
+new file mode 100755
+index 00000000000..2d85d6c183c
+--- /dev/null
++++ b/tests/fixture_group_index/dev.ts
+@@ -0,0 +1,5 @@
++#!/usr/bin/env -S deno run -A --watch=static/,routes/
++
++import dev from "$fresh/dev.ts";
++
++await dev(import.meta.url, "./main.ts");
+diff --git a/tests/fixture_group_index/fresh.gen.ts b/tests/fixture_group_index/fresh.gen.ts
+new file mode 100644
+index 00000000000..15e6d748a47
+--- /dev/null
++++ b/tests/fixture_group_index/fresh.gen.ts
+@@ -0,0 +1,15 @@
++// DO NOT EDIT. This file is generated by Fresh.
++// This file SHOULD be checked into source version control.
++// This file is automatically updated during development when running `dev.ts`.
++
++import * as $0 from "./routes/(group)/index.tsx";
++
++const manifest = {
++  routes: {
++    "./routes/(group)/index.tsx": $0,
++  },
++  islands: {},
++  baseUrl: import.meta.url,
++};
++
++export default manifest;
+diff --git a/tests/fixture_group_index/main.ts b/tests/fixture_group_index/main.ts
+new file mode 100644
+index 00000000000..dedce9cbb04
+--- /dev/null
++++ b/tests/fixture_group_index/main.ts
+@@ -0,0 +1,10 @@
++/// <reference no-default-lib="true" />
++/// <reference lib="dom" />
++/// <reference lib="dom.iterable" />
++/// <reference lib="dom.asynciterable" />
++/// <reference lib="deno.ns" />
++
++import { start } from "$fresh/server.ts";
++import manifest from "./fresh.gen.ts";
++
++await start(manifest);
+diff --git a/tests/fixture_group_index/routes/(group)/index.tsx b/tests/fixture_group_index/routes/(group)/index.tsx
+new file mode 100644
+index 00000000000..5048322b358
+--- /dev/null
++++ b/tests/fixture_group_index/routes/(group)/index.tsx
+@@ -0,0 +1,3 @@
++export default function Page() {
++  return <h1>it works</h1>;
++}
+diff --git a/tests/fixture_island_nesting/fresh.gen.ts b/tests/fixture_island_nesting/fresh.gen.ts
+index a614b47dc4b..ca11ebed1f8 100644
+--- a/tests/fixture_island_nesting/fresh.gen.ts
++++ b/tests/fixture_island_nesting/fresh.gen.ts
+@@ -9,13 +9,16 @@ import * as $3 from "./routes/island_conditional_lazy_island.tsx";
+ import * as $4 from "./routes/island_fn_child.tsx";
+ import * as $5 from "./routes/island_in_island.tsx";
+ import * as $6 from "./routes/island_in_island_definition.tsx";
+-import * as $7 from "./routes/island_jsx_child.tsx";
+-import * as $8 from "./routes/island_jsx_children.tsx";
+-import * as $9 from "./routes/island_jsx_island_jsx.tsx";
+-import * as $10 from "./routes/island_jsx_text.tsx";
+-import * as $11 from "./routes/island_nested_props.tsx";
+-import * as $12 from "./routes/island_order.tsx";
+-import * as $13 from "./routes/island_siblings.tsx";
++import * as $7 from "./routes/island_invalid_children.tsx";
++import * as $8 from "./routes/island_invalid_children_fn.tsx";
++import * as $9 from "./routes/island_jsx_child.tsx";
++import * as $10 from "./routes/island_jsx_children.tsx";
++import * as $11 from "./routes/island_jsx_island_jsx.tsx";
++import * as $12 from "./routes/island_jsx_text.tsx";
++import * as $13 from "./routes/island_nested_props.tsx";
++import * as $14 from "./routes/island_order.tsx";
++import * as $15 from "./routes/island_siblings.tsx";
++import * as $16 from "./routes/island_valid_children.tsx";
+ import * as $$0 from "./islands/BooleanButton.tsx";
+ import * as $$1 from "./islands/Counter.tsx";
+ import * as $$2 from "./islands/FragmentIsland.tsx";
+@@ -25,6 +28,7 @@ import * as $$5 from "./islands/IslandConditional.tsx";
+ import * as $$6 from "./islands/IslandFn.tsx";
+ import * as $$7 from "./islands/IslandInsideIsland.tsx";
+ import * as $$8 from "./islands/IslandWithProps.tsx";
++import * as $$9 from "./islands/PassThrough.tsx";
+ 
+ const manifest = {
+   routes: {
+@@ -35,13 +39,16 @@ const manifest = {
+     "./routes/island_fn_child.tsx": $4,
+     "./routes/island_in_island.tsx": $5,
+     "./routes/island_in_island_definition.tsx": $6,
+-    "./routes/island_jsx_child.tsx": $7,
+-    "./routes/island_jsx_children.tsx": $8,
+-    "./routes/island_jsx_island_jsx.tsx": $9,
+-    "./routes/island_jsx_text.tsx": $10,
+-    "./routes/island_nested_props.tsx": $11,
+-    "./routes/island_order.tsx": $12,
+-    "./routes/island_siblings.tsx": $13,
++    "./routes/island_invalid_children.tsx": $7,
++    "./routes/island_invalid_children_fn.tsx": $8,
++    "./routes/island_jsx_child.tsx": $9,
++    "./routes/island_jsx_children.tsx": $10,
++    "./routes/island_jsx_island_jsx.tsx": $11,
++    "./routes/island_jsx_text.tsx": $12,
++    "./routes/island_nested_props.tsx": $13,
++    "./routes/island_order.tsx": $14,
++    "./routes/island_siblings.tsx": $15,
++    "./routes/island_valid_children.tsx": $16,
+   },
+   islands: {
+     "./islands/BooleanButton.tsx": $$0,
+@@ -53,6 +60,7 @@ const manifest = {
+     "./islands/IslandFn.tsx": $$6,
+     "./islands/IslandInsideIsland.tsx": $$7,
+     "./islands/IslandWithProps.tsx": $$8,
++    "./islands/PassThrough.tsx": $$9,
+   },
+   baseUrl: import.meta.url,
+ };
+diff --git a/tests/fixture_island_nesting/islands/PassThrough.tsx b/tests/fixture_island_nesting/islands/PassThrough.tsx
+new file mode 100644
+index 00000000000..b9417dccfbc
+--- /dev/null
++++ b/tests/fixture_island_nesting/islands/PassThrough.tsx
+@@ -0,0 +1,5 @@
++import { ComponentChildren } from "preact";
++
++export function PassThrough(props: { children: ComponentChildren }) {
++  return <div>{props.children}</div>;
++}
+diff --git a/tests/fixture_island_nesting/routes/island_invalid_children.tsx b/tests/fixture_island_nesting/routes/island_invalid_children.tsx
+new file mode 100644
+index 00000000000..3e413e77812
+--- /dev/null
++++ b/tests/fixture_island_nesting/routes/island_invalid_children.tsx
+@@ -0,0 +1,9 @@
++import { PassThrough } from "../islands/PassThrough.tsx";
++
++export default function Page() {
++  return (
++    <div id="page">
++      <PassThrough>{{ foo: 123 }}</PassThrough>
++    </div>
++  );
++}
+diff --git a/tests/fixture_island_nesting/routes/island_invalid_children_fn.tsx b/tests/fixture_island_nesting/routes/island_invalid_children_fn.tsx
+new file mode 100644
+index 00000000000..7f5936edf42
+--- /dev/null
++++ b/tests/fixture_island_nesting/routes/island_invalid_children_fn.tsx
+@@ -0,0 +1,9 @@
++import { PassThrough } from "../islands/PassThrough.tsx";
++
++export default function Page() {
++  return (
++    <div id="page">
++      <PassThrough>{() => {}}</PassThrough>
++    </div>
++  );
++}
+diff --git a/tests/fixture_island_nesting/routes/island_valid_children.tsx b/tests/fixture_island_nesting/routes/island_valid_children.tsx
+new file mode 100644
+index 00000000000..735007a5e2e
+--- /dev/null
++++ b/tests/fixture_island_nesting/routes/island_valid_children.tsx
+@@ -0,0 +1,24 @@
++import { PassThrough } from "../islands/PassThrough.tsx";
++
++function Foo() {
++  return <h1>foo</h1>;
++}
++
++export default function Page() {
++  return (
++    <div id="page">
++      <PassThrough>hello</PassThrough>
++      <PassThrough>{2}</PassThrough>
++      <PassThrough>{null}</PassThrough>
++      <PassThrough>{true}</PassThrough>
++      <PassThrough>{false}</PassThrough>
++      <PassThrough>{undefined}</PassThrough>
++      <PassThrough>
++        <h1>hello</h1>
++      </PassThrough>
++      <PassThrough>
++        <Foo />
++      </PassThrough>
++    </div>
++  );
++}
+diff --git a/tests/fixture_layouts/fresh.gen.ts b/tests/fixture_layouts/fresh.gen.ts
+index db6962822aa..ec4fd98f040 100644
+--- a/tests/fixture_layouts/fresh.gen.ts
++++ b/tests/fixture_layouts/fresh.gen.ts
+@@ -11,28 +11,30 @@ import * as $5 from "./routes/async/redirect/_layout.tsx";
+ import * as $6 from "./routes/async/redirect/index.tsx";
+ import * as $7 from "./routes/async/sub/_layout.tsx";
+ import * as $8 from "./routes/async/sub/index.tsx";
+-import * as $9 from "./routes/files/js/_layout.js";
+-import * as $10 from "./routes/files/js/index.js";
+-import * as $11 from "./routes/files/jsx/_layout.jsx";
+-import * as $12 from "./routes/files/jsx/index.jsx";
+-import * as $13 from "./routes/files/ts/_layout.ts";
+-import * as $14 from "./routes/files/ts/index.ts";
+-import * as $15 from "./routes/files/tsx/_layout.tsx";
+-import * as $16 from "./routes/files/tsx/index.tsx";
+-import * as $17 from "./routes/foo/_layout.tsx";
+-import * as $18 from "./routes/foo/bar.tsx";
+-import * as $19 from "./routes/foo/index.tsx";
+-import * as $20 from "./routes/index.tsx";
+-import * as $21 from "./routes/other.tsx";
+-import * as $22 from "./routes/override/_layout.tsx";
+-import * as $23 from "./routes/override/index.tsx";
+-import * as $24 from "./routes/override/layout_no_app/_layout.tsx";
+-import * as $25 from "./routes/override/layout_no_app/index.tsx";
+-import * as $26 from "./routes/override/no_app.tsx";
+-import * as $27 from "./routes/override/no_layout.tsx";
+-import * as $28 from "./routes/override/no_layout_no_app.tsx";
+-import * as $29 from "./routes/skip/sub/_layout.tsx";
+-import * as $30 from "./routes/skip/sub/index.tsx";
++import * as $9 from "./routes/dynamic/[tenant]/index.tsx";
++import * as $10 from "./routes/files/js/_layout.js";
++import * as $11 from "./routes/files/js/index.js";
++import * as $12 from "./routes/files/jsx/_layout.jsx";
++import * as $13 from "./routes/files/jsx/index.jsx";
++import * as $14 from "./routes/files/ts/_layout.ts";
++import * as $15 from "./routes/files/ts/index.ts";
++import * as $16 from "./routes/files/tsx/_layout.tsx";
++import * as $17 from "./routes/files/tsx/index.tsx";
++import * as $18 from "./routes/foo/_layout.tsx";
++import * as $19 from "./routes/foo/bar.tsx";
++import * as $20 from "./routes/foo/index.tsx";
++import * as $21 from "./routes/index.tsx";
++import * as $22 from "./routes/other.tsx";
++import * as $23 from "./routes/override/_layout.tsx";
++import * as $24 from "./routes/override/index.tsx";
++import * as $25 from "./routes/override/layout_no_app/_layout.tsx";
++import * as $26 from "./routes/override/layout_no_app/index.tsx";
++import * as $27 from "./routes/override/no_app.tsx";
++import * as $28 from "./routes/override/no_layout.tsx";
++import * as $29 from "./routes/override/no_layout_no_app.tsx";
++import * as $30 from "./routes/skip/sub/_layout.tsx";
++import * as $31 from "./routes/skip/sub/index.tsx";
++import * as $$0 from "./routes/dynamic/[tenant]/(_islands)/Counter.tsx";
+ 
+ const manifest = {
+   routes: {
+@@ -45,30 +47,33 @@ const manifest = {
+     "./routes/async/redirect/index.tsx": $6,
+     "./routes/async/sub/_layout.tsx": $7,
+     "./routes/async/sub/index.tsx": $8,
+-    "./routes/files/js/_layout.js": $9,
+-    "./routes/files/js/index.js": $10,
+-    "./routes/files/jsx/_layout.jsx": $11,
+-    "./routes/files/jsx/index.jsx": $12,
+-    "./routes/files/ts/_layout.ts": $13,
+-    "./routes/files/ts/index.ts": $14,
+-    "./routes/files/tsx/_layout.tsx": $15,
+-    "./routes/files/tsx/index.tsx": $16,
+-    "./routes/foo/_layout.tsx": $17,
+-    "./routes/foo/bar.tsx": $18,
+-    "./routes/foo/index.tsx": $19,
+-    "./routes/index.tsx": $20,
+-    "./routes/other.tsx": $21,
+-    "./routes/override/_layout.tsx": $22,
+-    "./routes/override/index.tsx": $23,
+-    "./routes/override/layout_no_app/_layout.tsx": $24,
+-    "./routes/override/layout_no_app/index.tsx": $25,
+-    "./routes/override/no_app.tsx": $26,
+-    "./routes/override/no_layout.tsx": $27,
+-    "./routes/override/no_layout_no_app.tsx": $28,
+-    "./routes/skip/sub/_layout.tsx": $29,
+-    "./routes/skip/sub/index.tsx": $30,
++    "./routes/dynamic/[tenant]/index.tsx": $9,
++    "./routes/files/js/_layout.js": $10,
++    "./routes/files/js/index.js": $11,
++    "./routes/files/jsx/_layout.jsx": $12,
++    "./routes/files/jsx/index.jsx": $13,
++    "./routes/files/ts/_layout.ts": $14,
++    "./routes/files/ts/index.ts": $15,
++    "./routes/files/tsx/_layout.tsx": $16,
++    "./routes/files/tsx/index.tsx": $17,
++    "./routes/foo/_layout.tsx": $18,
++    "./routes/foo/bar.tsx": $19,
++    "./routes/foo/index.tsx": $20,
++    "./routes/index.tsx": $21,
++    "./routes/other.tsx": $22,
++    "./routes/override/_layout.tsx": $23,
++    "./routes/override/index.tsx": $24,
++    "./routes/override/layout_no_app/_layout.tsx": $25,
++    "./routes/override/layout_no_app/index.tsx": $26,
++    "./routes/override/no_app.tsx": $27,
++    "./routes/override/no_layout.tsx": $28,
++    "./routes/override/no_layout_no_app.tsx": $29,
++    "./routes/skip/sub/_layout.tsx": $30,
++    "./routes/skip/sub/index.tsx": $31,
++  },
++  islands: {
++    "./routes/dynamic/[tenant]/(_islands)/Counter.tsx": $$0,
+   },
+-  islands: {},
+   baseUrl: import.meta.url,
+ };
+ 
+diff --git a/tests/fixture_layouts/routes/dynamic/[tenant]/(_islands)/Counter.tsx b/tests/fixture_layouts/routes/dynamic/[tenant]/(_islands)/Counter.tsx
+new file mode 100644
+index 00000000000..5f015b1ee1f
+--- /dev/null
++++ b/tests/fixture_layouts/routes/dynamic/[tenant]/(_islands)/Counter.tsx
+@@ -0,0 +1,22 @@
++import type { Signal } from "@preact/signals";
++import { IS_BROWSER } from "$fresh/runtime.ts";
++
++interface CounterProps {
++  count: Signal<number>;
++  id: string;
++}
++
++export default function Counter(props: CounterProps) {
++  return (
++    <div id={props.id}>
++      <p>{props.count}</p>
++      <button
++        id={`b-${props.id}`}
++        onClick={() => props.count.value += 1}
++        disabled={!IS_BROWSER}
++      >
++        +1
++      </button>
++    </div>
++  );
++}
+diff --git a/tests/fixture_layouts/routes/dynamic/[tenant]/index.tsx b/tests/fixture_layouts/routes/dynamic/[tenant]/index.tsx
+new file mode 100644
+index 00000000000..8af146de305
+--- /dev/null
++++ b/tests/fixture_layouts/routes/dynamic/[tenant]/index.tsx
+@@ -0,0 +1,10 @@
++import { useSignal } from "@preact/signals";
++import Counter from "./(_islands)/Counter.tsx";
++
++export default function Home() {
++  return (
++    <div>
++      <Counter id="counter" count={useSignal(3)} />
++    </div>
++  );
++}
+diff --git a/tests/fixture_update_check/mod.ts b/tests/fixture_update_check/mod.ts
+index d6d7fa57297..cc24c596a2f 100644
+--- a/tests/fixture_update_check/mod.ts
++++ b/tests/fixture_update_check/mod.ts
+@@ -1,4 +1,5 @@
+ import { updateCheck } from "$fresh/src/dev/update_check.ts";
++import { DAY } from "$fresh/src/dev/deps.ts";
+ 
+ // deno-lint-ignore require-await
+ async function getLatestVersion() {
+@@ -11,10 +12,10 @@ async function getCurrentVersion() {
+   return Deno.env.get("CURRENT_VERSION")!;
+ }
+ 
+-const interval = +(Deno.env.get("UPDATE_INTERVAL") ?? 1000);
++const interval = +(Deno.env.get("UPDATE_INTERVAL") ?? DAY);
+ await updateCheck(
+   interval,
+-  () => Deno.env.get("HOME")!,
++  () => Deno.env.get("TEST_HOME")!,
+   getLatestVersion,
+   Deno.env.has("CURRENT_VERSION") ? getCurrentVersion : undefined,
+ );
+diff --git a/tests/islands_test.ts b/tests/islands_test.ts
+index 1f2b0c1de24..72c3727c936 100644
+--- a/tests/islands_test.ts
++++ b/tests/islands_test.ts
+@@ -6,8 +6,13 @@ import {
+   Page,
+ } from "./deps.ts";
+ import {
++  assertNotSelector,
++  assertSelector,
++  assertTextMatch,
+   clickWhenListenerReady,
++  fetchHtml,
+   waitForText,
++  withFresh,
+   withPageName,
+ } from "./test_utils.ts";
+ 
+@@ -514,3 +519,71 @@ Deno.test({
+     );
+   },
+ });
++
++Deno.test({
++  name: "revive boolean attributes",
++
++  async fn() {
++    await withPageName(
++      "./tests/fixture/main.ts",
++      async (page, address) => {
++        await page.goto(`${address}/preact/boolean_attrs`);
++        await waitForText(page, ".form-revived", "Revived: true");
++
++        const checked = await page.$eval(
++          "input[type=checkbox]",
++          (el) => el.checked,
++        );
++        assertEquals(checked, true, "Checkbox is not checked");
++
++        const required = await page.$eval(
++          "input[type=text]",
++          (el) => el.required,
++        );
++        assertEquals(required, true, "Text input is not marked as required");
++
++        const radioChecked = await page.$eval(
++          "input[type=radio][value='2']",
++          (el) => el.checked,
++        );
++        assertEquals(
++          radioChecked,
++          true,
++          "Text input is not marked as required",
++        );
++
++        const selected = await page.$eval(
++          "select",
++          (el) => el.options[el.selectedIndex].text,
++        );
++        assertEquals(selected, "bar", "'bar' value is not selected");
++      },
++    );
++  },
++
++  sanitizeOps: false,
++  sanitizeResources: false,
++});
++
++Deno.test("throws when passing non-jsx children to an island", async (t) => {
++  await withFresh(
++    "./tests/fixture_island_nesting/dev.ts",
++    async (address) => {
++      const doc = await fetchHtml(`${address}/island_invalid_children`);
++
++      assertSelector(doc, ".frsh-error-page");
++      assertTextMatch(doc, "pre", /Invalid JSX child passed to island/);
++
++      const doc2 = await fetchHtml(`${address}/island_invalid_children_fn`);
++
++      assertSelector(doc2, ".frsh-error-page");
++      assertTextMatch(doc2, "pre", /Invalid JSX child passed to island/);
++
++      await t.step("should not throw on valid children", async () => {
++        const doc2 = await fetchHtml(`${address}/island_valid_children`);
++
++        assertNotSelector(doc2, ".frsh-error-page");
++      });
++    },
++  );
++});
+diff --git a/tests/layouts_test.ts b/tests/layouts_test.ts
+index 48bcf77cc17..e7a6f4b34a9 100644
+--- a/tests/layouts_test.ts
++++ b/tests/layouts_test.ts
+@@ -2,8 +2,11 @@ import { assert } from "./deps.ts";
+ import {
+   assertNotSelector,
+   assertSelector,
++  clickWhenListenerReady,
+   fetchHtml,
++  waitForText,
+   withFresh,
++  withPageName,
+ } from "./test_utils.ts";
+ 
+ Deno.test("apply root _layout and _app", async () => {
+@@ -160,3 +163,38 @@ Deno.test("route overrides layout and app", async () => {
+     },
+   );
+ });
++
++Deno.test({
++  name: "island in dynamic route test",
++  async fn(t) {
++    await withPageName(
++      "./tests/fixture_layouts/main.ts",
++      async (page, address) => {
++        async function counterTest(counterId: string, originalValue: number) {
++          const pElem = await page.waitForSelector(`#${counterId} > p`);
++
++          const value = await pElem?.evaluate((el) => el.textContent);
++          assert(value === `${originalValue}`, `${counterId} first value`);
++
++          await clickWhenListenerReady(page, `#b-${counterId}`);
++          await waitForText(
++            page,
++            `#${counterId} > p`,
++            String(originalValue + 1),
++          );
++        }
++
++        await page.goto(`${address}/dynamic/acme-corp`, {
++          waitUntil: "networkidle2",
++        });
++
++        await t.step("Ensure 1 island on 1 page are revived", async () => {
++          await counterTest("counter", 3);
++        });
++      },
++    );
++  },
++
++  sanitizeOps: false,
++  sanitizeResources: false,
++});
+diff --git a/tests/main_test.ts b/tests/main_test.ts
+index 9992eb5a376..7d561f32198 100644
+--- a/tests/main_test.ts
++++ b/tests/main_test.ts
+@@ -267,6 +267,10 @@ Deno.test("/failure", async () => {
+   assertEquals(resp.status, Status.InternalServerError);
+   const body = await resp.text();
+   assert(body.includes("500 internal error: it errored!"));
++  assertStringIncludes(
++    body,
++    `<meta name="generator" content="The freshest framework!"/>`,
++  );
+ });
+ 
+ Deno.test("/foo/:path*", async () => {
+diff --git a/tests/route_groups_test.ts b/tests/route_groups_test.ts
+index 6a44d31b8e2..b2b29a1e479 100644
+--- a/tests/route_groups_test.ts
++++ b/tests/route_groups_test.ts
+@@ -2,6 +2,7 @@ import { assertEquals } from "$std/testing/asserts.ts";
+ import {
+   assertTextMany,
+   fetchHtml,
++  parseHtml,
+   waitForText,
+   withFresh,
+   withPageName,
+@@ -71,3 +72,15 @@ Deno.test("does not treat files in (_...) as routes", async () => {
+     },
+   );
+ });
++
++Deno.test("resolve index route in group /(group)/index.tsx", async () => {
++  await withFresh(
++    "./tests/fixture_group_index/main.ts",
++    async (address) => {
++      const res = await fetch(`${address}`);
++      assertEquals(res.status, 200);
++      const doc = parseHtml(await res.text());
++      assertEquals(doc.querySelector("h1")?.textContent, "it works");
++    },
++  );
++});
+diff --git a/tests/test_utils.ts b/tests/test_utils.ts
+index d2da752078c..1e25bcee579 100644
+--- a/tests/test_utils.ts
++++ b/tests/test_utils.ts
+@@ -66,6 +66,23 @@ export function assertTextMany(
+   }
+ }
+ 
++export function assertTextMatch(
++  doc: Document,
++  selector: string,
++  regex: RegExp,
++) {
++  const texts = Array.from(doc.querySelectorAll(selector)).map((el) =>
++    el.textContent
++  ).filter(Boolean) as string[];
++
++  if (!texts.some((text) => regex.test(text))) {
++    const html = "\n\n" + prettyDom(doc);
++    throw new Error(
++      `Regex ${regex} did not match any text elements in HTML.\n\n${html}`,
++    );
++  }
++}
++
+ export const VOID_ELEMENTS =
+   /^(?:area|base|br|col|embed|hr|img|input|link|meta|param|source|track|wbr)$/;
+ function prettyDom(doc: Document) {
+diff --git a/update.ts b/update.ts
+index e1c049ec6f9..6701c0f0a7f 100644
+--- a/update.ts
++++ b/update.ts
+@@ -283,6 +283,19 @@ export default function App({ Component }: AppProps) {
+   );
+ }
+ 
++// Add _fresh/ to .gitignore if not already there
++const gitignorePath = join(resolvedDirectory, ".gitignore");
++if (existsSync(gitignorePath, { isFile: true })) {
++  const gitignoreText = Deno.readTextFileSync(gitignorePath);
++  if (!gitignoreText.includes("_fresh")) {
++    Deno.writeTextFileSync(
++      gitignorePath,
++      "\n# Fresh build directory\n_fresh/\n",
++      { append: true },
++    );
++  }
++}
++
+ const manifest = await collect(srcDirectory);
+ await generate(srcDirectory, manifest);
+ 
+diff --git a/versions.json b/versions.json
+index 1c4e50c9273..681663d4002 100644
+--- a/versions.json
++++ b/versions.json
+@@ -1,4 +1,5 @@
+ [
++  "1.4.3",
+   "1.4.2",
+   "1.4.1",
+   "1.4.0",

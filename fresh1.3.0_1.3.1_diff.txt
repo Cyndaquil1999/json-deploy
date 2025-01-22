@@ -1,0 +1,987 @@
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+index fec1690b933..dcab28fe0d2 100644
+--- a/.github/workflows/ci.yml
++++ b/.github/workflows/ci.yml
+@@ -71,7 +71,7 @@ jobs:
+         run: set "PUPPETEER_PRODUCT=chrome" && deno run -A --unstable https://deno.land/x/puppeteer@16.2.0/install.ts
+ 
+       - name: Run tests
+-        run: deno test -A --parallel
++        run: deno test -A
+ 
+       - name: Type check init script
+         run: deno check --remote init.ts
+diff --git a/docs/concepts/routes.md b/docs/concepts/routes.md
+index f0487b39603..7b394ef7711 100644
+--- a/docs/concepts/routes.md
++++ b/docs/concepts/routes.md
+@@ -142,3 +142,32 @@ export default async function MyPage(req: Request, ctx: RouteContext) {
+   return <p>foo is: {value}</p>;
+ }
+ ```
++
++### Returning Response objects
++
++Quite often a route handler needs to render a 404 page or bail out of rendering
++in another manner. This can be done by returning a `Response` object.
++
++```tsx
++// Async route component
++export default async function MyPage(req: Request, ctx: RouteContext) {
++  const value = await loadFooValue();
++
++  // Return 404 if `value` is null
++  if (value === null) {
++    return ctx.renderNotFound();
++  }
++
++  // Returning a response object directly works too
++  if (value === "redirect") {
++    const headers = new Headers();
++    headers.set("location", "/some-other-page");
++    return new Response(null, {
++      status: 302,
++      headers,
++    });
++  }
++
++  return <p>foo is: {value}</p>;
++}
++```
+diff --git a/docs/examples/index.md b/docs/examples/index.md
+index b560c7e5627..5e78cd82bb5 100644
+--- a/docs/examples/index.md
++++ b/docs/examples/index.md
+@@ -20,3 +20,4 @@ like to see here, please open
+ - [Rendering markdown](./examples/rendering-markdown)
+ - [Sharing state between islands](./examples/sharing-state-between-islands)
+ - [Using Deno KV Oauth](./examples/using-deno-kv-oauth)
++- [Using CSP](./examples/using-csp)
+diff --git a/docs/examples/using-csp.md b/docs/examples/using-csp.md
+new file mode 100644
+index 00000000000..07d2545e954
+--- /dev/null
++++ b/docs/examples/using-csp.md
+@@ -0,0 +1,383 @@
++---
++description: |
++  Change the source directory to effectively manage your project.
++---
++
++As per the
++[MDN documentation](https://developer.mozilla.org/en-US/docs/Web/HTTP/CSP):
++
++> Content Security Policy (CSP) is an added layer of security that helps to
++> detect and mitigate certain types of attacks, including Cross-Site Scripting
++> (XSS) and data injection attacks. These attacks are used for everything from
++> data theft, to site defacement, to malware distribution.
++>
++> To enable CSP, you need to configure your web server to return the
++> Content-Security-Policy HTTP header. (Sometimes you may see mentions of the
++> X-Content-Security-Policy header, but that's an older version and you don't
++> need to specify it anymore.)
++
++Fortunately Fresh has built in support for CSP. We don't need to worry about
++setting headers ourselves. We just have to configure our routes correctly. Let's
++dive into a few examples to see how this works.
++
++Fresh's CSP implementation supports the following
++
++<details>
++<summary>directives</summary>
++
++```ts
++export interface ContentSecurityPolicyDirectives {
++  // Fetch directives
++  /**
++   * Defines the valid sources for web workers and nested browsing contexts
++   * loaded using elements such as <frame> and <iframe>.
++   */
++  childSrc?: string[];
++  /**
++   * Restricts the URLs which can be loaded using script interfaces.
++   */
++  connectSrc?: string[];
++  /**
++   * Serves as a fallback for the other fetch directives.
++   */
++  defaultSrc?: string[];
++  /**
++   * Specifies valid sources for fonts loaded using @font-face.
++   */
++  fontSrc?: string[];
++  /**
++   * Specifies valid sources for nested browsing contexts loading using elements
++   * such as <frame> and <iframe>.
++   */
++  frameSrc?: string[];
++  /**
++   * Specifies valid sources of images and favicons.
++   */
++  imgSrc?: string[];
++  /**
++   * Specifies valid sources of application manifest files.
++   */
++  manifestSrc?: string[];
++  /**
++   * Specifies valid sources for loading media using the <audio> , <video> and
++   * <track> elements.
++   */
++  mediaSrc?: string[];
++  /**
++   * Specifies valid sources for the <object>, <embed>, and <applet> elements.
++   */
++  objectSrc?: string[];
++  /**
++   * Specifies valid sources to be prefetched or prerendered.
++   */
++  prefetchSrc?: string[];
++  /**
++   * Specifies valid sources for JavaScript.
++   */
++  scriptSrc?: string[];
++  /**
++   * Specifies valid sources for JavaScript <script> elements.
++   */
++  scriptSrcElem?: string[];
++  /**
++   * Specifies valid sources for JavaScript inline event handlers.
++   */
++  scriptSrcAttr?: string[];
++  /**
++   * Specifies valid sources for stylesheets.
++   */
++  styleSrc?: string[];
++  /**
++   * Specifies valid sources for stylesheets <style> elements and <link>
++   * elements with rel="stylesheet".
++   */
++  styleSrcElem?: string[];
++  /**
++   * Specifies valid sources for inline styles applied to individual DOM
++   * elements.
++   */
++  styleSrcAttr?: string[];
++  /**
++   * Specifies valid sources for Worker, SharedWorker, or ServiceWorker scripts.
++   */
++  workerSrc?: string[];
++
++  // Document directives
++  /**
++   * Restricts the URLs which can be used in a document's <base> element.
++   */
++  baseUri?: string[];
++  /**
++   * Enables a sandbox for the requested resource similar to the <iframe>
++   * sandbox attribute.
++   */
++  sandbox?: string[];
++
++  // Navigation directives
++  /**
++   * Restricts the URLs which can be used as the target of a form submissions
++   * from a given context.
++   */
++  formAction?: string[];
++  /**
++   * Specifies valid parents that may embed a page using <frame>, <iframe>,
++   * <object>, <embed>, or <applet>.
++   */
++  frameAncestors?: string[];
++  /**
++   * Restricts the URLs to which a document can initiate navigation by any
++   * means, including <form> (if form-action is not specified), <a>,
++   * window.location, window.open, etc.
++   */
++  navigateTo?: string[];
++
++  /**
++   * The URI to report CSP violations to.
++   */
++  reportUri?: string;
++}
++```
++
++</details>
++
++For our examples, we'll just be focused on `styleSrc`, but the technique can be
++applied to any of the directives.
++
++We'll start off by having an example stylesheet defined like this:
++
++```css
++/* static/example.css */
++h1 {
++  font-size: 25px;
++  font-weight: normal;
++  margin-top: 5px;
++  margin-left: 25px;
++}
++```
++
++## No CSP
++
++To kick things off, we'll create the following control route which doesn't do
++anything with CSP. We include a stylesheet to confirm that our sheet correctly
++styles the response.
++
++```tsx
++// routes/noCSP.tsx
++import { RouteContext } from "$fresh/server.ts";
++
++export default function Home(req: Request, ctx: RouteContext) {
++  return (
++    <>
++      <h1>This page doesn't use CSP at all. Styles will be applied.</h1>
++      <link rel="stylesheet" type="text/css" href="example.css" />
++    </>
++  );
++}
++```
++
++We can hit `http://localhost:8000/noCSP` and we should see the following:
++
++```
++This page doesn't use CSP at all. Styles will be applied.
++```
++
++## Incorrect CSP
++
++Let's invoke the `useCSP` hook in our response to try to secure our page. Watch
++closely, we're using the wrong URL! This will cause the browser to reject the
++stylesheet, due to the header that Fresh produces. We get a `(blocked:csp)`
++status when the browser tries to request this resource.
++
++```tsx
++// routes/incorrectCSP.tsx
++import { RouteConfig, RouteContext } from "$fresh/server.ts";
++import { useCSP } from "$fresh/runtime.ts";
++
++export default function Home(req: Request, ctx: RouteContext) {
++  useCSP((csp) => {
++    if (!csp.directives.styleSrc) {
++      csp.directives.styleSrc = [];
++    }
++    csp.directives.styleSrc.push(
++      "http://www.example.com",
++    );
++  });
++  return (
++    <>
++      <h1>This page violates our configured CSP. Styles won't be applied.</h1>
++      <link rel="stylesheet" type="text/css" href="example.css" />
++    </>
++  );
++}
++
++export const config: RouteConfig = {
++  csp: true,
++};
++```
++
++We can hit `http://localhost:8000/incorrectCSP` and we should see the following:
++
++```
++This page violates our configured CSP. Styles won't be applied.
++```
++
++## Correct CSP
++
++Let's fix our simple mistake and use the correct URL. Everything is working
++correctly here.
++
++```tsx
++// routes/correctCSP.tsx
++import { RouteConfig, RouteContext } from "$fresh/server.ts";
++import { useCSP } from "$fresh/runtime.ts";
++
++export default function Home(req: Request, ctx: RouteContext) {
++  useCSP((csp) => {
++    if (!csp.directives.styleSrc) {
++      csp.directives.styleSrc = [];
++    }
++    csp.directives.styleSrc.push(
++      "http://localhost:8000/example.css",
++    );
++  });
++  return (
++    <>
++      <h1>This page adheres to our configured CSP. Styles will be applied.</h1>
++      <link rel="stylesheet" type="text/css" href="example.css" />
++    </>
++  );
++}
++
++export const config: RouteConfig = {
++  csp: true,
++};
++```
++
++We can hit `http://localhost:8000/correctCSP` and we should see the following:
++
++```
++This page adheres to our configured CSP. Styles will be applied.
++```
++
++## No Route Config
++
++What happens if we forget to use a `RouteConfig` in our route?
++
++```tsx
++// routes/cspNoRouteConfig.tsx
++import { RouteContext } from "$fresh/server.ts";
++import { useCSP } from "$fresh/runtime.ts";
++
++export default function Home(req: Request, ctx: RouteContext) {
++  useCSP((csp) => {
++    if (!csp.directives.styleSrc) {
++      csp.directives.styleSrc = [];
++    }
++    csp.directives.styleSrc.push(
++      "http://www.example.com",
++    );
++  });
++  return (
++    <>
++      <h1>
++        This page violates our configured CSP. But we don't have a{" "}
++        <code>RouteConfig</code>{" "}
++        enabled, so Fresh doesn't know to use the CSP. Styles will be applied.
++      </h1>
++      <link rel="stylesheet" type="text/css" href="example.css" />
++    </>
++  );
++}
++```
++
++We can hit `http://localhost:8000/cspNoRouteConfig` and we should see the
++following:
++
++```
++This page violates our configured CSP. But we don't have a RouteConfig enabled, so Fresh doesn't know to use the CSP. Styles will be applied.
++```
++
++## Reporting
++
++Let's touch on the reporting aspect of CSP. CSP (and Fresh's framework) support
++a `reportOnly` flag and a `reportUri` endpoint. This is a destination that
++should be able to receive `POST` requests. If the `reportOnly` flag is enabled,
++then the browser will ignore the CSP headers and log any issues to the
++`reportUri` destination.
++
++```tsx
++// routes/incorrectCSPwithReport.tsx
++import { RouteConfig, RouteContext } from "$fresh/server.ts";
++import { useCSP } from "$fresh/runtime.ts";
++
++export default function Home(req: Request, ctx: RouteContext) {
++  useCSP((csp) => {
++    csp.reportOnly = true;
++    if (!csp.directives.styleSrc) {
++      csp.directives.styleSrc = [];
++    }
++    csp.directives.reportUri = "http://localhost:8000/reportHandler";
++    csp.directives.styleSrc.push(
++      "http://www.example.com",
++    );
++  });
++  return (
++    <>
++      <h1>
++        This page violates our configured CSP. But we're using "reportOnly".
++        Styles will be applied.
++      </h1>
++      <link rel="stylesheet" type="text/css" href="example.css" />
++    </>
++  );
++}
++
++export const config: RouteConfig = {
++  csp: true,
++};
++```
++
++```ts
++// routes/reportHandler.ts
++import { HandlerContext } from "$fresh/server.ts";
++
++export const handler = {
++  async POST(req: Request, _ctx: HandlerContext) {
++    const body = await req.json();
++    const report = JSON.stringify(body, null, 2);
++
++    await Deno.writeTextFile("./csp-reports.txt", report + "\n", {
++      append: true,
++    });
++    return new Response(null, { status: 200 });
++  },
++};
++```
++
++We can hit `http://localhost:8000/incorrectCSPwithReport` and we should see the
++following:
++
++```
++This page violates our configured CSP. But we're using "reportOnly". Styles will be applied.
++```
++
++We can then check our server and we'll see that `csp-reports.txt` has an entry
++like this:
++
++```json
++{
++  "csp-report": {
++    "document-uri": "http://localhost:8000/incorrectCSPwithReport",
++    "referrer": "http://localhost:8000/incorrectCSPwithReport",
++    "violated-directive": "style-src-elem",
++    "effective-directive": "style-src-elem",
++    "original-policy": "default-src 'none'; style-src 'unsafe-inline' http://www.example.com; report-uri http://localhost:8000/reportHandler; script-src 'nonce-0f2d8259315d40479e8c21979128ac0d'; connect-src 'self'",
++    "disposition": "report",
++    "blocked-uri": "http://localhost:8000/example.css",
++    "line-number": 37,
++    "source-file": "http://localhost:8000/incorrectCSPwithReport",
++    "status-code": 200,
++    "script-sample": ""
++  }
++}
++```
+diff --git a/docs/examples/using-twind-v1.md b/docs/examples/using-twind-v1.md
+index fa865e09fc2..bd162c5e57f 100644
+--- a/docs/examples/using-twind-v1.md
++++ b/docs/examples/using-twind-v1.md
+@@ -46,17 +46,19 @@ The twind config object has changed significantly in v1, so we must also go
+ change `twind.config.ts`. A good base looks like this:
+ 
+ ```ts
+-import { defineConfig } from "https://esm.sh/@twind/core@1.1.3";
++import { defineConfig, Preset } from "https://esm.sh/@twind/core@1.1.3";
+ import presetTailwind from "https://esm.sh/@twind/preset-tailwind@1.1.4";
+ import presetAutoprefix from "https://esm.sh/@twind/preset-autoprefix@1.0.7";
+ 
+ export default {
+   ...defineConfig({
+-    presets: [presetTailwind(), presetAutoprefix()],
++    presets: [presetTailwind() as Preset, presetAutoprefix()],
+   }),
+   selfURL: import.meta.url,
+ };
+ ```
+ 
++(Note: the `as Preset` cast is required to fix a typing issue with twind.)
++
+ To see what other presets exist, you can go to the
+ [twind docs](https://twind.style/presets).
+diff --git a/docs/toc.ts b/docs/toc.ts
+index b4bbe67cbd0..b6b7ce3ad8a 100644
+--- a/docs/toc.ts
++++ b/docs/toc.ts
+@@ -94,6 +94,7 @@ const toc: RawTableOfContents = {
+             "link:latest",
+           ],
+           ["using-deno-kv-oauth", "Using Deno KV OAuth", "link:latest"],
++          ["using-csp", "Using CSP", "link:latest"],
+         ],
+       },
+     },
+@@ -156,6 +157,7 @@ const toc: RawTableOfContents = {
+           ["handling-complex-routes", "Handling complex routes"],
+           ["rendering-markdown", "Rendering markdown"],
+           ["sharing-state-between-islands", "Sharing state between islands"],
++          ["using-csp", "Using CSP"],
+         ],
+       },
+     },
+diff --git a/src/dev/deps.ts b/src/dev/deps.ts
+index c6cfcb349ee..bec45345148 100644
+--- a/src/dev/deps.ts
++++ b/src/dev/deps.ts
+@@ -11,7 +11,7 @@ export {
+   SEP,
+   toFileUrl,
+ } from "https://deno.land/std@0.193.0/path/mod.ts";
+-export { DAY } from "https://deno.land/std@0.193.0/datetime/constants.ts";
++export { DAY, WEEK } from "https://deno.land/std@0.193.0/datetime/constants.ts";
+ export * as colors from "https://deno.land/std@0.193.0/fmt/colors.ts";
+ export { walk, WalkError } from "https://deno.land/std@0.193.0/fs/walk.ts";
+ export { parse } from "https://deno.land/std@0.193.0/flags/mod.ts";
+diff --git a/src/dev/update_check.ts b/src/dev/update_check.ts
+index 5cc458349ec..0eabfc0696e 100644
+--- a/src/dev/update_check.ts
++++ b/src/dev/update_check.ts
+@@ -1,6 +1,6 @@
+ import { colors, join } from "./deps.ts";
+ 
+-interface CheckFile {
++export interface CheckFile {
+   last_checked: string;
+   latest_version: string;
+   current_version: string;
+@@ -88,6 +88,9 @@ export async function updateCheck(
+     }
+   }
+ 
++  // Update current version
++  checkFile.current_version = versions[0];
++
+   // Only check in the specificed interval
+   if (Date.now() >= new Date(checkFile.last_checked).getTime() + interval) {
+     try {
+diff --git a/src/runtime/deserializer.ts b/src/runtime/deserializer.ts
+index 66783aa401f..f82444b58b5 100644
+--- a/src/runtime/deserializer.ts
++++ b/src/runtime/deserializer.ts
+@@ -56,7 +56,7 @@ export function deserialize(
+         (o, k) => k === null ? o : o[k],
+         v,
+       );
+-      parent[refPath.at(-1)!] = target;
++      parent[refPath[refPath.length - 1]!] = target;
+     }
+   }
+   return v;
+diff --git a/src/runtime/entrypoints/main.ts b/src/runtime/entrypoints/main.ts
+index 30d19e40548..c2fe076dea5 100644
+--- a/src/runtime/entrypoints/main.ts
++++ b/src/runtime/entrypoints/main.ts
+@@ -21,8 +21,8 @@ function createRootFragment(
+     parentNode: parent,
+     firstChild: replaceNode[0],
+     childNodes: replaceNode,
+-    insertBefore(node: Node, child: Node) {
+-      parent.insertBefore(node, child);
++    insertBefore(node: Node, child: Node | null) {
++      parent.insertBefore(node, child ?? endMarker);
+     },
+     appendChild(child: Node) {
+       // We cannot blindly call `.append()` as that would add
+@@ -305,7 +305,14 @@ function _walkInner(
+         _walkInner(islands, props, markerStack, vnodeStack, sib.firstChild);
+       }
+ 
+-      if (marker !== null && marker.kind === MarkerKind.Slot) {
++      // Pop vnode if current marker is a slot or we are an island marker
++      // that was created inside another island
++      if (
++        marker !== null &&
++        (marker.kind === MarkerKind.Slot ||
++          markerStack.length > 1 &&
++            markerStack[markerStack.length - 2].kind === MarkerKind.Island)
++      ) {
+         vnodeStack.pop();
+       }
+     }
+diff --git a/src/server/render.ts b/src/server/render.ts
+index 9f9068a6ce8..7f4b9f47ad6 100644
+--- a/src/server/render.ts
++++ b/src/server/render.ts
+@@ -309,28 +309,27 @@ export async function render<Data>(
+ 
+   bodyHtml = bodyHtml as unknown as string;
+ 
+-  const moduleScripts: [string, string][] = [];
++  let randomNonce: undefined | string;
++  function getRandomNonce(): string {
++    if (randomNonce === undefined) {
++      randomNonce = crypto.randomUUID().replace(/-/g, "");
++      if (csp) {
++        csp.directives.scriptSrc = [
++          ...csp.directives.scriptSrc ?? [],
++          nonce(randomNonce),
++        ];
++      }
++    }
++    return randomNonce;
++  }
+ 
++  const moduleScripts: [string, string][] = [];
+   for (const url of opts.imports) {
+-    const randomNonce = crypto.randomUUID().replace(/-/g, "");
+-    if (csp) {
+-      csp.directives.scriptSrc = [
+-        ...csp.directives.scriptSrc ?? [],
+-        nonce(randomNonce),
+-      ];
+-    }
+-    moduleScripts.push([url, randomNonce]);
++    moduleScripts.push([url, getRandomNonce()]);
+   }
+ 
+   const preloadSet = new Set<string>();
+   function addImport(path: string): string {
+-    const randomNonce = crypto.randomUUID().replace(/-/g, "");
+-    if (csp) {
+-      csp.directives.scriptSrc = [
+-        ...csp.directives.scriptSrc ?? [],
+-        nonce(randomNonce),
+-      ];
+-    }
+     const url = bundleAssetUrl(`/${path}`);
+     preloadSet.add(url);
+     for (const depPath of opts.dependenciesFn(path)) {
+@@ -412,15 +411,8 @@ export async function render<Data>(
+ 
+   // Append the inline script.
+   if (script !== "") {
+-    const randomNonce = crypto.randomUUID().replace(/-/g, "");
+-    if (csp) {
+-      csp.directives.scriptSrc = [
+-        ...csp.directives.scriptSrc ?? [],
+-        nonce(randomNonce),
+-      ];
+-    }
+     bodyHtml +=
+-      `<script type="module" nonce="${randomNonce}">${script}</script>`;
++      `<script type="module" nonce="${getRandomNonce()}">${script}</script>`;
+   }
+ 
+   if (ctx.styles.length > 0) {
+diff --git a/tests/cli_update_check_test.ts b/tests/cli_update_check_test.ts
+index 85404302ab4..9472ab6fb55 100644
+--- a/tests/cli_update_check_test.ts
++++ b/tests/cli_update_check_test.ts
+@@ -5,6 +5,8 @@ import {
+   assertNotMatch,
+ } from "$std/testing/asserts.ts";
+ import versions from "../versions.json" assert { type: "json" };
++import { CheckFile } from "$fresh/src/dev/update_check.ts";
++import { WEEK } from "$fresh/src/dev/deps.ts";
+ 
+ Deno.test({
+   name: "stores update check file in $HOME/fresh",
+@@ -78,20 +80,20 @@ Deno.test({
+       env: {
+         CI: "false",
+         HOME: tmpDirName,
+-        LATEST_VERSION: "1.30.0",
++        LATEST_VERSION: "999.999.0",
+       },
+     }).output();
+ 
+     const decoder = new TextDecoder();
+ 
+     const stdout = colors.stripColor(decoder.decode(out.stdout));
+-    assertMatch(stdout, /Fresh 1\.30\.0 is available/);
++    assertMatch(stdout, /Fresh 999\.999\.0 is available/);
+ 
+     // Updates check file
+     const text = JSON.parse(await Deno.readTextFile(filePath));
+     assertEquals(text, {
+-      current_version: "1.1.0",
+-      latest_version: "1.30.0",
++      current_version: versions[0],
++      latest_version: "999.999.0",
+       last_checked: text.last_checked,
+     });
+ 
+@@ -154,3 +156,35 @@ Deno.test({
+     await Deno.remove(tmpDirName, { recursive: true });
+   },
+ });
++
++Deno.test({
++  name: "updates current version in cache file",
++  async fn() {
++    const tmpDirName = await Deno.makeTempDir();
++
++    const checkFile: CheckFile = {
++      current_version: "1.2.0",
++      latest_version: "1.2.0",
++      last_checked: new Date(Date.now() - WEEK).toISOString(),
++    };
++
++    await Deno.writeTextFile(
++      join(tmpDirName, "latest.json"),
++      JSON.stringify(checkFile, null, 2),
++    );
++
++    const out = await new Deno.Command(Deno.execPath(), {
++      args: ["run", "-A", "./tests/fixture_update_check/mod.ts"],
++      env: {
++        HOME: tmpDirName,
++        LATEST_VERSION: versions[0],
++      },
++    }).output();
++
++    const decoder = new TextDecoder();
++    const stdout = colors.stripColor(decoder.decode(out.stdout));
++    assertNotMatch(stdout, /Fresh .* is available/);
++
++    await Deno.remove(tmpDirName, { recursive: true });
++  },
++});
+diff --git a/tests/fixture_island_nesting/deno.json b/tests/fixture_island_nesting/deno.json
+index 991529965bf..30d3b607ded 100644
+--- a/tests/fixture_island_nesting/deno.json
++++ b/tests/fixture_island_nesting/deno.json
+@@ -5,8 +5,8 @@
+   },
+   "imports": {
+     "$fresh/": "../../",
+-    "preact": "https://esm.sh/preact@10.15.1",
+-    "preact/": "https://esm.sh/preact@10.15.1/",
++    "preact": "https://esm.sh/preact@10.16.0",
++    "preact/": "https://esm.sh/preact@10.16.0/",
+     "preact-render-to-string": "https://esm.sh/*preact-render-to-string@6.2.0",
+     "@preact/signals": "https://esm.sh/*@preact/signals@1.1.3",
+     "@preact/signals-core": "https://esm.sh/@preact/signals-core@1.2.3"
+diff --git a/tests/fixture_island_nesting/fresh.gen.ts b/tests/fixture_island_nesting/fresh.gen.ts
+index 99341850d8a..1a50efab7f0 100644
+--- a/tests/fixture_island_nesting/fresh.gen.ts
++++ b/tests/fixture_island_nesting/fresh.gen.ts
+@@ -4,39 +4,49 @@
+ 
+ import * as $0 from "./routes/index.tsx";
+ import * as $1 from "./routes/island_conditional.tsx";
+-import * as $2 from "./routes/island_in_island.tsx";
+-import * as $3 from "./routes/island_in_island_definition.tsx";
+-import * as $4 from "./routes/island_jsx_child.tsx";
+-import * as $5 from "./routes/island_jsx_children.tsx";
+-import * as $6 from "./routes/island_jsx_island_jsx.tsx";
+-import * as $7 from "./routes/island_jsx_text.tsx";
+-import * as $8 from "./routes/island_nested_props.tsx";
+-import * as $9 from "./routes/island_siblings.tsx";
++import * as $2 from "./routes/island_fn_child.tsx";
++import * as $3 from "./routes/island_in_island.tsx";
++import * as $4 from "./routes/island_in_island_definition.tsx";
++import * as $5 from "./routes/island_jsx_child.tsx";
++import * as $6 from "./routes/island_jsx_children.tsx";
++import * as $7 from "./routes/island_jsx_island_jsx.tsx";
++import * as $8 from "./routes/island_jsx_text.tsx";
++import * as $9 from "./routes/island_nested_props.tsx";
++import * as $10 from "./routes/island_order.tsx";
++import * as $11 from "./routes/island_siblings.tsx";
+ import * as $$0 from "./islands/BooleanButton.tsx";
+-import * as $$1 from "./islands/Island.tsx";
+-import * as $$2 from "./islands/IslandConditional.tsx";
+-import * as $$3 from "./islands/IslandInsideIsland.tsx";
+-import * as $$4 from "./islands/IslandWithProps.tsx";
++import * as $$1 from "./islands/FragmentIsland.tsx";
++import * as $$2 from "./islands/Island.tsx";
++import * as $$3 from "./islands/IslandCenter.tsx";
++import * as $$4 from "./islands/IslandConditional.tsx";
++import * as $$5 from "./islands/IslandFn.tsx";
++import * as $$6 from "./islands/IslandInsideIsland.tsx";
++import * as $$7 from "./islands/IslandWithProps.tsx";
+ 
+ const manifest = {
+   routes: {
+     "./routes/index.tsx": $0,
+     "./routes/island_conditional.tsx": $1,
+-    "./routes/island_in_island.tsx": $2,
+-    "./routes/island_in_island_definition.tsx": $3,
+-    "./routes/island_jsx_child.tsx": $4,
+-    "./routes/island_jsx_children.tsx": $5,
+-    "./routes/island_jsx_island_jsx.tsx": $6,
+-    "./routes/island_jsx_text.tsx": $7,
+-    "./routes/island_nested_props.tsx": $8,
+-    "./routes/island_siblings.tsx": $9,
++    "./routes/island_fn_child.tsx": $2,
++    "./routes/island_in_island.tsx": $3,
++    "./routes/island_in_island_definition.tsx": $4,
++    "./routes/island_jsx_child.tsx": $5,
++    "./routes/island_jsx_children.tsx": $6,
++    "./routes/island_jsx_island_jsx.tsx": $7,
++    "./routes/island_jsx_text.tsx": $8,
++    "./routes/island_nested_props.tsx": $9,
++    "./routes/island_order.tsx": $10,
++    "./routes/island_siblings.tsx": $11,
+   },
+   islands: {
+     "./islands/BooleanButton.tsx": $$0,
+-    "./islands/Island.tsx": $$1,
+-    "./islands/IslandConditional.tsx": $$2,
+-    "./islands/IslandInsideIsland.tsx": $$3,
+-    "./islands/IslandWithProps.tsx": $$4,
++    "./islands/FragmentIsland.tsx": $$1,
++    "./islands/Island.tsx": $$2,
++    "./islands/IslandCenter.tsx": $$3,
++    "./islands/IslandConditional.tsx": $$4,
++    "./islands/IslandFn.tsx": $$5,
++    "./islands/IslandInsideIsland.tsx": $$6,
++    "./islands/IslandWithProps.tsx": $$7,
+   },
+   baseUrl: import.meta.url,
+ };
+diff --git a/tests/fixture_island_nesting/islands/FragmentIsland.tsx b/tests/fixture_island_nesting/islands/FragmentIsland.tsx
+new file mode 100644
+index 00000000000..ccb9b0eebf4
+--- /dev/null
++++ b/tests/fixture_island_nesting/islands/FragmentIsland.tsx
+@@ -0,0 +1,8 @@
++export default function FragmentIsland() {
++  return (
++    <>
++      <p>it{" "}</p>
++      <p>works</p>
++    </>
++  );
++}
+diff --git a/tests/fixture_island_nesting/islands/IslandCenter.tsx b/tests/fixture_island_nesting/islands/IslandCenter.tsx
+new file mode 100644
+index 00000000000..f01b83a261c
+--- /dev/null
++++ b/tests/fixture_island_nesting/islands/IslandCenter.tsx
+@@ -0,0 +1,3 @@
++export default function IslandCenter() {
++  return <p class="island">center</p>;
++}
+diff --git a/tests/fixture_island_nesting/islands/IslandFn.tsx b/tests/fixture_island_nesting/islands/IslandFn.tsx
+new file mode 100644
+index 00000000000..792ba4b87b0
+--- /dev/null
++++ b/tests/fixture_island_nesting/islands/IslandFn.tsx
+@@ -0,0 +1,17 @@
++import { VNode } from "preact";
++
++import FragmentIsland from "./FragmentIsland.tsx";
++
++function Foo(props: { children: () => VNode }) {
++  return props.children();
++}
++
++export default function IslandFn() {
++  return (
++    <div class="island">
++      <Foo>
++        {() => <FragmentIsland />}
++      </Foo>
++    </div>
++  );
++}
+diff --git a/tests/fixture_island_nesting/routes/island_fn_child.tsx b/tests/fixture_island_nesting/routes/island_fn_child.tsx
+new file mode 100644
+index 00000000000..fcf8f42a890
+--- /dev/null
++++ b/tests/fixture_island_nesting/routes/island_fn_child.tsx
+@@ -0,0 +1,9 @@
++import IslandFn from "../islands/IslandFn.tsx";
++
++export default function Home() {
++  return (
++    <div id="page">
++      <IslandFn />
++    </div>
++  );
++}
+diff --git a/tests/fixture_island_nesting/routes/island_order.tsx b/tests/fixture_island_nesting/routes/island_order.tsx
+new file mode 100644
+index 00000000000..34f4e2315ef
+--- /dev/null
++++ b/tests/fixture_island_nesting/routes/island_order.tsx
+@@ -0,0 +1,11 @@
++import IslandCenter from "../islands/IslandCenter.tsx";
++
++export default function IslandOrder() {
++  return (
++    <div id="page">
++      <p>left</p>
++      <IslandCenter />
++      <p>right</p>
++    </div>
++  );
++}
+diff --git a/tests/islands_test.ts b/tests/islands_test.ts
+index 324d6f6df22..8e022f8d348 100644
+--- a/tests/islands_test.ts
++++ b/tests/islands_test.ts
+@@ -442,3 +442,39 @@ Deno.test({
+   sanitizeOps: false,
+   sanitizeResources: false,
+ });
++
++Deno.test({
++  name: "render island inside island when passed as fn child",
++
++  async fn(_t) {
++    await withPageName(
++      "./tests/fixture_island_nesting/main.ts",
++      async (page, address) => {
++        await page.goto(`${address}/island_fn_child`);
++        await page.waitForSelector(".island");
++        await waitForText(page, "#page", "it works");
++      },
++    );
++  },
++
++  sanitizeOps: false,
++  sanitizeResources: false,
++});
++
++Deno.test({
++  name: "render nested islands in correct order",
++
++  async fn(_t) {
++    await withPageName(
++      "./tests/fixture_island_nesting/main.ts",
++      async (page, address) => {
++        await page.goto(`${address}/island_order`);
++        await page.waitForSelector(".island");
++        await waitForText(page, "#page", "leftcenterright");
++      },
++    );
++  },
++
++  sanitizeOps: false,
++  sanitizeResources: false,
++});
+diff --git a/tests/main_test.ts b/tests/main_test.ts
+index 4e53a472ea5..a44c5c648ea 100644
+--- a/tests/main_test.ts
++++ b/tests/main_test.ts
+@@ -896,3 +896,33 @@ Deno.test({
+   sanitizeOps: false,
+   sanitizeResources: false,
+ });
++
++Deno.test({
++  name: "Generate a single nonce value per page",
++
++  async fn() {
++    await withPageName("./tests/fixture/main.ts", async (page, address) => {
++      await page.goto(address);
++      await page.waitForSelector("p");
++
++      const nonceValues = await page.evaluate(() =>
++        Array.from(
++          new Set(
++            Array.from(document.querySelectorAll("[nonce]")).map((el) =>
++              el.getAttribute("nonce")
++            ),
++          ),
++        )
++      );
++
++      assertEquals(
++        nonceValues.length,
++        1,
++        `Found more than 1 nonce value per render`,
++      );
++    });
++  },
++
++  sanitizeOps: false,
++  sanitizeResources: false,
++});
+diff --git a/versions.json b/versions.json
+index 37817f5563e..d8eb84c24d0 100644
+--- a/versions.json
++++ b/versions.json
+@@ -1,4 +1,5 @@
+ [
++  "1.3.1",
+   "1.3.0",
+   "1.2.0",
+   "1.1.6",
+diff --git a/www/islands/SearchButton.tsx b/www/islands/SearchButton.tsx
+index a4c7084beb3..1936d9b1d71 100644
+--- a/www/islands/SearchButton.tsx
++++ b/www/islands/SearchButton.tsx
+@@ -1,6 +1,6 @@
+ import { Head } from "$fresh/runtime.ts";
+ import { useEffect, useRef } from "preact/hooks";
+-import docsearch from "https://esm.sh/@docsearch/js@3";
++import docsearch from "https://esm.sh/@docsearch/js@3?target=es2020";
+ 
+ export default function SearchButton(props: { class?: string }) {
+   const ref = useRef<HTMLDivElement>(null);

@@ -1,0 +1,687 @@
+diff --git a/.vscode/import_map.json b/.vscode/import_map.json
+index f8749e6e9f5..e917bb74efd 100644
+--- a/.vscode/import_map.json
++++ b/.vscode/import_map.json
+@@ -8,9 +8,9 @@
+     "twind": "https://esm.sh/twind@0.16.17",
+     "twind/": "https://esm.sh/twind@0.16.17/",
+ 
+-    "preact": "https://esm.sh/preact@10.10.6",
+-    "preact/": "https://esm.sh/preact@10.10.6/",
+-    "preact-render-to-string": "https://esm.sh/*preact-render-to-string@5.2.3",
++    "preact": "https://esm.sh/preact@10.11.0",
++    "preact/": "https://esm.sh/preact@10.11.0/",
++    "preact-render-to-string": "https://esm.sh/*preact-render-to-string@5.2.4",
+     "@preact/signals": "https://esm.sh/*@preact/signals@1.0.3",
+     "@preact/signals-core": "https://esm.sh/@preact/signals-core@1.0.1",
+ 
+diff --git a/README.md b/README.md
+index 6a4ad68b679..6cf0a891808 100644
+--- a/README.md
++++ b/README.md
+@@ -24,7 +24,7 @@ The [documentation](https://fresh.deno.dev/docs/) is available on
+ 
+ ## 🚀 Getting started
+ 
+-Install [Deno CLI](https://deno.land/) version 1.23.0 or higher.
++Install [Deno CLI](https://deno.land/) version 1.25.0 or higher.
+ 
+ You can scaffold a new project by running the Fresh init script. To scaffold a
+ project in the `deno-fresh-demo` folder, run the following:
+diff --git a/docs/concepts/deployment.md b/docs/concepts/deployment.md
+index 44e39b7be75..5dd875b18c0 100644
+--- a/docs/concepts/deployment.md
++++ b/docs/concepts/deployment.md
+@@ -14,7 +14,7 @@ Here are instructions for specific providers / systems:
+ ## Deno Deploy
+ 
+ The recommended way to deploy Fresh is by using Deno Deploy. Deno Deploy
+-provides a GitHub integration that can deploy your Fresh projects to its'
++provides a GitHub integration that can deploy your Fresh projects to its
+ globally distributed edge network in seconds, automatically.
+ 
+ View [the getting started guide][deploy-to-production] for instructions on how
+diff --git a/docs/concepts/updating.md b/docs/concepts/updating.md
+index 3792a3e7947..53c8fc09f78 100644
+--- a/docs/concepts/updating.md
++++ b/docs/concepts/updating.md
+@@ -21,7 +21,7 @@ below.
+ | Fresh version | Preact           | preact-render-to-string | Deno      |
+ | ------------- | ---------------- | ----------------------- | --------- |
+ | 1.0.0-1.0.2   | >=10.8.1 <11.0.0 | >=5.2.0 <6.0.0          | >= 1.23.0 |
+-| 1.1.0         | >=10.8.1 <11.0.0 | >=5.2.0 <6.0.0          | >= 1.25.0 |
++| 1.1.0-1.1.1   | >=10.8.1 <11.0.0 | >=5.2.0 <6.0.0          | >= 1.25.0 |
+ 
+ ## Updating dependencies
+ 
+@@ -41,7 +41,7 @@ To run the auto updater, run the following command from the root of your
+ project:
+ 
+ ```bash
+-$ deno run -A https://fresh.deno.dev/update .
++$ deno run -A -r https://fresh.deno.dev/update .
+ ```
+ 
+ You will be prompted to confirm the changes that will be made to your project.
+@@ -51,22 +51,22 @@ You will be prompted to confirm the changes that will be made to your project.
+ To manually update your project's dependencies, you can edit the
+ `import_map.json` file in the root of your projects directory. Dependency
+ versions are encoded into the URLs in this file. For example, here is how to
+-update a project from Fresh 1.0.2 to 1.1.0, and update Preact to the latest
++update a project from Fresh 1.0.2 to 1.1.1, and update Preact to the latest
+ version:
+ 
+ ```diff
+   {
+     "imports": {
+ -     "$fresh/": "https://deno.land/x/fresh@1.0.2/",
+-+     "$fresh/": "https://deno.land/x/fresh@1.1.0/",
+++     "$fresh/": "https://deno.land/x/fresh@1.1.1/",
+ 
+ -     "preact": "https://esm.sh/preact@10.8.1",
+ -     "preact/": "https://esm.sh/preact@10.8.1/",
+-+     "preact": "https://esm.sh/preact@10.10.6",
+-+     "preact/": "https://esm.sh/preact@10.10.6/",
+++     "preact": "https://esm.sh/preact@10.11.0",
+++     "preact/": "https://esm.sh/preact@10.11.0/",
+ 
+ -     "preact-render-to-string": "https://esm.sh/*preact-render-to-string@5.2.0",
+-+     "preact-render-to-string": "https://esm.sh/*preact-render-to-string@5.2.2",
+++     "preact-render-to-string": "https://esm.sh/*preact-render-to-string@5.2.4",
+ 
+       "twind": "https://esm.sh/twind@0.16.17",
+       "twind/": "https://esm.sh/twind@0.16.17/"
+diff --git a/docs/toc.json b/docs/toc.json
+index e916edba46a..30e3d31ba6b 100644
+--- a/docs/toc.json
++++ b/docs/toc.json
+@@ -28,6 +28,7 @@
+       ["routing", "Routing"],
+       ["data-fetching", "Data fetching"],
+       ["deployment", "Deployment"],
++      ["plugins", "Plugins"],
+       ["updating", "Updating Fresh"]
+     ]
+   }
+diff --git a/examples/counter/import_map.json b/examples/counter/import_map.json
+index 8bdfff3d5ec..33e13f90be0 100644
+--- a/examples/counter/import_map.json
++++ b/examples/counter/import_map.json
+@@ -1,8 +1,8 @@
+ {
+   "imports": {
+     "$fresh/": "../../",
+-    "preact": "https://esm.sh/preact@10.10.6",
+-    "preact/": "https://esm.sh/preact@10.10.6/",
+-    "preact-render-to-string": "https://esm.sh/*preact-render-to-string@5.2.3"
++    "preact": "https://esm.sh/preact@10.11.0",
++    "preact/": "https://esm.sh/preact@10.11.0/",
++    "preact-render-to-string": "https://esm.sh/*preact-render-to-string@5.2.4"
+   }
+ }
+diff --git a/src/dev/imports.ts b/src/dev/imports.ts
+index 5aa40276a0c..326d5ee9766 100644
+--- a/src/dev/imports.ts
++++ b/src/dev/imports.ts
+@@ -1,5 +1,5 @@
+-export const RECOMMENDED_PREACT_VERSION = "10.10.6";
+-export const RECOMMENDED_PREACT_RTS_VERSION = "5.2.3";
++export const RECOMMENDED_PREACT_VERSION = "10.11.0";
++export const RECOMMENDED_PREACT_RTS_VERSION = "5.2.4";
+ export const RECOMMENDED_PREACT_SIGNALS_VERSION = "1.0.3";
+ export const RECOMMENDED_PREACT_SIGNALS_CORE_VERSION = "1.0.1";
+ export const RECOMMENDED_TWIND_VERSION = "0.16.17";
+@@ -9,7 +9,7 @@ export function freshImports(imports: Record<string, string>) {
+   imports["preact"] = `https://esm.sh/preact@${RECOMMENDED_PREACT_VERSION}`;
+   imports["preact/"] = `https://esm.sh/preact@${RECOMMENDED_PREACT_VERSION}/`;
+   imports["preact-render-to-string"] =
+-    `https://esm.sh/*preact-render-to-string@${RECOMMENDED_PREACT_RTS_VERSION}/`;
++    `https://esm.sh/*preact-render-to-string@${RECOMMENDED_PREACT_RTS_VERSION}`;
+   imports["@preact/signals"] =
+     `https://esm.sh/*@preact/signals@${RECOMMENDED_PREACT_SIGNALS_VERSION}`;
+   imports["@preact/signals-core"] =
+diff --git a/src/server/bundle.ts b/src/server/bundle.ts
+index 96e1ec21688..48ead530d23 100644
+--- a/src/server/bundle.ts
++++ b/src/server/bundle.ts
+@@ -91,6 +91,7 @@ export class Bundler {
+       outfile: "",
+       platform: "neutral",
+       plugins: [denoPlugin({ importMapURL: this.#importMapURL })],
++      sourcemap: this.#dev ? "linked" : false,
+       splitting: true,
+       target: ["chrome99", "firefox99", "safari15"],
+       treeShaking: true,
+diff --git a/src/server/htmlescape.ts b/src/server/htmlescape.ts
+new file mode 100644
+index 00000000000..c253f361d4a
+--- /dev/null
++++ b/src/server/htmlescape.ts
+@@ -0,0 +1,15 @@
++// This utility is based on https://github.com/zertosh/htmlescape
++// License: https://github.com/zertosh/htmlescape/blob/0527ca7156a524d256101bb310a9f970f63078ad/LICENSE
++
++const ESCAPE_LOOKUP: { [match: string]: string } = {
++  ">": "\\u003e",
++  "<": "\\u003c",
++  "\u2028": "\\u2028",
++  "\u2029": "\\u2029",
++};
++
++const ESCAPE_REGEX = /[><\u2028\u2029]/g;
++
++export function htmlEscapeJsonString(str: string): string {
++  return str.replace(ESCAPE_REGEX, (match) => ESCAPE_LOOKUP[match]);
++}
+diff --git a/src/server/htmlescape_test.ts b/src/server/htmlescape_test.ts
+new file mode 100644
+index 00000000000..f259e1f45fd
+--- /dev/null
++++ b/src/server/htmlescape_test.ts
+@@ -0,0 +1,18 @@
++import { htmlEscapeJsonString } from "./htmlescape.ts";
++import { assertEquals } from "../../tests/deps.ts";
++
++Deno.test("with angle brackets should escape", () => {
++  const evilObj = { evil: "<script></script>" };
++  assertEquals(
++    htmlEscapeJsonString(JSON.stringify(evilObj)),
++    '{"evil":"\\u003cscript\\u003e\\u003c/script\\u003e"}',
++  );
++});
++
++Deno.test("with angle brackets should parse back", () => {
++  const evilObj = { evil: "<script></script>" };
++  assertEquals(
++    JSON.parse(htmlEscapeJsonString(JSON.stringify(evilObj))),
++    evilObj,
++  );
++});
+diff --git a/src/server/render.ts b/src/server/render.ts
+index c77313ae9f5..347c7960fad 100644
+--- a/src/server/render.ts
++++ b/src/server/render.ts
+@@ -17,6 +17,7 @@ import { CSP_CONTEXT, nonce, NONE, UNSAFE_INLINE } from "../runtime/csp.ts";
+ import { ContentSecurityPolicy } from "../runtime/csp.ts";
+ import { bundleAssetUrl } from "./constants.ts";
+ import { assetHashingHook } from "../runtime/utils.ts";
++import { htmlEscapeJsonString } from "./htmlescape.ts";
+ 
+ export interface RenderOptions<Data> {
+   route: Route<Data> | UnknownPage | ErrorPage;
+@@ -276,7 +277,7 @@ export async function render<Data>(
+   if (state[0].length > 0 || state[1].length > 0) {
+     // Append state to the body
+     bodyHtml += `<script id="__FRSH_STATE" type="application/json">${
+-      JSON.stringify(state)
++      htmlEscapeJsonString(JSON.stringify(state))
+     }</script>`;
+ 
+     // Append the inline script to the body
+@@ -334,7 +335,7 @@ export function template(opts: TemplateOptions): string {
+     h(
+       "head",
+       null,
+-      h("meta", { charset: "UTF-8" }),
++      h("meta", { charSet: "UTF-8" }),
+       h("meta", {
+         name: "viewport",
+         content: "width=device-width, initial-scale=1.0",
+diff --git a/tests/fixture/fresh.gen.ts b/tests/fixture/fresh.gen.ts
+index 16711d7641e..3060b7c8f0b 100644
+--- a/tests/fixture/fresh.gen.ts
++++ b/tests/fixture/fresh.gen.ts
+@@ -12,24 +12,25 @@ import * as $5 from "./routes/api/get_only.ts";
+ import * as $6 from "./routes/assetsCaching/index.tsx";
+ import * as $7 from "./routes/books/[id].tsx";
+ import * as $8 from "./routes/connInfo.ts";
+-import * as $9 from "./routes/failure.ts";
+-import * as $10 from "./routes/index.tsx";
+-import * as $11 from "./routes/intercept.tsx";
+-import * as $12 from "./routes/intercept_args.tsx";
+-import * as $13 from "./routes/islands/index.tsx";
+-import * as $14 from "./routes/layeredMdw/_middleware.ts";
+-import * as $15 from "./routes/layeredMdw/layer2-no-mw/without_mw.ts";
+-import * as $16 from "./routes/layeredMdw/layer2/_middleware.ts";
+-import * as $17 from "./routes/layeredMdw/layer2/abc.ts";
+-import * as $18 from "./routes/layeredMdw/layer2/index.ts";
+-import * as $19 from "./routes/layeredMdw/layer2/layer3/[id].ts";
+-import * as $20 from "./routes/layeredMdw/layer2/layer3/_middleware.ts";
+-import * as $21 from "./routes/middleware_root.ts";
+-import * as $22 from "./routes/not_found.ts";
+-import * as $23 from "./routes/params.tsx";
+-import * as $24 from "./routes/props/[id].tsx";
+-import * as $25 from "./routes/static.tsx";
+-import * as $26 from "./routes/wildcard.tsx";
++import * as $9 from "./routes/evil.tsx";
++import * as $10 from "./routes/failure.ts";
++import * as $11 from "./routes/index.tsx";
++import * as $12 from "./routes/intercept.tsx";
++import * as $13 from "./routes/intercept_args.tsx";
++import * as $14 from "./routes/islands/index.tsx";
++import * as $15 from "./routes/layeredMdw/_middleware.ts";
++import * as $16 from "./routes/layeredMdw/layer2-no-mw/without_mw.ts";
++import * as $17 from "./routes/layeredMdw/layer2/_middleware.ts";
++import * as $18 from "./routes/layeredMdw/layer2/abc.ts";
++import * as $19 from "./routes/layeredMdw/layer2/index.ts";
++import * as $20 from "./routes/layeredMdw/layer2/layer3/[id].ts";
++import * as $21 from "./routes/layeredMdw/layer2/layer3/_middleware.ts";
++import * as $22 from "./routes/middleware_root.ts";
++import * as $23 from "./routes/not_found.ts";
++import * as $24 from "./routes/params.tsx";
++import * as $25 from "./routes/props/[id].tsx";
++import * as $26 from "./routes/static.tsx";
++import * as $27 from "./routes/wildcard.tsx";
+ import * as $$0 from "./islands/Counter.tsx";
+ import * as $$1 from "./islands/Test.tsx";
+ import * as $$2 from "./islands/kebab-case-counter-test.tsx";
+@@ -45,24 +46,25 @@ const manifest = {
+     "./routes/assetsCaching/index.tsx": $6,
+     "./routes/books/[id].tsx": $7,
+     "./routes/connInfo.ts": $8,
+-    "./routes/failure.ts": $9,
+-    "./routes/index.tsx": $10,
+-    "./routes/intercept.tsx": $11,
+-    "./routes/intercept_args.tsx": $12,
+-    "./routes/islands/index.tsx": $13,
+-    "./routes/layeredMdw/_middleware.ts": $14,
+-    "./routes/layeredMdw/layer2-no-mw/without_mw.ts": $15,
+-    "./routes/layeredMdw/layer2/_middleware.ts": $16,
+-    "./routes/layeredMdw/layer2/abc.ts": $17,
+-    "./routes/layeredMdw/layer2/index.ts": $18,
+-    "./routes/layeredMdw/layer2/layer3/[id].ts": $19,
+-    "./routes/layeredMdw/layer2/layer3/_middleware.ts": $20,
+-    "./routes/middleware_root.ts": $21,
+-    "./routes/not_found.ts": $22,
+-    "./routes/params.tsx": $23,
+-    "./routes/props/[id].tsx": $24,
+-    "./routes/static.tsx": $25,
+-    "./routes/wildcard.tsx": $26,
++    "./routes/evil.tsx": $9,
++    "./routes/failure.ts": $10,
++    "./routes/index.tsx": $11,
++    "./routes/intercept.tsx": $12,
++    "./routes/intercept_args.tsx": $13,
++    "./routes/islands/index.tsx": $14,
++    "./routes/layeredMdw/_middleware.ts": $15,
++    "./routes/layeredMdw/layer2-no-mw/without_mw.ts": $16,
++    "./routes/layeredMdw/layer2/_middleware.ts": $17,
++    "./routes/layeredMdw/layer2/abc.ts": $18,
++    "./routes/layeredMdw/layer2/index.ts": $19,
++    "./routes/layeredMdw/layer2/layer3/[id].ts": $20,
++    "./routes/layeredMdw/layer2/layer3/_middleware.ts": $21,
++    "./routes/middleware_root.ts": $22,
++    "./routes/not_found.ts": $23,
++    "./routes/params.tsx": $24,
++    "./routes/props/[id].tsx": $25,
++    "./routes/static.tsx": $26,
++    "./routes/wildcard.tsx": $27,
+   },
+   islands: {
+     "./islands/Counter.tsx": $$0,
+diff --git a/tests/fixture/import_map.json b/tests/fixture/import_map.json
+index 8bdfff3d5ec..33e13f90be0 100644
+--- a/tests/fixture/import_map.json
++++ b/tests/fixture/import_map.json
+@@ -1,8 +1,8 @@
+ {
+   "imports": {
+     "$fresh/": "../../",
+-    "preact": "https://esm.sh/preact@10.10.6",
+-    "preact/": "https://esm.sh/preact@10.10.6/",
+-    "preact-render-to-string": "https://esm.sh/*preact-render-to-string@5.2.3"
++    "preact": "https://esm.sh/preact@10.11.0",
++    "preact/": "https://esm.sh/preact@10.11.0/",
++    "preact-render-to-string": "https://esm.sh/*preact-render-to-string@5.2.4"
+   }
+ }
+diff --git a/tests/fixture/routes/evil.tsx b/tests/fixture/routes/evil.tsx
+new file mode 100644
+index 00000000000..afa86fa7ab6
+--- /dev/null
++++ b/tests/fixture/routes/evil.tsx
+@@ -0,0 +1,9 @@
++import Test from "../islands/Test.tsx";
++
++export default function EvilPage() {
++  return (
++    <div>
++      <Test message={`</script><script>alert('test')</script>`} />
++    </div>
++  );
++}
+diff --git a/tests/fixture/routes/islands/index.tsx b/tests/fixture/routes/islands/index.tsx
+index 55b78293ac7..a0dfb4d15bd 100644
+--- a/tests/fixture/routes/islands/index.tsx
++++ b/tests/fixture/routes/islands/index.tsx
+@@ -9,6 +9,7 @@ export default function Home() {
+       <Counter id="counter2" start={10} />
+       <KebabCaseFileNameTest id="kebab-case-file-counter" start={5} />
+       <Test message="" />
++      <Test message={`</script><script>alert('test')</script>`} />
+     </div>
+   );
+ }
+diff --git a/tests/fixture_error/import_map.json b/tests/fixture_error/import_map.json
+index 8bdfff3d5ec..33e13f90be0 100644
+--- a/tests/fixture_error/import_map.json
++++ b/tests/fixture_error/import_map.json
+@@ -1,8 +1,8 @@
+ {
+   "imports": {
+     "$fresh/": "../../",
+-    "preact": "https://esm.sh/preact@10.10.6",
+-    "preact/": "https://esm.sh/preact@10.10.6/",
+-    "preact-render-to-string": "https://esm.sh/*preact-render-to-string@5.2.3"
++    "preact": "https://esm.sh/preact@10.11.0",
++    "preact/": "https://esm.sh/preact@10.11.0/",
++    "preact-render-to-string": "https://esm.sh/*preact-render-to-string@5.2.4"
+   }
+ }
+diff --git a/tests/fixture_plugin/import_map.json b/tests/fixture_plugin/import_map.json
+index 8bdfff3d5ec..33e13f90be0 100644
+--- a/tests/fixture_plugin/import_map.json
++++ b/tests/fixture_plugin/import_map.json
+@@ -1,8 +1,8 @@
+ {
+   "imports": {
+     "$fresh/": "../../",
+-    "preact": "https://esm.sh/preact@10.10.6",
+-    "preact/": "https://esm.sh/preact@10.10.6/",
+-    "preact-render-to-string": "https://esm.sh/*preact-render-to-string@5.2.3"
++    "preact": "https://esm.sh/preact@10.11.0",
++    "preact/": "https://esm.sh/preact@10.11.0/",
++    "preact-render-to-string": "https://esm.sh/*preact-render-to-string@5.2.4"
+   }
+ }
+diff --git a/tests/islands_test.ts b/tests/islands_test.ts
+index 680e797ae05..41db1599d7c 100644
+--- a/tests/islands_test.ts
++++ b/tests/islands_test.ts
+@@ -82,3 +82,62 @@ Deno.test({
+   sanitizeOps: false,
+   sanitizeResources: false,
+ });
++
++Deno.test({
++  name: "island tests with </script>",
++  async fn(t) {
++    // Preparation
++    const serverProcess = Deno.run({
++      cmd: ["deno", "run", "-A", "./tests/fixture/main.ts"],
++      stdout: "piped",
++      stderr: "inherit",
++    });
++
++    const decoder = new TextDecoderStream();
++    const lines = serverProcess.stdout.readable
++      .pipeThrough(decoder)
++      .pipeThrough(new TextLineStream());
++
++    let started = false;
++    for await (const line of lines) {
++      if (line.includes("Listening on http://")) {
++        started = true;
++        break;
++      }
++    }
++    if (!started) {
++      throw new Error("Server didn't start up");
++    }
++
++    await delay(100);
++
++    const browser = await puppeteer.launch({ args: ["--no-sandbox"] });
++    const page = await browser.newPage();
++    page.on("dialog", () => {
++      assert(false, "There is XSS");
++    });
++
++    await page.goto("http://localhost:8000/evil", {
++      waitUntil: "networkidle2",
++    });
++
++    await t.step("prevent XSS on Island", async () => {
++      const bodyElem = await page.waitForSelector(`body`);
++      const value = await bodyElem?.evaluate((el) => el.getInnerHTML());
++
++      assertStringIncludes(
++        value,
++        `{"message":"\\u003c/script\\u003e\\u003cscript\\u003ealert('test')\\u003c/script\\u003e"}`,
++        `XSS is not escaped`,
++      );
++    });
++
++    await browser.close();
++
++    await lines.cancel();
++    serverProcess.kill("SIGTERM");
++    serverProcess.close();
++  },
++  sanitizeOps: false,
++  sanitizeResources: false,
++});
+diff --git a/versions.json b/versions.json
+index fe652eb222d..42bbe76d00e 100644
+--- a/versions.json
++++ b/versions.json
+@@ -1,4 +1,5 @@
+ [
++  "1.1.1",
+   "1.1.0",
+   "1.0.2",
+   "1.0.1",
+diff --git a/www/README.md b/www/README.md
+index f619f1d698f..ad2d4320b64 100644
+--- a/www/README.md
++++ b/www/README.md
+@@ -10,7 +10,7 @@ This is the fresh website source. The fresh website contains:
+ Start the project:
+ 
+ ```
+-deno run -A --watch main.ts
++deno task start
+ ```
+ 
+ This will watch the project directory and restart as necessary.
+diff --git a/www/data/showcase.json b/www/data/showcase.json
+index f671c4e7731..ada4849488d 100644
+--- a/www/data/showcase.json
++++ b/www/data/showcase.json
+@@ -16,5 +16,39 @@
+     "link": "https://fresh.deno.dev/",
+     "github": "denoland/fresh/tree/main/www",
+     "image": "fresh"
++  },
++  {
++    "title": "diKnow",
++    "link": "https://xyntechx-diknow.deno.dev/",
++    "github": "xyntechx/diKnow",
++    "image": "diKnow"
++  },
++  {
++    "title": "Saleor + Deno Merch",
++    "link": "https://saleor-deno-merch.deno.dev/",
++    "github": "saleor/deno-merch",
++    "image": "saleor-deno"
++  },
++  {
++    "title": "Fresh Strapi",
++    "link": "https://fresh-strapi.deno.dev/",
++    "github": "hyprtxt/fresh-strapi.deno.dev",
++    "image": "fresh-strapi"
++  },
++  {
++    "title": "ANDBOUNDS Inc.",
++    "link": "https://andbounds.com/",
++    "image": "andbounds"
++  },
++  {
++    "title": "im@sparql Data Dashboard",
++    "link": "https://imasparql-data-dashboard.deno.dev/",
++    "github": "arrow2nd/imasparql-data-dashboard",
++    "image": "imasparql-dd"
++  },
++  {
++    "title": "YCRM",
++    "link": "https://ycrm.xyz/",
++    "image": "ycrm"
+   }
+ ]
+diff --git a/www/import_map.json b/www/import_map.json
+index ea44f4e452d..78ba044a199 100644
+--- a/www/import_map.json
++++ b/www/import_map.json
+@@ -5,9 +5,9 @@
+     "twind": "https://esm.sh/twind@0.16.17",
+     "twind/": "https://esm.sh/twind@0.16.17/",
+ 
+-    "preact": "https://esm.sh/preact@10.10.6",
+-    "preact/": "https://esm.sh/preact@10.10.6/",
+-    "preact-render-to-string": "https://esm.sh/*preact-render-to-string@5.2.3/",
++    "preact": "https://esm.sh/preact@10.11.0",
++    "preact/": "https://esm.sh/preact@10.11.0/",
++    "preact-render-to-string": "https://esm.sh/*preact-render-to-string@5.2.4",
+     "@preact/signals": "https://esm.sh/*@preact/signals@1.0.3",
+     "@preact/signals-core": "https://esm.sh/@preact/signals-core@1.0.1",
+ 
+diff --git a/www/routes/index.tsx b/www/routes/index.tsx
+index 558023e4255..0ac871e1862 100644
+--- a/www/routes/index.tsx
++++ b/www/routes/index.tsx
+@@ -44,6 +44,7 @@ export default function MainPage(props: PageProps) {
+         <meta property="og:image" content={ogImageUrl} />
+       </Head>
+       <div class="flex flex-col min-h-screen">
++        <HelloBar />
+         <Hero />
+         <div class="flex-1">
+           <Intro />
+@@ -57,6 +58,20 @@ export default function MainPage(props: PageProps) {
+   );
+ }
+ 
++function HelloBar() {
++  return (
++    <a
++      class="bg-green-400 text-black border(b green-500) p-3 text-center group"
++      href="https://deno.com/blog/fresh-1.1"
++    >
++      <b>Fresh v1.1</b> has been released with support for <b>automatic JSX</b>,
++      {" "}
++      <b>plugins</b>, <b>DevTools support</b>, and more!{"  "}
++      <span class="group-hover:underline">→</span>
++    </a>
++  );
++}
++
+ function Hero() {
+   return (
+     <>
+@@ -178,7 +193,7 @@ function GettingStarted(props: { origin: string }) {
+           <a href="https://deno.land" class="text-blue-600 hover:underline">
+             Deno CLI
+           </a>{" "}
+-          version 1.23.0 or higher is required.{" "}
++          version 1.25.0 or higher is required.{" "}
+           <a
+             href="https://deno.land/manual/getting_started/installation"
+             class="text-blue-600 hover:underline"
+diff --git a/www/routes/update.tsx b/www/routes/update.tsx
+index c138083fcf1..26c15a5efe6 100644
+--- a/www/routes/update.tsx
++++ b/www/routes/update.tsx
+@@ -178,7 +178,7 @@ function GettingStarted(props: { origin: string }) {
+           <a href="https://deno.land" class="text-blue-600 hover:underline">
+             Deno CLI
+           </a>{" "}
+-          version 1.23.0 or higher is required.{" "}
++          version 1.25.0 or higher is required.{" "}
+           <a
+             href="https://deno.land/manual/getting_started/installation"
+             class="text-blue-600 hover:underline"
+diff --git a/www/static/showcase/andbounds1x.jpg b/www/static/showcase/andbounds1x.jpg
+new file mode 100644
+index 00000000000..0e0314046eb
+Binary files /dev/null and b/www/static/showcase/andbounds1x.jpg differ
+diff --git a/www/static/showcase/andbounds2x.jpg b/www/static/showcase/andbounds2x.jpg
+new file mode 100644
+index 00000000000..21cff33da48
+Binary files /dev/null and b/www/static/showcase/andbounds2x.jpg differ
+diff --git a/www/static/showcase/diKnow1x.jpg b/www/static/showcase/diKnow1x.jpg
+new file mode 100644
+index 00000000000..98cdd74af8c
+Binary files /dev/null and b/www/static/showcase/diKnow1x.jpg differ
+diff --git a/www/static/showcase/diKnow2x.jpg b/www/static/showcase/diKnow2x.jpg
+new file mode 100644
+index 00000000000..6f708a30b03
+Binary files /dev/null and b/www/static/showcase/diKnow2x.jpg differ
+diff --git a/www/static/showcase/fresh-strapi1x.jpg b/www/static/showcase/fresh-strapi1x.jpg
+new file mode 100644
+index 00000000000..9d8f6657f91
+Binary files /dev/null and b/www/static/showcase/fresh-strapi1x.jpg differ
+diff --git a/www/static/showcase/fresh-strapi2x.jpg b/www/static/showcase/fresh-strapi2x.jpg
+new file mode 100644
+index 00000000000..4310a14f43b
+Binary files /dev/null and b/www/static/showcase/fresh-strapi2x.jpg differ
+diff --git a/www/static/showcase/imasparql-dd1x.jpg b/www/static/showcase/imasparql-dd1x.jpg
+new file mode 100644
+index 00000000000..3ea39d9a987
+Binary files /dev/null and b/www/static/showcase/imasparql-dd1x.jpg differ
+diff --git a/www/static/showcase/imasparql-dd2x.jpg b/www/static/showcase/imasparql-dd2x.jpg
+new file mode 100644
+index 00000000000..ac20ddd9c93
+Binary files /dev/null and b/www/static/showcase/imasparql-dd2x.jpg differ
+diff --git a/www/static/showcase/saleor-deno1x.jpg b/www/static/showcase/saleor-deno1x.jpg
+new file mode 100644
+index 00000000000..094477a7922
+Binary files /dev/null and b/www/static/showcase/saleor-deno1x.jpg differ
+diff --git a/www/static/showcase/saleor-deno2x.jpg b/www/static/showcase/saleor-deno2x.jpg
+new file mode 100644
+index 00000000000..3f52d0b682e
+Binary files /dev/null and b/www/static/showcase/saleor-deno2x.jpg differ
+diff --git a/www/static/showcase/ycrm1x.jpg b/www/static/showcase/ycrm1x.jpg
+new file mode 100644
+index 00000000000..6b5aa3d226e
+Binary files /dev/null and b/www/static/showcase/ycrm1x.jpg differ
+diff --git a/www/static/showcase/ycrm2x.jpg b/www/static/showcase/ycrm2x.jpg
+new file mode 100644
+index 00000000000..b97c0e498a0
+Binary files /dev/null and b/www/static/showcase/ycrm2x.jpg differ
+diff --git a/www/utils/screenshot.ts b/www/utils/screenshot.ts
+index d6147977023..4b40f469685 100644
+--- a/www/utils/screenshot.ts
++++ b/www/utils/screenshot.ts
+@@ -1,4 +1,6 @@
+ import puppeteer from "https://deno.land/x/puppeteer@16.2.0/mod.ts";
++import { Image } from "https://deno.land/x/imagescript@v1.2.14/mod.ts";
++import { join } from "https://deno.land/std@0.137.0/path/mod.ts";
+ 
+ const url = Deno.args[0];
+ const id = Deno.args[1];
+@@ -8,11 +10,24 @@ if (!url || !id) {
+   Deno.exit(1);
+ }
+ 
++const outDir = "./www/static/showcase";
+ const browser = await puppeteer.launch({
+   defaultViewport: { width: 1200, height: 675 },
+ });
+ const page = await browser.newPage();
+ await page.goto(url, { waitUntil: "networkidle2" });
+-await page.screenshot({ path: `./www/static/showcase/${id}.png` });
++const png2x = join(outDir, `${id}.png`);
++await page.screenshot({ path: png2x });
+ 
+ await browser.close();
++
++// convert to jpeg
++const image2x = await Image.decode(await Deno.readFile(png2x));
++const jpeg2x = join(outDir, `${id}2x.jpg`);
++await Deno.writeFile(jpeg2x, await image2x.encodeJPEG(80));
++
++const jpeg1x = join(outDir, `${id}1x.jpg`);
++const image1x = image2x.resize(image2x.width / 2, Image.RESIZE_AUTO);
++await Deno.writeFile(jpeg1x, await image1x.encodeJPEG(80));
++
++await Deno.removeSync(png2x);
