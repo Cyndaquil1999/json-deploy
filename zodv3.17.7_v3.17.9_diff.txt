@@ -1,0 +1,843 @@
+diff --git a/.github/workflows/release.yml b/.github/workflows/release.yml
+index cd22148ce..b0cb37e6e 100644
+--- a/.github/workflows/release.yml
++++ b/.github/workflows/release.yml
+@@ -115,4 +115,5 @@ jobs:
+           body: ${{steps.github_release.outputs.changelog}}
+           draft: false
+           prerelease: false
+-          repo: colinhacks/zod-deno
++          owner: colinhacks
++          repo: zod-deno
+diff --git a/README.md b/README.md
+index a5bf7286f..3755747d9 100644
+--- a/README.md
++++ b/README.md
+@@ -63,6 +63,7 @@
+ - [Nullables](#nullables)
+ - [Objects](#objects)
+   - [.shape](#shape)
++  - [.enum](#enum)
+   - [.extend](#extend)
+   - [.merge](#merge)
+   - [.pick/.omit](#pickomit)
+@@ -550,14 +551,32 @@ const isActive = z.boolean({
+ 
+ ## Dates
+ 
+-z.date() accepts a date, not a date string
++Use z.date() to validate `Date` instances.
+ 
+ ```ts
+ z.date().safeParse(new Date()); // success: true
+ z.date().safeParse("2022-01-12T00:00:00.000Z"); // success: false
+ ```
+ 
+-To allow for dates or date strings, you can use preprocess
++You can customize certain error messages when creating a boolean schema.
++
++```ts
++const myDateSchema = z.date({
++  required_error: "Please select a date and time",
++  invalid_type_error: "That's not a date!",
++});
++```
++
++Zod provides a handful of date-specific validations.
++
++```ts
++z.date().min(new Date("1900-01-01"), { message: "Too old" });
++z.date().max(new Date(), { message: "Too young!" });
++```
++
++**Supporting date strings**
++
++To write a schema that accepts either a `Date` or a date string, use (`z.preprocess`)[#preprocess].
+ 
+ ```ts
+ const dateSchema = z.preprocess((arg) => {
+@@ -764,6 +783,15 @@ Dog.shape.name; // => string schema
+ Dog.shape.age; // => number schema
+ ```
+ 
++### `.keyof`
++
++Use `.key` to create a `ZodEnum` schema from the keys of an object schema.
++
++```ts
++const keySchema = Dog.keyof();
++keySchema; // ZodEnum<["name", "age"]>
++```
++
+ ### `.extend`
+ 
+ You can add additional fields to an object schema with the `.extend` method.
+@@ -1772,7 +1800,7 @@ z.optional(z.string());
+ 
+ ### `.nullable`
+ 
+-A convenience method that returns an nullable version of a schema.
++A convenience method that returns a nullable version of a schema.
+ 
+ ```ts
+ const nullableString = z.string().nullable(); // string | null
+diff --git a/README_ZH.md b/README_ZH.md
+index b4bdb5463..3e02eaf79 100644
+--- a/README_ZH.md
++++ b/README_ZH.md
+@@ -441,6 +441,20 @@ z.number().multipleOf(5); // x % 5 === 0
+ z.number().max(5, { message: "this👏is👏too👏big" });
+ ```
+ 
++## Dates
++
++```ts
++z.date().safeParse(new Date()); // success: true
++
++z.date({
++  required_error: "Please select a date and time",
++  invalid_type_error: "That's not a date!",
++});
++
++z.date().min(new Date("1900-01-01"), { message: "Too old" });
++z.date().max(new Date(), { message: "Too young!" });
++```
++
+ ## Objects
+ 
+ ```ts
+diff --git a/deno/lib/README.md b/deno/lib/README.md
+index a5bf7286f..0285de927 100644
+--- a/deno/lib/README.md
++++ b/deno/lib/README.md
+@@ -63,6 +63,7 @@
+ - [Nullables](#nullables)
+ - [Objects](#objects)
+   - [.shape](#shape)
++  - [.enum](#enum)
+   - [.extend](#extend)
+   - [.merge](#merge)
+   - [.pick/.omit](#pickomit)
+@@ -550,14 +551,32 @@ const isActive = z.boolean({
+ 
+ ## Dates
+ 
+-z.date() accepts a date, not a date string
++Use z.date() to validate `Date` instances.
+ 
+ ```ts
+ z.date().safeParse(new Date()); // success: true
+ z.date().safeParse("2022-01-12T00:00:00.000Z"); // success: false
+ ```
+ 
+-To allow for dates or date strings, you can use preprocess
++You can customize certain error messages when creating a boolean schema.
++
++```ts
++const myDateSchema = z.date({
++  required_error: "Please select a date and time",
++  invalid_type_error: "That's not a date!",
++});
++```
++
++Zod provides a handful of date-specific validations.
++
++```ts
++z.date().min(new Date("1900-01-01"), { message: "Too old" });
++z.date().max(new Date(), { message: "Too young!" });
++```
++
++**Supporting date strings**
++
++To write a schema that accepts either a `Date` or a date string, use (`z.preprocess`)[#preprocess].
+ 
+ ```ts
+ const dateSchema = z.preprocess((arg) => {
+@@ -764,6 +783,15 @@ Dog.shape.name; // => string schema
+ Dog.shape.age; // => number schema
+ ```
+ 
++### `.keyof`
++
++Use `.key` to create a `ZodEnum` schema from the keys of an object schema.
++
++```ts
++const keySchema = Dog.keyof();
++keySchema; // ZodEnum<["name", "age"]>
++```
++
+ ### `.extend`
+ 
+ You can add additional fields to an object schema with the `.extend` method.
+diff --git a/deno/lib/ZodError.ts b/deno/lib/ZodError.ts
+index a30f2767f..c7a66aa6b 100644
+--- a/deno/lib/ZodError.ts
++++ b/deno/lib/ZodError.ts
+@@ -105,14 +105,14 @@ export interface ZodTooSmallIssue extends ZodIssueBase {
+   code: typeof ZodIssueCode.too_small;
+   minimum: number;
+   inclusive: boolean;
+-  type: "array" | "string" | "number" | "set";
++  type: "array" | "string" | "number" | "set" | "date";
+ }
+ 
+ export interface ZodTooBigIssue extends ZodIssueBase {
+   code: typeof ZodIssueCode.too_big;
+   maximum: number;
+   inclusive: boolean;
+-  type: "array" | "string" | "number" | "set";
++  type: "array" | "string" | "number" | "set" | "date";
+ }
+ 
+ export interface ZodInvalidIntersectionTypesIssue extends ZodIssueBase {
+@@ -380,6 +380,10 @@ export const defaultErrorMap = (
+         message = `Number must be greater than ${
+           issue.inclusive ? `or equal to ` : ``
+         }${issue.minimum}`;
++      else if (issue.type === "date")
++        message = `Date must be greater than ${
++          issue.inclusive ? `or equal to ` : ``
++        }${new Date(issue.minimum)}`;
+       else message = "Invalid input";
+       break;
+     case ZodIssueCode.too_big:
+@@ -395,6 +399,10 @@ export const defaultErrorMap = (
+         message = `Number must be less than ${
+           issue.inclusive ? `or equal to ` : ``
+         }${issue.maximum}`;
++      else if (issue.type === "date")
++        message = `Date must be smaller than ${
++          issue.inclusive ? `or equal to ` : ``
++        }${new Date(issue.maximum)}`;
+       else message = "Invalid input";
+       break;
+     case ZodIssueCode.custom:
+diff --git a/deno/lib/__tests__/date.test.ts b/deno/lib/__tests__/date.test.ts
+new file mode 100644
+index 000000000..89f7f3387
+--- /dev/null
++++ b/deno/lib/__tests__/date.test.ts
+@@ -0,0 +1,35 @@
++// @ts-ignore TS6133
++import { expect } from "https://deno.land/x/expect@v0.2.6/mod.ts";
++const test = Deno.test;
++
++import * as z from "../index.ts";
++
++const beforeBenchmarkDate = new Date(2022, 10, 4);
++const benchmarkDate = new Date(2022, 10, 5);
++const afterBenchmarkDate = new Date(2022, 10, 6);
++
++const minCheck = z.date().min(benchmarkDate);
++const maxCheck = z.date().max(benchmarkDate);
++
++test("passing validations", () => {
++  minCheck.parse(benchmarkDate);
++  minCheck.parse(afterBenchmarkDate);
++
++  maxCheck.parse(benchmarkDate);
++  maxCheck.parse(beforeBenchmarkDate);
++});
++
++test("failing validations", () => {
++  expect(() => minCheck.parse(beforeBenchmarkDate)).toThrow();
++  expect(() => maxCheck.parse(afterBenchmarkDate)).toThrow();
++});
++
++test("min max getters", () => {
++  expect(minCheck.minDate).toEqual(benchmarkDate);
++  expect(minCheck.min(afterBenchmarkDate).minDate).toEqual(afterBenchmarkDate);
++
++  expect(maxCheck.maxDate).toEqual(benchmarkDate);
++  expect(maxCheck.max(beforeBenchmarkDate).maxDate).toEqual(
++    beforeBenchmarkDate
++  );
++});
+diff --git a/deno/lib/__tests__/error.test.ts b/deno/lib/__tests__/error.test.ts
+index 1c8568ddc..d5437e802 100644
+--- a/deno/lib/__tests__/error.test.ts
++++ b/deno/lib/__tests__/error.test.ts
+@@ -377,7 +377,7 @@ test("invalid and required", () => {
+   }
+ });
+ 
+-test("Fallback to invalid_type_error without required_error", () => {
++test("Fallback to default required error", () => {
+   const str = z.string({
+     invalid_type_error: "Invalid name",
+     // required_error: "Name is required",
+@@ -386,7 +386,7 @@ test("Fallback to invalid_type_error without required_error", () => {
+   const result2 = str.safeParse(undefined);
+   expect(result2.success).toEqual(false);
+   if (!result2.success) {
+-    expect(result2.error.issues[0].message).toEqual("Invalid name");
++    expect(result2.error.issues[0].message).toEqual("Required");
+   }
+ });
+ 
+diff --git a/deno/lib/__tests__/object.test.ts b/deno/lib/__tests__/object.test.ts
+index 75a5c1237..b43efccb2 100644
+--- a/deno/lib/__tests__/object.test.ts
++++ b/deno/lib/__tests__/object.test.ts
+@@ -238,6 +238,23 @@ test("inferred unioned object type with optional properties", async () => {
+   f1;
+ });
+ 
++test("inferred enum type", async () => {
++  const Enum = z.object({ a: z.string(), b: z.string().optional() }).keyof();
++
++  expect(Enum.Values).toEqual({
++    a: "a",
++    b: "b",
++  });
++  expect(Enum.enum).toEqual({
++    a: "a",
++    b: "b",
++  });
++  expect(Enum._def.values).toEqual(["a", "b"]);
++  type Enum = z.infer<typeof Enum>;
++  const f1: util.AssertEqual<Enum, "a" | "b"> = true;
++  f1;
++});
++
+ test("inferred partial object type with optional properties", async () => {
+   const Partial = z
+     .object({ a: z.string(), b: z.string().optional() })
+diff --git a/deno/lib/__tests__/recursive.test.ts b/deno/lib/__tests__/recursive.test.ts
+index ff472c112..4f359c656 100644
+--- a/deno/lib/__tests__/recursive.test.ts
++++ b/deno/lib/__tests__/recursive.test.ts
+@@ -1,6 +1,7 @@
+ // @ts-ignore TS6133
+ import { expect } from "https://deno.land/x/expect@v0.2.6/mod.ts";
+ const test = Deno.test;
++
+ import { z } from "../index.ts";
+ 
+ interface Category {
+diff --git a/deno/lib/helpers/enumUtil.ts b/deno/lib/helpers/enumUtil.ts
+new file mode 100644
+index 000000000..205d26664
+--- /dev/null
++++ b/deno/lib/helpers/enumUtil.ts
+@@ -0,0 +1,19 @@
++export namespace enumUtil {
++  type UnionToIntersectionFn<T> = (
++    T extends unknown ? (k: () => T) => void : never
++  ) extends (k: infer Intersection) => void
++    ? Intersection
++    : never;
++
++  type GetUnionLast<T> = UnionToIntersectionFn<T> extends () => infer Last
++    ? Last
++    : never;
++
++  type UnionToTuple<T, Tuple extends unknown[] = []> = [T] extends [never]
++    ? Tuple
++    : UnionToTuple<Exclude<T, GetUnionLast<T>>, [GetUnionLast<T>, ...Tuple]>;
++
++  type CastToStringTuple<T> = T extends [string, ...string[]] ? T : never;
++
++  export type UnionToTupleString<T> = CastToStringTuple<UnionToTuple<T>>;
++}
+diff --git a/deno/lib/types.ts b/deno/lib/types.ts
+index 7becf8740..4fb3c0c3a 100644
+--- a/deno/lib/types.ts
++++ b/deno/lib/types.ts
+@@ -1,3 +1,4 @@
++import { enumUtil } from "./helpers/enumUtil.ts";
+ import { errorUtil } from "./helpers/errorUtil.ts";
+ import {
+   addIssueToContext,
+@@ -116,11 +117,10 @@ function processCreateParams(params: RawCreateParams): ProcessedCreateParams {
+   if (errorMap) return { errorMap: errorMap, description };
+   const customMap: ZodErrorMap = (iss, ctx) => {
+     if (iss.code !== "invalid_type") return { message: ctx.defaultError };
+-    if (typeof ctx.data === "undefined" && required_error)
+-      return { message: required_error };
+-    if (params.invalid_type_error)
+-      return { message: params.invalid_type_error };
+-    return { message: ctx.defaultError };
++    if (typeof ctx.data === "undefined") {
++      return { message: required_error ?? ctx.defaultError };
++    }
++    return { message: invalid_type_error ?? ctx.defaultError };
+   };
+   return { errorMap: customMap, description };
+ }
+@@ -1038,13 +1038,18 @@ export class ZodBoolean extends ZodType<boolean, ZodBooleanDef> {
+ //////////                     ////////
+ ///////////////////////////////////////
+ ///////////////////////////////////////
++type ZodDateCheck =
++  | { kind: "min"; value: number; message?: string }
++  | { kind: "max"; value: number; message?: string };
+ export interface ZodDateDef extends ZodTypeDef {
++  checks: ZodDateCheck[];
+   typeName: ZodFirstPartyTypeKind.ZodDate;
+ }
+ 
+ export class ZodDate extends ZodType<Date, ZodDateDef> {
+   _parse(input: ParseInput): ParseReturnType<this["_output"]> {
+     const parsedType = this._getType(input);
++
+     if (parsedType !== ZodParsedType.date) {
+       const ctx = this._getOrReturnCtx(input);
+       addIssueToContext(ctx, {
+@@ -1054,6 +1059,7 @@ export class ZodDate extends ZodType<Date, ZodDateDef> {
+       });
+       return INVALID;
+     }
++
+     if (isNaN(input.data.getTime())) {
+       const ctx = this._getOrReturnCtx(input);
+       addIssueToContext(ctx, {
+@@ -1062,14 +1068,93 @@ export class ZodDate extends ZodType<Date, ZodDateDef> {
+       return INVALID;
+     }
+ 
++    const status = new ParseStatus();
++    let ctx: undefined | ParseContext = undefined;
++
++    for (const check of this._def.checks) {
++      if (check.kind === "min") {
++        if (input.data.getTime() < check.value) {
++          ctx = this._getOrReturnCtx(input, ctx);
++          addIssueToContext(ctx, {
++            code: ZodIssueCode.too_small,
++            message: check.message,
++            inclusive: true,
++            minimum: check.value,
++            type: "date",
++          });
++          status.dirty();
++        }
++      } else if (check.kind === "max") {
++        if (input.data.getTime() > check.value) {
++          ctx = this._getOrReturnCtx(input, ctx);
++          addIssueToContext(ctx, {
++            code: ZodIssueCode.too_big,
++            message: check.message,
++            inclusive: true,
++            maximum: check.value,
++            type: "date",
++          });
++          status.dirty();
++        }
++      } else {
++        util.assertNever(check);
++      }
++    }
++
+     return {
+-      status: "valid",
++      status: status.value,
+       value: new Date((input.data as Date).getTime()),
+     };
+   }
+ 
++  _addCheck(check: ZodDateCheck) {
++    return new ZodDate({
++      ...this._def,
++      checks: [...this._def.checks, check],
++    });
++  }
++
++  min(minDate: Date, message?: errorUtil.ErrMessage) {
++    return this._addCheck({
++      kind: "min",
++      value: minDate.getTime(),
++      message: errorUtil.toString(message),
++    });
++  }
++
++  max(maxDate: Date, message?: errorUtil.ErrMessage) {
++    return this._addCheck({
++      kind: "max",
++      value: maxDate.getTime(),
++      message: errorUtil.toString(message),
++    });
++  }
++
++  get minDate() {
++    let min: number | null = null;
++    for (const ch of this._def.checks) {
++      if (ch.kind === "min") {
++        if (min === null || ch.value > min) min = ch.value;
++      }
++    }
++
++    return min != null ? new Date(min) : null;
++  }
++
++  get maxDate() {
++    let max: number | null = null;
++    for (const ch of this._def.checks) {
++      if (ch.kind === "max") {
++        if (max === null || ch.value < max) max = ch.value;
++      }
++    }
++
++    return max != null ? new Date(max) : null;
++  }
++
+   static create = (params?: RawCreateParams): ZodDate => {
+     return new ZodDate({
++      checks: [],
+       typeName: ZodFirstPartyTypeKind.ZodDate,
+       ...processCreateParams(params),
+     });
+@@ -1847,6 +1932,12 @@ export class ZodObject<
+     }) as any;
+   }
+ 
++  keyof(): ZodEnum<enumUtil.UnionToTupleString<keyof T>> {
++    return createZodEnum(
++      util.objectKeys(this.shape) as [string, ...string[]]
++    ) as any;
++  }
++
+   static create = <T extends ZodRawShape>(
+     shape: T,
+     params?: RawCreateParams
+diff --git a/package.json b/package.json
+index e7721e571..635630c43 100644
+--- a/package.json
++++ b/package.json
+@@ -1,6 +1,6 @@
+ {
+   "name": "zod",
+-  "version": "3.17.7",
++  "version": "3.17.9",
+   "description": "TypeScript-first schema declaration and validation library with static type inference",
+   "main": "./lib/index.js",
+   "types": "./index.d.ts",
+diff --git a/src/ZodError.ts b/src/ZodError.ts
+index 4b80d539f..01f4b45c7 100644
+--- a/src/ZodError.ts
++++ b/src/ZodError.ts
+@@ -105,14 +105,14 @@ export interface ZodTooSmallIssue extends ZodIssueBase {
+   code: typeof ZodIssueCode.too_small;
+   minimum: number;
+   inclusive: boolean;
+-  type: "array" | "string" | "number" | "set";
++  type: "array" | "string" | "number" | "set" | "date";
+ }
+ 
+ export interface ZodTooBigIssue extends ZodIssueBase {
+   code: typeof ZodIssueCode.too_big;
+   maximum: number;
+   inclusive: boolean;
+-  type: "array" | "string" | "number" | "set";
++  type: "array" | "string" | "number" | "set" | "date";
+ }
+ 
+ export interface ZodInvalidIntersectionTypesIssue extends ZodIssueBase {
+@@ -380,6 +380,10 @@ export const defaultErrorMap = (
+         message = `Number must be greater than ${
+           issue.inclusive ? `or equal to ` : ``
+         }${issue.minimum}`;
++      else if (issue.type === "date")
++        message = `Date must be greater than ${
++          issue.inclusive ? `or equal to ` : ``
++        }${new Date(issue.minimum)}`;
+       else message = "Invalid input";
+       break;
+     case ZodIssueCode.too_big:
+@@ -395,6 +399,10 @@ export const defaultErrorMap = (
+         message = `Number must be less than ${
+           issue.inclusive ? `or equal to ` : ``
+         }${issue.maximum}`;
++      else if (issue.type === "date")
++        message = `Date must be smaller than ${
++          issue.inclusive ? `or equal to ` : ``
++        }${new Date(issue.maximum)}`;
+       else message = "Invalid input";
+       break;
+     case ZodIssueCode.custom:
+diff --git a/src/__tests__/date.test.ts b/src/__tests__/date.test.ts
+new file mode 100644
+index 000000000..634d54223
+--- /dev/null
++++ b/src/__tests__/date.test.ts
+@@ -0,0 +1,34 @@
++// @ts-ignore TS6133
++import { expect, test } from "@jest/globals";
++
++import * as z from "../index";
++
++const beforeBenchmarkDate = new Date(2022, 10, 4);
++const benchmarkDate = new Date(2022, 10, 5);
++const afterBenchmarkDate = new Date(2022, 10, 6);
++
++const minCheck = z.date().min(benchmarkDate);
++const maxCheck = z.date().max(benchmarkDate);
++
++test("passing validations", () => {
++  minCheck.parse(benchmarkDate);
++  minCheck.parse(afterBenchmarkDate);
++
++  maxCheck.parse(benchmarkDate);
++  maxCheck.parse(beforeBenchmarkDate);
++});
++
++test("failing validations", () => {
++  expect(() => minCheck.parse(beforeBenchmarkDate)).toThrow();
++  expect(() => maxCheck.parse(afterBenchmarkDate)).toThrow();
++});
++
++test("min max getters", () => {
++  expect(minCheck.minDate).toEqual(benchmarkDate);
++  expect(minCheck.min(afterBenchmarkDate).minDate).toEqual(afterBenchmarkDate);
++
++  expect(maxCheck.maxDate).toEqual(benchmarkDate);
++  expect(maxCheck.max(beforeBenchmarkDate).maxDate).toEqual(
++    beforeBenchmarkDate
++  );
++});
+diff --git a/src/__tests__/error.test.ts b/src/__tests__/error.test.ts
+index 47b6aea1a..3834c8324 100644
+--- a/src/__tests__/error.test.ts
++++ b/src/__tests__/error.test.ts
+@@ -376,7 +376,7 @@ test("invalid and required", () => {
+   }
+ });
+ 
+-test("Fallback to invalid_type_error without required_error", () => {
++test("Fallback to default required error", () => {
+   const str = z.string({
+     invalid_type_error: "Invalid name",
+     // required_error: "Name is required",
+@@ -385,7 +385,7 @@ test("Fallback to invalid_type_error without required_error", () => {
+   const result2 = str.safeParse(undefined);
+   expect(result2.success).toEqual(false);
+   if (!result2.success) {
+-    expect(result2.error.issues[0].message).toEqual("Invalid name");
++    expect(result2.error.issues[0].message).toEqual("Required");
+   }
+ });
+ 
+diff --git a/src/__tests__/object.test.ts b/src/__tests__/object.test.ts
+index 100d7a633..de8d5bc93 100644
+--- a/src/__tests__/object.test.ts
++++ b/src/__tests__/object.test.ts
+@@ -237,6 +237,23 @@ test("inferred unioned object type with optional properties", async () => {
+   f1;
+ });
+ 
++test("inferred enum type", async () => {
++  const Enum = z.object({ a: z.string(), b: z.string().optional() }).keyof();
++
++  expect(Enum.Values).toEqual({
++    a: "a",
++    b: "b",
++  });
++  expect(Enum.enum).toEqual({
++    a: "a",
++    b: "b",
++  });
++  expect(Enum._def.values).toEqual(["a", "b"]);
++  type Enum = z.infer<typeof Enum>;
++  const f1: util.AssertEqual<Enum, "a" | "b"> = true;
++  f1;
++});
++
+ test("inferred partial object type with optional properties", async () => {
+   const Partial = z
+     .object({ a: z.string(), b: z.string().optional() })
+diff --git a/src/__tests__/recursive.test.ts b/src/__tests__/recursive.test.ts
+index a3c820b52..1c30074d3 100644
+--- a/src/__tests__/recursive.test.ts
++++ b/src/__tests__/recursive.test.ts
+@@ -1,5 +1,6 @@
+ // @ts-ignore TS6133
+ import { test } from "@jest/globals";
++
+ import { z } from "..";
+ 
+ interface Category {
+diff --git a/src/helpers/enumUtil.ts b/src/helpers/enumUtil.ts
+new file mode 100644
+index 000000000..205d26664
+--- /dev/null
++++ b/src/helpers/enumUtil.ts
+@@ -0,0 +1,19 @@
++export namespace enumUtil {
++  type UnionToIntersectionFn<T> = (
++    T extends unknown ? (k: () => T) => void : never
++  ) extends (k: infer Intersection) => void
++    ? Intersection
++    : never;
++
++  type GetUnionLast<T> = UnionToIntersectionFn<T> extends () => infer Last
++    ? Last
++    : never;
++
++  type UnionToTuple<T, Tuple extends unknown[] = []> = [T] extends [never]
++    ? Tuple
++    : UnionToTuple<Exclude<T, GetUnionLast<T>>, [GetUnionLast<T>, ...Tuple]>;
++
++  type CastToStringTuple<T> = T extends [string, ...string[]] ? T : never;
++
++  export type UnionToTupleString<T> = CastToStringTuple<UnionToTuple<T>>;
++}
+diff --git a/src/types.ts b/src/types.ts
+index d858214e8..d32b5ecdc 100644
+--- a/src/types.ts
++++ b/src/types.ts
+@@ -1,3 +1,4 @@
++import { enumUtil } from "./helpers/enumUtil";
+ import { errorUtil } from "./helpers/errorUtil";
+ import {
+   addIssueToContext,
+@@ -116,11 +117,10 @@ function processCreateParams(params: RawCreateParams): ProcessedCreateParams {
+   if (errorMap) return { errorMap: errorMap, description };
+   const customMap: ZodErrorMap = (iss, ctx) => {
+     if (iss.code !== "invalid_type") return { message: ctx.defaultError };
+-    if (typeof ctx.data === "undefined" && required_error)
+-      return { message: required_error };
+-    if (params.invalid_type_error)
+-      return { message: params.invalid_type_error };
+-    return { message: ctx.defaultError };
++    if (typeof ctx.data === "undefined") {
++      return { message: required_error ?? ctx.defaultError };
++    }
++    return { message: invalid_type_error ?? ctx.defaultError };
+   };
+   return { errorMap: customMap, description };
+ }
+@@ -1038,13 +1038,18 @@ export class ZodBoolean extends ZodType<boolean, ZodBooleanDef> {
+ //////////                     ////////
+ ///////////////////////////////////////
+ ///////////////////////////////////////
++type ZodDateCheck =
++  | { kind: "min"; value: number; message?: string }
++  | { kind: "max"; value: number; message?: string };
+ export interface ZodDateDef extends ZodTypeDef {
++  checks: ZodDateCheck[];
+   typeName: ZodFirstPartyTypeKind.ZodDate;
+ }
+ 
+ export class ZodDate extends ZodType<Date, ZodDateDef> {
+   _parse(input: ParseInput): ParseReturnType<this["_output"]> {
+     const parsedType = this._getType(input);
++
+     if (parsedType !== ZodParsedType.date) {
+       const ctx = this._getOrReturnCtx(input);
+       addIssueToContext(ctx, {
+@@ -1054,6 +1059,7 @@ export class ZodDate extends ZodType<Date, ZodDateDef> {
+       });
+       return INVALID;
+     }
++
+     if (isNaN(input.data.getTime())) {
+       const ctx = this._getOrReturnCtx(input);
+       addIssueToContext(ctx, {
+@@ -1062,14 +1068,93 @@ export class ZodDate extends ZodType<Date, ZodDateDef> {
+       return INVALID;
+     }
+ 
++    const status = new ParseStatus();
++    let ctx: undefined | ParseContext = undefined;
++
++    for (const check of this._def.checks) {
++      if (check.kind === "min") {
++        if (input.data.getTime() < check.value) {
++          ctx = this._getOrReturnCtx(input, ctx);
++          addIssueToContext(ctx, {
++            code: ZodIssueCode.too_small,
++            message: check.message,
++            inclusive: true,
++            minimum: check.value,
++            type: "date",
++          });
++          status.dirty();
++        }
++      } else if (check.kind === "max") {
++        if (input.data.getTime() > check.value) {
++          ctx = this._getOrReturnCtx(input, ctx);
++          addIssueToContext(ctx, {
++            code: ZodIssueCode.too_big,
++            message: check.message,
++            inclusive: true,
++            maximum: check.value,
++            type: "date",
++          });
++          status.dirty();
++        }
++      } else {
++        util.assertNever(check);
++      }
++    }
++
+     return {
+-      status: "valid",
++      status: status.value,
+       value: new Date((input.data as Date).getTime()),
+     };
+   }
+ 
++  _addCheck(check: ZodDateCheck) {
++    return new ZodDate({
++      ...this._def,
++      checks: [...this._def.checks, check],
++    });
++  }
++
++  min(minDate: Date, message?: errorUtil.ErrMessage) {
++    return this._addCheck({
++      kind: "min",
++      value: minDate.getTime(),
++      message: errorUtil.toString(message),
++    });
++  }
++
++  max(maxDate: Date, message?: errorUtil.ErrMessage) {
++    return this._addCheck({
++      kind: "max",
++      value: maxDate.getTime(),
++      message: errorUtil.toString(message),
++    });
++  }
++
++  get minDate() {
++    let min: number | null = null;
++    for (const ch of this._def.checks) {
++      if (ch.kind === "min") {
++        if (min === null || ch.value > min) min = ch.value;
++      }
++    }
++
++    return min != null ? new Date(min) : null;
++  }
++
++  get maxDate() {
++    let max: number | null = null;
++    for (const ch of this._def.checks) {
++      if (ch.kind === "max") {
++        if (max === null || ch.value < max) max = ch.value;
++      }
++    }
++
++    return max != null ? new Date(max) : null;
++  }
++
+   static create = (params?: RawCreateParams): ZodDate => {
+     return new ZodDate({
++      checks: [],
+       typeName: ZodFirstPartyTypeKind.ZodDate,
+       ...processCreateParams(params),
+     });
+@@ -1847,6 +1932,12 @@ export class ZodObject<
+     }) as any;
+   }
+ 
++  keyof(): ZodEnum<enumUtil.UnionToTupleString<keyof T>> {
++    return createZodEnum(
++      util.objectKeys(this.shape) as [string, ...string[]]
++    ) as any;
++  }
++
+   static create = <T extends ZodRawShape>(
+     shape: T,
+     params?: RawCreateParams

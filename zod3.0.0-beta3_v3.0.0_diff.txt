@@ -1,0 +1,605 @@
+diff --git a/MIGRATION.md b/MIGRATION.md
+new file mode 100644
+index 000000000..2d07f2fdd
+--- /dev/null
++++ b/MIGRATION.md
+@@ -0,0 +1,77 @@
++# Migration guide
++
++This is a migration guide to walk you through the process of upgrading to Zod 3.
++
++- If you're upgrading directly from Zod 1, you should read through the list of features + changes in both Zod 2 and Zod 3.
++- If you're upgrading from Zod 2 -> 3, you can skip to the
++
++## Upgrading from Zod 1 → Zod 2
++
++Zod 2 is being retired and will not leave beta. This is due to some unintuitive ramifications of the transformers API: details [here](https://github.com/colinhacks/zod/issues/264).
++
++### New features
++
++- Transformers! These let you provide default values, do casting/coercion, and a lot more. Read more here: [Transformers](https://github.com/colinhacks/zod#transformers)
++- Asynchronous refinements and new .parseAsync and .safeParseAsync methods. Read more here: [Refinements](https://github.com/colinhacks/zod#refinements)
++- Modify unknown key behavior for object schemas: `.strip()` (the default), `.passthrough()`, and `.strict()`
++- New .catchall() method for object schemas: [catchall](https://github.com/colinhacks/zod#catchall)
++
++### Breaking changes
++
++- Object schemas now _strip_ unknown keys by default.
++- Schema parsing now returns a deep clone of the data you pass in (instead of the exact value you pass in)
++- Relatedly, Zod no longer supports cyclical data. Recursive schemas are still supported, but Zod can't properly parse nested objects that contain cycles.
++- Optional and nullable schemas are now represented with the dedicated ZodOptional and ZodNullable classes, instead of using ZodUnion.
++
++## Upgrading from Zod 2 → Zod 3
++
++### New features
++
++- You can now import Zod like `import { z } from 'zod';` instead of using `import * as` syntax.
++- **Structured error messages**. Use the `.format()` method to ZodError to convert the error into a strongly-typed, nested object: [format method](#error-formatting)
++- **Easier unions**. Use the `or` method to ZodType (the base class for all Zod schemas) to easily create union types like `z.string().or(z.number())`
++- **Easier intersections**. Use the `and` method to ZodType (the base class for all Zod schemas) to easily create intersection types
++- **Global error customization**. Use `z.setErrorMap(myErrorMap)` to _globally_ customize the error messages produced by Zod: [setErrorMap](ERROR_HANDLING.md#customizing-errors-with-zoderrormap)
++- **Maps and sets**. Zod now supports [`Map`](#maps) and [`Set`](#set) schemas.
++- **Optional and nullable unwrapping**. ZodOptional and ZodNullable now have a `.unwrap()` method for retrieving the schema they wrap.
++- **A new implementation of transformers**. Details below.
++
++### Breaking changes
++
++- The **minimum TypeScript version** is now _4.1_ (up from 3.7 for Zod 2). Several features have been rewritten to use [recursive conditional types](https://devblogs.microsoft.com/typescript/announcing-typescript-4-1/#recursive-conditional-types), an incredibly powerful new feature introduced in TS4.1.
++
++- **Transformers syntax**. Previously, creating a transformer required an input schema, an output schema, and a function to tranform between them. You created transformers like `z.transform(A, B, func)`, where `A` and `B` are Zod schemas. This is no longer the case. Accordingly:
++
++  The old syntax is no longer available:
++
++  ```ts
++  # not available
++  z.transformer(A, B, func);
++  A.transform(B, func)
++  ```
++
++  Instead, apply transformations by simply using the `.transform()` method that exists on all Zod schemas.
++
++  ```ts
++  z.string().transform((val) => val.length);
++  ```
++
++- Under the hood, all refinements and transformations are executed inside a dedicated "ZodEffects" class. Post-parsing, ZodEffects passes the data through a chain of refinements and transformations, then returns the final value. As such, you can now _interleave_ transformations and refinements. For instance:
++
++  ```ts
++  const test = z
++    .string()
++    .transform((val) => val.length)
++    .refine((val) => val > 5, { message: "Input is too short" })
++    .transform((val) => val * 2);
++
++  test.parse("12characters"); // => 24
++  ```
++
++- **Type guards** (the `.check()` method) have been removed. Type guards interact with transformers in unintuitive ways so they were removed. Use `.safeParse` instead.
++
++- Object merging now behaves differently. If you merge two object schema (`A.merge(B)`), the fields of B will overwrite the fields of A if there are shared keys. This is how the `.extend` method already works. If you're looking to create an intersection of the two types, use `z.intersection(A, B)` or use the new `.and` method (`A.and(B)`).
++
++- **Default values**: default value logic is now implemented inside a `ZodDefault` class, instead of using transformers. (In a previous alpha version of Zod 3, default values were implemented inside the ZodOptional class.)
++
++- There have been small internal changes to the ZodIssue subtypes. See the new subtypes in the [Error Handling guide](ERROR_HANDLING.md). This may impact user who have written a custom error maps. Most users will not be affected.
+diff --git a/README.md b/README.md
+index 47de5f3d3..6f4cd51b4 100644
+--- a/README.md
++++ b/README.md
+@@ -11,78 +11,30 @@
+ 
+ </p>
+ <p align="center">
+-don't forget to <del>smash that like button</del> leave a star
++⭐️ smash that star button ⭐️
+ </p>
+ 
+ <br/>
+ 
+-### Introducing tRPC
++## May 17, 2021: Zod v3 is now in stable release!
+ 
+-If you like Zod, you'll love my new library [`tRPC`](https://github.com/trpc/trpc), a toolkit for building end-to-end typesafe APIs — no GraphQL or code generation required. It makes it easy to validate API payloads with Zod schemas (or other libraries). It's the best way to build a fully typed API, especially for Next.js users. Check it out: [github.com/trpc/trpc](https://github.com/trpc/trpc).
++Check out the [Migration Guide](https://github.com/colinhacks/zod/blob/master/MIGRATION.md) to upgrade.
+ 
+-## Zod v3 is in beta!
++Previous versions:
++
++- [`Zod 1 docs`](https://github.com/colinhacks/zod/tree/v1)
++- [`Zod 2 docs`](https://github.com/colinhacks/zod/tree/v2)
+ 
+ #### New features
+ 
+-- **A new implementation of transformers**. See the "breaking changes" section to understand the syntax changes.
+-- You can now import Zod like `import { z } from 'zod';` instead of using `import * as` syntax.
++- **Easier imports**: you can now import Zod like `import { z } from 'zod';` instead of using `import * as` syntax.
+ - **Structured error messages**. Use the `.format()` method to ZodError to convert the error into a strongly-typed, nested object: [format method](#error-formatting)
+ - **Easier unions**. Use the `or` method to ZodType (the base class for all Zod schemas) to easily create union types like `z.string().or(z.number())`
+ - **Easier intersections**. Use the `and` method to ZodType (the base class for all Zod schemas) to easily create intersection types
+ - **Global error customization**. Use `z.setErrorMap(myErrorMap)` to _globally_ customize the error messages produced by Zod: [setErrorMap](ERROR_HANDLING.md#customizing-errors-with-zoderrormap)
++- **Maps and sets**. Zod now supports [`Map`](#maps) and [`Set`](#set) schemas.
+ - **Optional and nullable unwrapping**. ZodOptional and ZodNullable now have a `.unwrap()` method for retrieving the schema they wrap.
+-
+-#### Breaking changes in v3
+-
+-- The **minimum TypeScript version** is now _4.1_ (up from 3.7 for Zod 2). Several features have been rewritten to use [recursive conditional types](https://devblogs.microsoft.com/typescript/announcing-typescript-4-1/#recursive-conditional-types), an incredibly powerful new feature introduced in TS4.1.
+-
+-- **Transformers syntax**. Previously, creating a transformer required an input schema, an output schema, and a function to tranform between them. You created transformers like `z.transform(A, B, func)`, where `A` and `B` are Zod schemas. This is no longer the case. Accordingly:
+-
+-  The old syntax is no longer available:
+-
+-  ```ts
+-  # not available
+-  z.transformer(A, B, func);
+-  A.transform(B, func)
+-  ```
+-
+-  Instead, apply transformations by simply using the `.transform()` method that exists on all Zod schemas.
+-
+-  ```ts
+-  z.string().transform((val) => val.length);
+-  ```
+-
+-- Under the hood, all refinements and transformations are executed inside a dedicated "ZodEffects" class. Post-parsing, ZodEffects passes the data through a chain of refinements and transformations, then returns the final value. As such, you can now _interleave_ transformations and refinements. For instance:
+-
+-  ```ts
+-  const test = z
+-    .string()
+-    .transform((val) => val.length)
+-    .refine((val) => val > 5, { message: "Input is too short" })
+-    .transform((val) => val * 2);
+-
+-  test.parse("12characters"); // => 24
+-  ```
+-
+-- **Type guards** (the `.check()` method) have been removed. Type guards interact with transformers in unintuitive ways so they were removed. Use `.safeParse` instead.
+-- Object merging now behaves differently. If you merge two object schema (`A.merge(B)`), the fields of B will overwrite the fields of A if there are shared keys. This is how the `.extend` method already works. If you're looking to create an intersection of the two types, use `z.intersection(A, B)` or use the new `.and` method (`A.and(B)`).
+-- **Default values**: default value logic is now implemented inside a `ZodDefault` class, instead of using transformers. (In a previous alpha version of Zod 3, default values were implemented inside the ZodOptional class.)
+-- There have been small internal changes to the ZodIssue subtypes. See the new subtypes in the [Error Handling guide](ERROR_HANDLING.md). This may impact user who have written a custom error maps. Most users will not be affected.
+-
+-### Migration guide
+-
+-**From v1 -> v3**
+-
+-If you're upgrading straight to v3 from v1, you'll need to be aware of the breaking changes introduced in both v2 and v3. The v1->v2 migration guide is [here](https://github.com/colinhacks/zod/tree/v2#migration-from-v1).
+-
+-**From v2 -> v3**
+-
+-Zod 2 is being retired and will not leave beta. This is due to some issues with it's implementation of transformers: details [here](https://github.com/colinhacks/zod/issues/264). Zod 3 is currently in alpha — install it at `zod@next`. (Zod 2 will continue to be available with `zod@beta` for the time being.)
+-
+-```
+-npm install zod@next
+-yarn add zod@next
+-```
++- **A new implementation of transformers**. See the [Migration Guide](https://github.com/colinhacks/zod/blob/master/MIGRATION.md) section to understand the syntax changes.
+ 
+ # Table of contents
+ 
+@@ -244,16 +196,10 @@ _To get your name + Twitter + website here, sponsor Zod at the [Freelancer](http
+ To install Zod v3:
+ 
+ ```sh
+-npm install zod@next
++npm install zod
+ ```
+ 
+-#### TypeScript requirements
+-
+-- Zod 3.x requires TypeScript 4.1+
+-- Zod 2.x requires TypeScript 3.7+
+-- Zod 1.x requires TypeScript 3.3+
+-
+-⚠️ You must enable `strict` mode in your `tsconfig.json`. This is a best practice for all TypeScript projects:
++⚠️ IMPORTANT: You must enable `strict` mode in your `tsconfig.json`. This is a best practice for all TypeScript projects.
+ 
+ ```ts
+ // tsconfig.json
+@@ -266,11 +212,17 @@ npm install zod@next
+ }
+ ```
+ 
++#### TypeScript requirements
++
++- Zod 3.x requires TypeScript 4.1+
++- Zod 2.x requires TypeScript 3.7+
++- Zod 1.x requires TypeScript 3.3+
++
+ # Ecosystem
+ 
+ There are a growing number of tools that are built atop or support Zod natively! If you've built a tool or library on top of Zod, tell me about it [on Twitter](https://twitter.com/colinhacks) or [start a Discussion](https://github.com/colinhacks/zod/discussions). I'll add it below and tweet it out.
+ 
+-- [`react-hook-form`](https://github.com/react-hook-form/resolvers): Build type-safe forms easily with React Hook Form and the Zod resolver. I use this all the time and it's glorious.
++- [`react-hook-form`](https://github.com/react-hook-form/resolvers): Build type-safe forms easily with React Hook Form and the Zod resolver.
+ - [`ts-to-zod`](https://github.com/fabien0102/ts-to-zod): Convert TypeScript definitions into Zod schemas.
+ - [`zod-mocking`](https://github.com/dipasqualew/zod-mocking): Generate mock data from your Zod schemas.
+ - [`zod-fast-check`](https://github.com/DavidTimms/zod-fast-check): Generate `fast-check` arbitraries from Zod schemas.
+@@ -1575,17 +1527,19 @@ In reality each Zod schema is actually associated with **two** types: an input a
+ You can separately extract the input and output types like so:
+ 
+ ```ts
+-const stringToNumber = z.string().transform(val => val.length)
++const stringToNumber = z.string().transform((val) => val.length);
+ 
+ // ⚠️ Important: z.infer returns the OUTPUT type!
+-type type = z.infer<stringToNumber>; // number
+-type out = z.output<stringToNumber>; // number, equivalent to z.infer
+-type in = z.input<stringToNumber>; // string, returns input type
++type input = z.input<stringToNumber>; // string
++type output = z.output<stringToNumber>; // number
++
++// equivalent to z.output!
++type inferred = z.infer<stringToNumber>; // number
+ ```
+ 
+ # Errors
+ 
+-Zod provides a subclass of Error called ZodError. ZodErrors contain an `issues` array containing detailed information about the validation problems.
++Zod provides a subclass of Error called `ZodError`. ZodErrors contain an `issues` array containing detailed information about the validation problems.
+ 
+ ```ts
+ const data = z
+diff --git a/coverage.svg b/coverage.svg
+index 980f48c1c..7ea3222cf 100644
+--- a/coverage.svg
++++ b/coverage.svg
+@@ -1 +1 @@
+-<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="110" height="20" role="img" aria-label="Coverage: 92.5%"><title>Coverage: 92.5%</title><linearGradient id="s" x2="0" y2="100%"><stop offset="0" stop-color="#bbb" stop-opacity=".1"/><stop offset="1" stop-opacity=".1"/></linearGradient><clipPath id="r"><rect width="110" height="20" rx="3" fill="#fff"/></clipPath><g clip-path="url(#r)"><rect width="63" height="20" fill="#555"/><rect x="63" width="47" height="20" fill="#4c1"/><rect width="110" height="20" fill="url(#s)"/></g><g fill="#fff" text-anchor="middle" font-family="Verdana,Geneva,DejaVu Sans,sans-serif" text-rendering="geometricPrecision" font-size="110"><text aria-hidden="true" x="325" y="150" fill="#010101" fill-opacity=".3" transform="scale(.1)" textLength="530">Coverage</text><text x="325" y="140" transform="scale(.1)" fill="#fff" textLength="530">Coverage</text><text aria-hidden="true" x="855" y="150" fill="#010101" fill-opacity=".3" transform="scale(.1)" textLength="370">92.5%</text><text x="855" y="140" transform="scale(.1)" fill="#fff" textLength="370">92.5%</text></g></svg>
+\ No newline at end of file
++<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="116" height="20" role="img" aria-label="Coverage: 92.37%"><title>Coverage: 92.37%</title><linearGradient id="s" x2="0" y2="100%"><stop offset="0" stop-color="#bbb" stop-opacity=".1"/><stop offset="1" stop-opacity=".1"/></linearGradient><clipPath id="r"><rect width="116" height="20" rx="3" fill="#fff"/></clipPath><g clip-path="url(#r)"><rect width="63" height="20" fill="#555"/><rect x="63" width="53" height="20" fill="#4c1"/><rect width="116" height="20" fill="url(#s)"/></g><g fill="#fff" text-anchor="middle" font-family="Verdana,Geneva,DejaVu Sans,sans-serif" text-rendering="geometricPrecision" font-size="110"><text aria-hidden="true" x="325" y="150" fill="#010101" fill-opacity=".3" transform="scale(.1)" textLength="530">Coverage</text><text x="325" y="140" transform="scale(.1)" fill="#fff" textLength="530">Coverage</text><text aria-hidden="true" x="885" y="150" fill="#010101" fill-opacity=".3" transform="scale(.1)" textLength="430">92.37%</text><text x="885" y="140" transform="scale(.1)" fill="#fff" textLength="430">92.37%</text></g></svg>
+\ No newline at end of file
+diff --git a/deno/lib/playground.ts b/deno/lib/playground.ts
+index 5aa39bfed..f96b6e003 100644
+--- a/deno/lib/playground.ts
++++ b/deno/lib/playground.ts
+@@ -2,15 +2,6 @@ import { z } from "./index.ts";
+ 
+ const run = async () => {
+   z;
+-  z.instanceof(File);
+-  const schema = z
+-    .string()
+-    .nullable()
+-    .default("null")
+-    .transform((val) => val ?? undefined);
+-
+-  const value = schema.parse(null);
+-  console.log(value);
+ };
+ 
+ run();
+diff --git a/deno/lib/types.ts b/deno/lib/types.ts
+index ea4784aea..b7afef5f5 100644
+--- a/deno/lib/types.ts
++++ b/deno/lib/types.ts
+@@ -326,8 +326,17 @@ export abstract class ZodType<
+ 
+   array: () => ZodArray<this> = () => ZodArray.create(this);
+ 
+-  or<T extends ZodTypeAny>(option: T): ZodUnion<[this, T]> {
+-    return ZodUnion.create([this, option]);
++  or<T extends ZodTypeAny, This extends this = this>(
++    option: T
++  ): This extends ZodUnion<infer Opts>
++    ? [...Opts, T] extends ZodUnionOptions
++      ? ZodUnion<[...Opts, T]>
++      : never
++    : ZodUnion<[This, T]> {
++    if (this instanceof ZodUnion) {
++      return ZodUnion.create([...this.options, option] as any) as any;
++    }
++    return ZodUnion.create([this, option]) as any;
+   }
+ 
+   and<T extends ZodTypeAny>(incoming: T): ZodIntersection<this, T> {
+@@ -419,6 +428,32 @@ export class ZodString extends ZodType<string, ZodStringDef> {
+       return INVALID;
+     }
+ 
++    if (this._def.minLength !== null) {
++      if (ctx.data.length < this._def.minLength.value) {
++        ctx.addIssue({
++          code: ZodIssueCode.too_small,
++          minimum: this._def.minLength.value,
++          type: "string",
++          inclusive: true,
++          message: this._def.minLength.message,
++          // ...errorUtil.errToObj(this._def.minLength.message),
++        });
++      }
++    }
++
++    if (this._def.maxLength !== null) {
++      if (ctx.data.length > this._def.maxLength.value) {
++        ctx.addIssue({
++          code: ZodIssueCode.too_big,
++          maximum: this._def.maxLength.value,
++          type: "string",
++          inclusive: true,
++          message: this._def.maxLength.message,
++          // ...errorUtil.errToObj(this._def.maxLength.message),
++        });
++      }
++    }
++
+     if (this._def.isEmail && !emailRegex.test(ctx.data)) {
+       ctx.addIssue({
+         validation: "email",
+@@ -447,32 +482,6 @@ export class ZodString extends ZodType<string, ZodStringDef> {
+       });
+     }
+ 
+-    if (this._def.minLength !== null) {
+-      if (ctx.data.length < this._def.minLength.value) {
+-        ctx.addIssue({
+-          code: ZodIssueCode.too_small,
+-          minimum: this._def.minLength.value,
+-          type: "string",
+-          inclusive: true,
+-          message: this._def.minLength.message,
+-          // ...errorUtil.errToObj(this._def.minLength.message),
+-        });
+-      }
+-    }
+-
+-    if (this._def.maxLength !== null) {
+-      if (ctx.data.length > this._def.maxLength.value) {
+-        ctx.addIssue({
+-          code: ZodIssueCode.too_big,
+-          maximum: this._def.maxLength.value,
+-          type: "string",
+-          inclusive: true,
+-          message: this._def.maxLength.message,
+-          // ...errorUtil.errToObj(this._def.maxLength.message),
+-        });
+-      }
+-    }
+-
+     return ctx.data;
+   }
+ 
+@@ -583,6 +592,17 @@ export class ZodNumber extends ZodType<number, ZodNumberDef> {
+       return INVALID;
+     }
+ 
++    if (this._def.isInteger) {
++      if (!Number.isInteger(ctx.data)) {
++        ctx.addIssue({
++          code: ZodIssueCode.invalid_type,
++          expected: "integer",
++          received: "float",
++          message: this._def.isInteger.message,
++        });
++      }
++    }
++
+     if (this._def.minimum) {
+       const MIN = this._def.minimum;
+       const tooSmall = MIN.inclusive
+@@ -615,17 +635,6 @@ export class ZodNumber extends ZodType<number, ZodNumberDef> {
+       }
+     }
+ 
+-    if (this._def.isInteger) {
+-      if (!Number.isInteger(ctx.data)) {
+-        ctx.addIssue({
+-          code: ZodIssueCode.invalid_type,
+-          expected: "integer",
+-          received: "float",
+-          message: this._def.isInteger.message,
+-        });
+-      }
+-    }
+-
+     return ctx.data as number;
+   }
+ 
+diff --git a/package.json b/package.json
+index bcaa69e42..4e63cbd7b 100644
+--- a/package.json
++++ b/package.json
+@@ -1,6 +1,6 @@
+ {
+   "name": "zod",
+-  "version": "3.0.0-beta.3",
++  "version": "3.0.0-beta.4",
+   "description": "TypeScript-first schema declaration and validation library with static type inference",
+   "main": "./lib/index.js",
+   "types": "./lib/index.d.ts",
+@@ -79,7 +79,7 @@
+     "ts-jest": "^26.4.4",
+     "ts-node": "^9.1.0",
+     "tslib": "^2.1.0",
+-    "typescript": "4.1"
++    "typescript": "^4.2.4"
+   },
+   "husky": {
+     "hooks": {
+diff --git a/rollup.config.js b/rollup.config.js
+index 9b42b9cc9..adccf9fa5 100644
+--- a/rollup.config.js
++++ b/rollup.config.js
+@@ -2,20 +2,6 @@
+ import typescript from "@rollup/plugin-typescript";
+ 
+ export default [
+-  // {
+-  //   input: "src/index.ts",
+-  //   output: [
+-  //     {
+-  //       file: "lib/index.cjs",
+-  //       format: "cjs",
+-  //     },
+-  //   ],
+-  //   plugins: [
+-  //     typescript({
+-  //       tsconfig: "tsconfig.cjs.json",
+-  //     }),
+-  //   ],
+-  // },
+   {
+     input: "src/index.ts",
+     output: [
+diff --git a/src/playground.ts b/src/playground.ts
+index 2c14269de..746f94e03 100644
+--- a/src/playground.ts
++++ b/src/playground.ts
+@@ -2,15 +2,6 @@ import { z } from "./index";
+ 
+ const run = async () => {
+   z;
+-  z.instanceof(File);
+-  const schema = z
+-    .string()
+-    .nullable()
+-    .default("null")
+-    .transform((val) => val ?? undefined);
+-
+-  const value = schema.parse(null);
+-  console.log(value);
+ };
+ 
+ run();
+diff --git a/src/types.ts b/src/types.ts
+index 5fd03f4f6..710469c3a 100644
+--- a/src/types.ts
++++ b/src/types.ts
+@@ -326,8 +326,17 @@ export abstract class ZodType<
+ 
+   array: () => ZodArray<this> = () => ZodArray.create(this);
+ 
+-  or<T extends ZodTypeAny>(option: T): ZodUnion<[this, T]> {
+-    return ZodUnion.create([this, option]);
++  or<T extends ZodTypeAny, This extends this = this>(
++    option: T
++  ): This extends ZodUnion<infer Opts>
++    ? [...Opts, T] extends ZodUnionOptions
++      ? ZodUnion<[...Opts, T]>
++      : never
++    : ZodUnion<[This, T]> {
++    if (this instanceof ZodUnion) {
++      return ZodUnion.create([...this.options, option] as any) as any;
++    }
++    return ZodUnion.create([this, option]) as any;
+   }
+ 
+   and<T extends ZodTypeAny>(incoming: T): ZodIntersection<this, T> {
+@@ -419,6 +428,32 @@ export class ZodString extends ZodType<string, ZodStringDef> {
+       return INVALID;
+     }
+ 
++    if (this._def.minLength !== null) {
++      if (ctx.data.length < this._def.minLength.value) {
++        ctx.addIssue({
++          code: ZodIssueCode.too_small,
++          minimum: this._def.minLength.value,
++          type: "string",
++          inclusive: true,
++          message: this._def.minLength.message,
++          // ...errorUtil.errToObj(this._def.minLength.message),
++        });
++      }
++    }
++
++    if (this._def.maxLength !== null) {
++      if (ctx.data.length > this._def.maxLength.value) {
++        ctx.addIssue({
++          code: ZodIssueCode.too_big,
++          maximum: this._def.maxLength.value,
++          type: "string",
++          inclusive: true,
++          message: this._def.maxLength.message,
++          // ...errorUtil.errToObj(this._def.maxLength.message),
++        });
++      }
++    }
++
+     if (this._def.isEmail && !emailRegex.test(ctx.data)) {
+       ctx.addIssue({
+         validation: "email",
+@@ -447,32 +482,6 @@ export class ZodString extends ZodType<string, ZodStringDef> {
+       });
+     }
+ 
+-    if (this._def.minLength !== null) {
+-      if (ctx.data.length < this._def.minLength.value) {
+-        ctx.addIssue({
+-          code: ZodIssueCode.too_small,
+-          minimum: this._def.minLength.value,
+-          type: "string",
+-          inclusive: true,
+-          message: this._def.minLength.message,
+-          // ...errorUtil.errToObj(this._def.minLength.message),
+-        });
+-      }
+-    }
+-
+-    if (this._def.maxLength !== null) {
+-      if (ctx.data.length > this._def.maxLength.value) {
+-        ctx.addIssue({
+-          code: ZodIssueCode.too_big,
+-          maximum: this._def.maxLength.value,
+-          type: "string",
+-          inclusive: true,
+-          message: this._def.maxLength.message,
+-          // ...errorUtil.errToObj(this._def.maxLength.message),
+-        });
+-      }
+-    }
+-
+     return ctx.data;
+   }
+ 
+@@ -583,6 +592,17 @@ export class ZodNumber extends ZodType<number, ZodNumberDef> {
+       return INVALID;
+     }
+ 
++    if (this._def.isInteger) {
++      if (!Number.isInteger(ctx.data)) {
++        ctx.addIssue({
++          code: ZodIssueCode.invalid_type,
++          expected: "integer",
++          received: "float",
++          message: this._def.isInteger.message,
++        });
++      }
++    }
++
+     if (this._def.minimum) {
+       const MIN = this._def.minimum;
+       const tooSmall = MIN.inclusive
+@@ -615,17 +635,6 @@ export class ZodNumber extends ZodType<number, ZodNumberDef> {
+       }
+     }
+ 
+-    if (this._def.isInteger) {
+-      if (!Number.isInteger(ctx.data)) {
+-        ctx.addIssue({
+-          code: ZodIssueCode.invalid_type,
+-          expected: "integer",
+-          received: "float",
+-          message: this._def.isInteger.message,
+-        });
+-      }
+-    }
+-
+     return ctx.data as number;
+   }
+ 
+diff --git a/yarn.lock b/yarn.lock
+index ec8dad245..bb141ba88 100644
+--- a/yarn.lock
++++ b/yarn.lock
+@@ -5327,10 +5327,10 @@ typedarray-to-buffer@^3.1.5:
+   dependencies:
+     is-typedarray "^1.0.0"
+ 
+-typescript@4.1:
+-  version "4.1.3"
+-  resolved "https://registry.yarnpkg.com/typescript/-/typescript-4.1.3.tgz#519d582bd94cba0cf8934c7d8e8467e473f53bb7"
+-  integrity sha512-B3ZIOf1IKeH2ixgHhj6la6xdwR9QrLC5d1VKeCSY4tvkqhF2eqd9O7txNlS0PO3GrBAFIdr3L1ndNwteUbZLYg==
++typescript@^4.2.4:
++  version "4.2.4"
++  resolved "https://registry.yarnpkg.com/typescript/-/typescript-4.2.4.tgz#8610b59747de028fda898a8aef0e103f156d0961"
++  integrity sha512-V+evlYHZnQkaz8TRBuxTA92yZBPotr5H+WhQ7bD3hZUndx5tGOa1fuCgeSjxAzM1RiN5IzvadIXTVefuuwZCRg==
+ 
+ uglify-js@^3.1.4:
+   version "3.12.1"

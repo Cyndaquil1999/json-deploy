@@ -1,0 +1,1782 @@
+diff --git a/ERROR_HANDLING.md b/ERROR_HANDLING.md
+index 88bd36798..8efc40e14 100644
+--- a/ERROR_HANDLING.md
++++ b/ERROR_HANDLING.md
+@@ -274,160 +274,217 @@ z.string().parse(12, { errorMap });
+ 
+ ## Error handling for forms
+ 
+-If you're using Zod to validate the inputs from a web form, there is a convenient way to "flatten" a ZodError to a format that can be easily displayed to the end user.
++If you're using Zod to validate the inputs from a web form, there is a convenient way to "flatten" a ZodError to a rich, structured format that can be easily rendered in your interface.
+ 
+ Consider this example of a simple signup form:
+ 
+ ```ts
+-const FormData = z
+-  .object({
++const FormData = z.object({
++  name: z.string(),
++  contactInfo: z.object({
+     email: z.string().email(),
+-    password: z.string().min(10),
+-    confirm: z.string().min(10),
+-  })
+-  .refine(obj => obj.password === obj.confirm, {
+-    message: 'Passwords do not match',
+-    path: ['confirm'], // this value is concatenated to the end of the actual path of the error
+-  });
+-}
++    phone: z.string().optional(),
++  }),
++});
+ ```
+ 
+ Now lets pass in some invalid data:
+ 
+ ```ts
+-FormData.parse({
+-  email: "not an email",
+-  password: "tooshort",
+-  confirm: "nomatch",
++const result = FormData.safeParse({
++  name: null,
++  contactInfo: {
++    email: "not an email",
++    phone: "867-5309",
++  },
+ });
+ ```
+ 
+-This will throw a ZodError with four issues:
++This will throw a ZodError with two issues:
+ 
+ ```ts
+-console.log(err.issues);
++if (!result.success) {
++  console.log(result.error.issues);
++}
+ /*
+   [
+-    { code: 'invalid_string', validation: 'email', path: ['email'], message: 'Invalid email' },
+     {
+-      code: 'too_small',
+-      minimum: 10,
+-      type: 'string',
+-      inclusive: true,
+-      path: ['password'],
+-      message: 'Should be at least 10 characters',
++      "code": "invalid_type",
++      "expected": "string",
++      "received": "null",
++      "path": ["name"],
++      "message": "Expected string, received null"
+     },
+     {
+-      code: 'too_small',
+-      minimum: 10,
+-      type: 'string',
+-      inclusive: true,
+-      path: ['confirm'],
+-      message: 'Should be at least 10 characters',
+-    },
+-    { code: 'custom', message: 'Passwords do not match', path: ['confirm'] },
+-  ]; 
++      "validation": "email",
++      "code": "invalid_string",
++      "message": "Invalid email",
++      "path": ["contactInfo","email"]
++    }
++  ]
++*/
++```
++
++### Formatting errors
++
++Using the `.format()` method on `ZodError`, we can make this error easier to work with.
++
++```ts
++if (!result.success) {
++  console.log(result.error.format());
++  /*
++    {
++      name: {
++        _errors: ['Expected string, received null']
++      },
++      contactInfo: {
++        email: {
++          _errors: ['Invalid email']
++        }
++      }
++    }
+   */
++}
+ ```
+ 
+-But using the `flatten()` method, we can make those errors much easier to work with:
++As you can see, the result is an object that denormalizes the issues array into a nested object. This makes it easier to display error messages in your form interface.
++
++```tsx
++const FormData = z.object({ ... });
++
++function Errors(props: {errors?: string[] }){
++  if(!errors.length) return null;
++  return <div>{props.errors.map(err => <p>{err}</p>)}</div>
++}
++
++function MyForm(){
++  const {register, data} = useForm({ ... });
++
++  const result = FormData.safeParse(data);
++  const errors = result.success ? {} : result.error.format();
++
++  return <div>
++    <label>Name<label>
++    <input {...register('name')}>
++    <Errors errors={errors?.name?._errors} />
++  </div>
++}
++```
++
++### Flattening errors
++
++Because `.format` returns a deeply nested object, the errors are contained within the `_errors` property to avoid key collisions. However this isn't necessary if your object schema is only one level deep.
++
++In this scenarion, `.flatten()` may be more convenient.
+ 
+ ```ts
+-console.log(err.flatten());
++if (!result.success) {
++  console.log(result.error.flatten());
++}
+ /*
+   {
+-  formErrors: [],
+-  fieldErrors: {
+-    email: ['Invalid email'],
+-    password: ['Should be at least 10 characters'],
+-    confirm: ['Should be at least 10 characters', 'Passwords do not match'],
+-  },
+-}
++    formErrors: [],
++    fieldErrors: {
++      name: ['Expected string, received null'],
++      contactInfo: ['Invalid email']
++    },
++  }
+ */
+ ```
+ 
+-Additionally, you can pass a mapping function of `(issue: ZodIssue) => U` to `flatten()`, which is applied to the during the transformation of `ZodIssue`s.
+-This can be particularly useful when integrating Zod with form validation, as it allows you to pass back whatever `ZodIssue` specific context you might need.
++The `fieldErrors` key points to an object that groups all issues by key.
++
++The `formErrors` element is a list of issues that occurred on the "root" of the object schema. For instance: if you called `FormData.parse(null)`, `flatten()` would return:
+ 
+ ```ts
+-err.flatten( (i: ZodIssue) => {
+-  message: i.message,
+-  errorCode: i.code
+-});
+-/*
+-  {
+-  formErrors: [],
+-  fieldErrors: {
+-    email: [{ message: 'Invalid email', errorCode: 'invalid_string' }],
+-    password: [{ message: 'Should be at least 10 characters', errorCode: 'too_small' }],
+-    confirm: [{ message: 'Should be at least 10 characters', errorCode: 'too_small' }, { message: 'Passwords do not match', errorCode: 'custom' }],
+-  },
++const result = FormData.safeParse(null);
++if (!result.success) {
++  result.error.flatten();
++  /*  
++    {
++      formErrors: ["Invalid input: expected object, received null"],
++      fieldErrors: {}
++    }  
++  */
+ }
+-*/
+ ```
+ 
+-- `fieldErrors` is an object. The keys are the field(s) that threw the error. The values are an array of error strings that can be easily presented in the interface.
+-- `formErrors: string[]` is an array of errors that occurred on the "root" of the object schema. For instance if you called `FormData.parse(null)`, `formErrors` would be:
+-  ```ts
+-  ["Invalid input: expected object, received null"];
+-  ```
++### Post-processing issues
+ 
+-## Type-safety with `safeParse`.
++Both `.flatten()` and `.format()` accept an optional mapping function of `(issue: ZodIssue) => U` to `flatten()`, which can customize how each `ZodIssue` is transformed in the final output.
+ 
+-If you're using `safeParse`, and need more type-safety around error results, you can use `z.inferFlattenedErrors` to infer the result of error result called with `flatten()`, based on your schema.
++This can be particularly useful when integrating Zod with form validation, as it allows you to pass back whatever `ZodIssue` specific context you might need.
+ 
+ ```ts
+-type FormDataErrors = z.inferFlattenedErrors<typeof FormData>;
+-
++result.error.flatten((issue: ZodIssue) => ({
++  message: issue.message,
++  errorCode: issue.code,
++}));
+ /*
+-  formErrors: string[],
+-  fieldErrors: {
+-    email?: string[],
+-    password?: string[],
+-    confirm?: string[]
+-  } 
++  {
++    formErrors: [],
++    fieldErrors: {
++      name: [
++        {message: "Expected string, received null", errorCode: "invalid_type"}
++      ]
++      contactInfo: [
++        {message: "Invalid email", errorCode: "invalid_string"}
++      ]
++    },
++  }
+ */
+ ```
+ 
+-By default all error types are assumed to be `string`. If you're using a mapping function to transform `ZodIssue`s, you can provide the error type to `z.inferFlattenedErrors`.
++### Extract type signature
+ 
+-```ts
+-type FormDataErrors = z.inferFlattenedErrors<
+-  typeof FormData,
+-  { message: string; errorCode: string }
+->;
++You can infer the return type signature of `.format()` and `.flatten()` with the following utilities:
+ 
++```ts
++type FormattedErros = z.inferFormattedErrors<typeof FormData>;
+ /*
+-  formErrors: { message: string, errorCode: string }[],
+-  fieldErrors: {
+-    email?: { message: string, errorCode: string }[],
+-    password?: { message: string, errorCode: string }[],
+-    confirm?: { message: string, errorCode: string }[]
++  {  
++    name?: {_errors?: string[]},
++    contactInfo?: {
++      _errors?: string[],
++      email?: {
++        _errors?: string[],
++      },
++      phone?: {
++        _errors?: string[],
++      },
++    },
+   } 
+ */
+ 
+-const result = FormData.safeParse({
+-  email: "not email",
+-  password: "tooshort",
+-  confirm: "nomatch",
+-});
+-
+-if (!result.success) {
+-  let bad: FormDataErrors = err.flatten(); // Type error: Type 'string' is not assignable to type '{ message: string; }'.
+-  let good: FormDataErrors = err.flatten((i) => ({
+-    message: i.message,
+-    errorCode: i.code,
+-  }));
+-}
++type FlattenedErrors = z.inferFlattenedErrors<typeof FormData>;
++/*
++  {  
++    formErrors: string[],
++    fieldErrors: {
++      email?: string[],
++      password?: string[],
++      confirm?: string[]
++    } 
++  }
++*/
+ ```
+ 
+-Additionally, you can use `z.inferFormErrors` as a convienience for `z.inferFlattenedErrors<T, string>` in combination with `formErrors`.
++These utilities also accept a second generic argument that corresponds to the result of any `ZodIssue` mapper function.
+ 
+ ```ts
+-type FormDataErrors = z.inferFormErrors<
++type FormDataErrors = z.inferFlattenedErrors<
+   typeof FormData,
+   { message: string; errorCode: string }
+ >;
+ 
+-let formErrors: FormDataErrors = result.error.formErrors;
++/*
++  { 
++    formErrors: { message: string, errorCode: string }[],
++    fieldErrors: {
++      email?: { message: string, errorCode: string }[],
++      password?: { message: string, errorCode: string }[],
++      confirm?: { message: string, errorCode: string }[]
++    }
++  }
++*/
+ ```
+diff --git a/README.md b/README.md
+index 125e592fe..6f97a2835 100644
+--- a/README.md
++++ b/README.md
+@@ -3,7 +3,7 @@
+   <h1 align="center">Zod</h1>
+ </p>
+ <p align="center">
+-<a href="https://github.com/edgedb/edgedb-js/actions"><img src="https://github.com/colinhacks/zod/actions/workflows/test.yml/badge.svg?event=push&branch=master" alt="Zod CI status" /></a>
++<a href="https://github.com/colinhacks/zod/actions?query=branch%3Amaster"><img src="https://github.com/colinhacks/zod/actions/workflows/test.yml/badge.svg?event=push&branch=master" alt="Zod CI status" /></a>
+ <a href="https://twitter.com/colinhacks" rel="nofollow"><img src="https://img.shields.io/badge/created%20by-@colinhacks-4BBAAB.svg" alt="Created by Colin McDonnell"></a>
+ <a href="https://opensource.org/licenses/MIT" rel="nofollow"><img src="https://img.shields.io/github/license/colinhacks/zod" alt="License"></a>
+ <a href="https://www.npmjs.com/package/zod" rel="nofollow"><img src="https://img.shields.io/npm/dw/zod.svg" alt="npm"></a>
+@@ -125,76 +125,123 @@ Some other great aspects:
+ 
+ # Sponsorship
+ 
+-Sponsorship at any level is appreciated and encouraged. Zod is maintained by a solo developer ([hi!](https://twitter.com/colinhacks)). For individual developers, consider the [Cup of Coffee tier](https://github.com/sponsors/colinhacks). If you built a paid product using Zod, consider the [Startup tier](https://github.com/sponsors/colinhacks). You can learn more about the tiers at [github.com/sponsors/colinhacks](https://github.com/sponsors/colinhacks).
++Sponsorship at any level is appreciated and encouraged. For individual developers, consider the [Cup of Coffee tier](https://github.com/sponsors/colinhacks). If you built a paid product using Zod, consider one of the [podium tiers](https://github.com/sponsors/colinhacks).
+ 
+-### Sponsors
++### Gold
+ 
+ <table>
+   <tr>
+-   <td align="center">
++    <td align="center">
++      <a href="https://astro.build/">
++        <img src="https://avatars.githubusercontent.com/u/44914786?s=200&v=4" width="200px;" alt="" />
++      </a>
++      <br />
++      <b>Astro</b>
++      <br />
++      <a href="https://astro.build">astro.build</a>
++      <br />
++      <p width="200px">
++        Astro is a new kind of static <br/>
++        site builder for the modern web. <br/>
++        Powerful developer experience meets <br/>
++        lightweight output.</p>
++    </td>
++    <td align="center">
++      <a href="https://glow.app/">
++        <img src="https://i.imgur.com/R0R43S2.jpg" width="200px;" alt="" />
++      </a>
++      <br />
++      <b>Glow Wallet</b>
++      <br />
++      <a href="https://glow.app/">glow.app</a>
++      <br />
++      <p width="200px">Your new favorite
++        <br/>
++      Solana wallet.</p>
++    </td>
++  </tr>
++  <tr>
++    <td align="center">
+       <a href="https://deletype.com/">
+-        <img src="https://avatars0.githubusercontent.com/u/15068039?s=200&v=4" width="100px;" alt="" />
++        <img src="https://avatars0.githubusercontent.com/u/15068039?s=200&v=4" width="200px;" alt="" />
+       </a>
+-      <br>
++      <br />
+       <b>Deletype</b>
+-      <br>
+-      <a href="https://deletype.com/">deletype.com/</a>
++      <br />
++      <a href="https://deletype.com">deletype.com</a>
++    </td>
++  </tr>
++</table>
++
++### Silver
++
++<table>
++  <tr>
++    <td align="center">
++      <a href="https://snaplet.dev">
++        <img src="https://avatars.githubusercontent.com/u/69029941?s=200&v=4" width="150px;" alt="" />
++      </a>
++      <br />
++      <b>Snaplet</b>
++      <br />
++      <a href="https://snaplet.dev">snaplet.dev</a>
++    </td>
++     <td align="center">
++      <a href="https://marcatopartners.com/">
++        <img src="https://avatars.githubusercontent.com/u/84106192?s=200&v=4" width="150px;" alt="Marcato Partners" />
++      </a>
++      <br />
++      <b>Marcato Partners</b>
++      <br />
++      <a href="https://marcatopartners.com/">marcatopartners.com</a>
+     </td>
+-  <td align="center">
+-      <a href="https://github.com/kevinsimper">
+-        <img src="https://avatars1.githubusercontent.com/u/1126497?s=460&v=4" width="100px;" alt="" />
++     <td align="center">
++      <a href="https://github.com/macandcheese-spaghetticode">
++        <img src="https://avatars.githubusercontent.com/u/76997592?v=4" width="150px;" alt="Trip" />
+       </a>
+-      <br>
+-      <b>Kevin Simper</b>
+-      <br>
+-      <a href="https://github.com/kevinsimper">@kevinsimper</a>
++      <br />
++      <b>Trip</b>
+     </td>
++  </tr>
++</table>
++
++### Bronze
++
++<table>
++  <tr>
+     <td align="center">
+       <a href="https://twitter.com/flybayer">
+         <img src="https://avatars2.githubusercontent.com/u/8813276?s=460&u=4ff8beb9a67b173015c4b426a92d89cab960af1b&v=4" width="100px;" alt=""/>
+       </a>
+-      <br>
++      <br />
+       <b>Brandon Bayer</b>
+       <br/>
+       <a href="https://twitter.com/flybayer">@flybayer</a>,
+       <span>creator of <a href="https://blitzjs.com">Blitz.js</a></span>
+       <br />
+     </td>
+-
+-  </tr>
+-  <tr>
+-    <td align="center">
+-      <a href="https://www.bamboocreative.nz/">
+-        <img src="https://avatars1.githubusercontent.com/u/41406870?s=460&v=4" width="100px;" alt="" />
+-      </a>
+-      <br>
+-      <b>Bamboo Creative</b>
+-      <br>
+-      <a href="https://www.bamboocreative.nz/">bamboocreative.nz</a>
+-    </td>
+     <td align="center">
+-      <a href="https://github.com/jeremyBanks">
+-        <img src="https://avatars.githubusercontent.com/u/18020?s=400&u=dba6c1402ae1746a276a5d256e01d68e774a0e9d&v=4" width="100px;" alt="" />
++      <a href="https://github.com/brabeji">
++        <img src="https://avatars.githubusercontent.com/u/2237954?v=4" width="100px;" alt=""/>
+       </a>
+-      <br>
+-      <b>Jeremy Banks</b>
+-      <br>
+-      <a href="https://github.com/jeremyBanks">github.com/jeremyBanks</a>
++      <br />
++      <b>Jiří Brabec</b>
++      <br/>
++      <a href="https://github.com/brabeji">@brabeji</a>
++      <br />
+     </td>
+      <td align="center">
+-      <a href="https://marcatopartners.com/">
+-        <img src="https://avatars.githubusercontent.com/u/84106192?s=200&v=4" width="100px;" alt="Marcato Partners" />
++      <a href="https://twitter.com/alexdotjs">
++        <img src="https://avatars.githubusercontent.com/u/459267?v=4" width="100px;" alt="" />
+       </a>
+-      <br>
+-      <b>Marcato Partners</b>
+-      <br>
+-      <a href="https://marcatopartners.com/">marcatopartners.com</a>
++      <br />
++      <b>Alex Johansson</b>
++      <br />
++      <a href="https://twitter.com/alexdotjs">@alexdotjs</a>
+     </td>
+   </tr>
+ </table>
+ 
+-_To get your name + Twitter + website here, sponsor Zod at the [Freelancer](https://github.com/sponsors/colinhacks) or [Consultancy](https://github.com/sponsors/colinhacks) tier._
+-
+ # Installation
+ 
+ To install Zod v3:
+@@ -245,6 +292,7 @@ There are a growing number of tools that are built atop or support Zod natively!
+ - [`zod-prisma`](https://github.com/CarterGrimmeisen/zod-prisma): Generate Zod schemas from your Prisma schema.
+ - [`fastify-type-provider-zod`](https://github.com/turkerdev/fastify-type-provider-zod): Create Fastify type providers from Zod schemas
+ - [`Supervillain`](https://github.com/Southclaws/supervillain): Generate Zod schemas from your Go structs
++- [`zod-to-openapi`](https://github.com/asteasolutions/zod-to-openapi): Generate full OpenAPI (Swagger) docs from Zod, including schemas, endpoints & parameters
+ 
+ ### Form integrations
+ 
+@@ -1138,9 +1186,9 @@ const Category: z.ZodType<Category> = BaseCategory.merge(
+ If you want to validate any JSON value, you can use the snippet below.
+ 
+ ```ts
+-type Literal = boolean | null | number | string;
+-type Json = Literal | { [key: string]: Json } | Json[];
+ const literalSchema = z.union([z.string(), z.number(), z.boolean(), z.null()]);
++type Literal = z.infer<typeof literalSchema>;
++type Json = Literal | { [key: string]: Json } | Json[];
+ const jsonSchema: z.ZodType<Json> = z.lazy(() =>
+   z.union([literalSchema, z.array(jsonSchema), z.record(jsonSchema)])
+ );
+@@ -1768,7 +1816,7 @@ class ZodType<
+ > { ... }
+ ```
+ 
+-By contraining these in your generic input, you can limit what schemas are allowable as inputs to your function:
++By constraining these in your generic input, you can limit what schemas are allowable as inputs to your function:
+ 
+ ```ts
+ function makeSchemaOptional<T extends z.ZodType<string>>(schema: T) {
+diff --git a/README_ZH.md b/README_ZH.md
+index 88fe0d22b..0ca2082c0 100644
+--- a/README_ZH.md
++++ b/README_ZH.md
+@@ -1012,9 +1012,9 @@ const Category: z.ZodSchema<Category> = BaseCategory.merge(
+ 如果你想验证任何 JSON 值，你可以使用下面的片段。
+ 
+ ```ts
+-type Literal = boolean | null | number | string;
+-type Json = Literal | { [key: string]: Json } | Json[];
+ const literalSchema = z.union([z.string(), z.number(), z.boolean(), z.null()]);
++type Literal = z.infer<typeof literalSchema>;
++type Json = Literal | { [key: string]: Json } | Json[];
+ const jsonSchema: z.ZodSchema<Json> = z.lazy(() =>
+   z.union([literalSchema, z.array(jsonSchema), z.record(jsonSchema)])
+ );
+diff --git a/deno/build.mjs b/deno/build.mjs
+index 0c84533c7..dfb4ac192 100644
+--- a/deno/build.mjs
++++ b/deno/build.mjs
+@@ -23,7 +23,11 @@ const projectRoot = process.cwd();
+ const nodeSrcRoot = join(projectRoot, "src");
+ const denoLibRoot = join(projectRoot, "deno", "lib");
+ 
+-const skipList = [join(nodeSrcRoot, "__tests__", "object-in-es5-env.test.ts")];
++const skipList = [
++  join(nodeSrcRoot, "__tests__", "object-in-es5-env.test.ts"),
++  join(nodeSrcRoot, "__tests__", "languageServerFeatures.test.ts"),
++  join(nodeSrcRoot, "__tests__", "languageServerFeatures.source.ts"),
++];
+ const walkAndBuild = (/** @type string */ dir) => {
+   for (const entry of readdirSync(join(nodeSrcRoot, dir), {
+     withFileTypes: true,
+diff --git a/deno/lib/ZodError.ts b/deno/lib/ZodError.ts
+index 03222cc87..5e1b344d3 100644
+--- a/deno/lib/ZodError.ts
++++ b/deno/lib/ZodError.ts
+@@ -1,7 +1,21 @@
++import type { TypeOf, ZodType } from "./index.ts";
+ import { ZodParsedType } from "./helpers/parseUtil.ts";
+ import { Primitive } from "./helpers/typeAliases.ts";
+ import { util } from "./helpers/util.ts";
+ 
++type allKeys<T> = T extends any ? keyof T : never;
++
++export type inferFlattenedErrors<
++  T extends ZodType<any, any, any>,
++  U = string
++> = typeToFlattenedError<TypeOf<T>, U>;
++export type typeToFlattenedError<T, U = string> = {
++  formErrors: U[];
++  fieldErrors: {
++    [P in allKeys<T>]?: U[];
++  };
++};
++
+ export const ZodIssueCode = util.arrayToEnum([
+   "invalid_type",
+   "invalid_literal",
+@@ -133,8 +147,8 @@ export const quotelessJson = (obj: any) => {
+   return json.replace(/"([^"]+)":/g, "$1:");
+ };
+ 
+-export type ZodFormattedError<T> = {
+-  _errors: string[];
++export type ZodFormattedError<T, U = string> = {
++  _errors: U[];
+ } & (T extends [any, ...any[]]
+   ? { [K in keyof T]?: ZodFormattedError<T[K]> }
+   : T extends any[]
+@@ -143,6 +157,11 @@ export type ZodFormattedError<T> = {
+   ? { [K in keyof T]?: ZodFormattedError<T[K]> }
+   : unknown);
+ 
++export type inferFormattedError<
++  T extends ZodType<any, any, any>,
++  U = string
++> = ZodFormattedError<TypeOf<T>, U>;
++
+ export class ZodError<T = any> extends Error {
+   issues: ZodIssue[] = [];
+ 
+@@ -164,7 +183,14 @@ export class ZodError<T = any> extends Error {
+     this.issues = issues;
+   }
+ 
+-  format = (): ZodFormattedError<T> => {
++  format(): ZodFormattedError<T>;
++  format<U>(mapper: (issue: ZodIssue) => U): ZodFormattedError<T, U>;
++  format(_mapper?: any) {
++    const mapper: (issue: ZodIssue) => any =
++      _mapper ||
++      function (issue: ZodIssue) {
++        return issue.message;
++      };
+     const fieldErrors: ZodFormattedError<T> = { _errors: [] } as any;
+     const processError = (error: ZodError) => {
+       for (const issue of error.issues) {
+@@ -175,7 +201,7 @@ export class ZodError<T = any> extends Error {
+         } else if (issue.code === "invalid_arguments") {
+           processError(issue.argumentsError);
+         } else if (issue.path.length === 0) {
+-          (fieldErrors as any)._errors.push(issue.message);
++          (fieldErrors as any)._errors.push(mapper(issue));
+         } else {
+           let curr: any = fieldErrors;
+           let i = 0;
+@@ -193,7 +219,7 @@ export class ZodError<T = any> extends Error {
+               }
+             } else {
+               curr[el] = curr[el] || { _errors: [] };
+-              curr[el]._errors.push(issue.message);
++              curr[el]._errors.push(mapper(issue));
+             }
+ 
+             curr = curr[el];
+@@ -205,7 +231,7 @@ export class ZodError<T = any> extends Error {
+ 
+     processError(this);
+     return fieldErrors;
+-  };
++  }
+ 
+   static create = (issues: ZodIssue[]) => {
+     const error = new ZodError(issues);
+@@ -231,20 +257,11 @@ export class ZodError<T = any> extends Error {
+     this.issues = [...this.issues, ...subs];
+   };
+ 
+-  flatten(mapper?: (issue: ZodIssue) => string): {
+-    formErrors: string[];
+-    fieldErrors: { [k: string]: string[] };
+-  };
+-  flatten<U>(mapper?: (issue: ZodIssue) => U): {
+-    formErrors: U[];
+-    fieldErrors: { [k: string]: U[] };
+-  };
++  flatten(): typeToFlattenedError<T>;
++  flatten<U>(mapper?: (issue: ZodIssue) => U): typeToFlattenedError<T, U>;
+   flatten<U = string>(
+     mapper: (issue: ZodIssue) => U = (issue: ZodIssue) => issue.message as any
+-  ): {
+-    formErrors: U[];
+-    fieldErrors: { [k: string]: U[] };
+-  } {
++  ): any {
+     const fieldErrors: any = {};
+     const formErrors: U[] = [];
+     for (const sub of this.issues) {
+diff --git a/deno/lib/__tests__/all-errors.test.ts b/deno/lib/__tests__/all-errors.test.ts
+index c2af84568..1f4a902a7 100644
+--- a/deno/lib/__tests__/all-errors.test.ts
++++ b/deno/lib/__tests__/all-errors.test.ts
+@@ -15,7 +15,7 @@ type TestFlattenedErrors = z.inferFlattenedErrors<
+   typeof Test,
+   { message: string; code: number }
+ >;
+-type TestFormErrors = z.inferFormErrors<typeof Test>;
++type TestFormErrors = z.inferFlattenedErrors<typeof Test>;
+ 
+ test("default flattened errors type inference", () => {
+   type TestTypeErrors = {
+@@ -24,11 +24,11 @@ test("default flattened errors type inference", () => {
+   };
+ 
+   const t1: util.AssertEqual<
+-    z.TypeOfFlattenedError<typeof Test>,
++    z.inferFlattenedErrors<typeof Test>,
+     TestTypeErrors
+   > = true;
+   const t2: util.AssertEqual<
+-    z.TypeOfFlattenedError<typeof Test, { message: string }>,
++    z.inferFlattenedErrors<typeof Test, { message: string }>,
+     TestTypeErrors
+   > = false;
+   [t1, t2];
+@@ -44,15 +44,15 @@ test("custom flattened errors type inference", () => {
+   };
+ 
+   const t1: util.AssertEqual<
+-    z.TypeOfFlattenedError<typeof Test>,
++    z.inferFlattenedErrors<typeof Test>,
+     TestTypeErrors
+   > = false;
+   const t2: util.AssertEqual<
+-    z.TypeOfFlattenedError<typeof Test, { message: string; code: number }>,
++    z.inferFlattenedErrors<typeof Test, { message: string; code: number }>,
+     TestTypeErrors
+   > = true;
+   const t3: util.AssertEqual<
+-    z.TypeOfFlattenedError<typeof Test, { message: string }>,
++    z.inferFlattenedErrors<typeof Test, { message: string }>,
+     TestTypeErrors
+   > = false;
+   [t1, t2, t3];
+@@ -65,7 +65,7 @@ test("form errors type inference", () => {
+   };
+ 
+   const t1: util.AssertEqual<
+-    z.TypeOfFormErrors<typeof Test>,
++    z.inferFlattenedErrors<typeof Test>,
+     TestTypeErrors
+   > = true;
+   [t1];
+diff --git a/deno/lib/__tests__/error.test.ts b/deno/lib/__tests__/error.test.ts
+index 6d79a6845..2d889d0aa 100644
+--- a/deno/lib/__tests__/error.test.ts
++++ b/deno/lib/__tests__/error.test.ts
+@@ -295,7 +295,8 @@ test("formatting", () => {
+     expect(error.inner?.name?.[1]).toEqual(undefined);
+   }
+   if (!result2.success) {
+-    const error = result2.error.format();
++    type FormattedError = z.inferFormattedError<typeof schema>;
++    const error: FormattedError = result2.error.format();
+     expect(error._errors).toEqual([]);
+     expect(error.inner?._errors).toEqual([]);
+     expect(error.inner?.name?._errors).toEqual(["Invalid input"]);
+@@ -303,6 +304,15 @@ test("formatting", () => {
+     expect(error.inner?.name?.[1]).toEqual(undefined);
+     expect(error.inner?.name?.[2]).toEqual(undefined);
+   }
++
++  // test custom mapper
++  if (!result2.success) {
++    type FormattedError = z.inferFormattedError<typeof schema, number>;
++    const error: FormattedError = result2.error.format(() => 5);
++    expect(error._errors).toEqual([]);
++    expect(error.inner?._errors).toEqual([]);
++    expect(error.inner?.name?._errors).toEqual([5]);
++  }
+ });
+ 
+ const stringWithCustomError = z.string({
+diff --git a/deno/lib/__tests__/object.test.ts b/deno/lib/__tests__/object.test.ts
+index fac2b9ffd..75a5c1237 100644
+--- a/deno/lib/__tests__/object.test.ts
++++ b/deno/lib/__tests__/object.test.ts
+@@ -216,6 +216,46 @@ test("test inferred merged type", async () => {
+   f1;
+ });
+ 
++test("inferred merged object type with optional properties", async () => {
++  const Merged = z
++    .object({ a: z.string(), b: z.string().optional() })
++    .merge(z.object({ a: z.string().optional(), b: z.string() }));
++  type Merged = z.infer<typeof Merged>;
++  const f1: util.AssertEqual<Merged, { a?: string; b: string }> = true;
++  f1;
++});
++
++test("inferred unioned object type with optional properties", async () => {
++  const Unioned = z.union([
++    z.object({ a: z.string(), b: z.string().optional() }),
++    z.object({ a: z.string().optional(), b: z.string() }),
++  ]);
++  type Unioned = z.infer<typeof Unioned>;
++  const f1: util.AssertEqual<
++    Unioned,
++    { a: string; b?: string } | { a?: string; b: string }
++  > = true;
++  f1;
++});
++
++test("inferred partial object type with optional properties", async () => {
++  const Partial = z
++    .object({ a: z.string(), b: z.string().optional() })
++    .partial();
++  type Partial = z.infer<typeof Partial>;
++  const f1: util.AssertEqual<Partial, { a?: string; b?: string }> = true;
++  f1;
++});
++
++test("inferred picked object type with optional properties", async () => {
++  const Picked = z
++    .object({ a: z.string(), b: z.string().optional() })
++    .pick({ b: true });
++  type Picked = z.infer<typeof Picked>;
++  const f1: util.AssertEqual<Picked, { b?: string }> = true;
++  f1;
++});
++
+ test("inferred type for unknown/any keys", () => {
+   const myType = z.object({
+     anyOptional: z.any().optional(),
+@@ -308,3 +348,15 @@ test("constructor key", () => {
+     })
+   ).toThrow();
+ });
++
++test("constructor key", () => {
++  const Example = z.object({
++    prop: z.string(),
++    opt: z.number().optional(),
++    arr: z.string().array(),
++  });
++
++  type Example = z.infer<typeof Example>;
++  const f1: util.AssertEqual<keyof Example, "prop" | "opt" | "arr"> = true;
++  f1;
++});
+diff --git a/deno/lib/types.ts b/deno/lib/types.ts
+index 3d8026c68..a8a3754fd 100644
+--- a/deno/lib/types.ts
++++ b/deno/lib/types.ts
+@@ -52,24 +52,7 @@ export type ZodTypeAny = ZodType<any, any, any>;
+ export type TypeOf<T extends ZodType<any, any, any>> = T["_output"];
+ export type input<T extends ZodType<any, any, any>> = T["_input"];
+ export type output<T extends ZodType<any, any, any>> = T["_output"];
+-
+-type allKeys<T> = T extends any ? keyof T : never;
+-export type TypeOfFlattenedError<
+-  T extends ZodType<any, any, any>,
+-  U = string
+-> = {
+-  formErrors: U[];
+-  fieldErrors: {
+-    [P in allKeys<TypeOf<T>>]?: U[];
+-  };
+-};
+-export type TypeOfFormErrors<T extends ZodType<any, any, any>> =
+-  TypeOfFlattenedError<T>;
+-export type {
+-  TypeOf as infer,
+-  TypeOfFlattenedError as inferFlattenedErrors,
+-  TypeOfFormErrors as inferFormErrors,
+-};
++export type { TypeOf as infer };
+ 
+ export type CustomErrorParams = Partial<util.Omit<ZodCustomIssue, "code">>;
+ export interface ZodTypeDef {
+@@ -394,8 +377,6 @@ export abstract class ZodType<
+   }
+ 
+   optional(): ZodOptional<this> {
+-    ("");
+-    ("asdf");
+     return ZodOptional.create(this) as any;
+   }
+   nullable(): ZodNullable<this> {
+@@ -1382,17 +1363,12 @@ export namespace objectUtil {
+     [k in Exclude<keyof U, keyof V>]: U[k];
+   } & V;
+ 
+-  type optionalKeys<T extends object> = {
+-    [k in keyof T]: undefined extends T[k] ? k : never;
+-  }[keyof T];
+-
+-  // type requiredKeys<T extends object> = Exclude<keyof T, optionalKeys<T>>;
+-  type requiredKeys<T extends object> = {
++  export type requiredKeys<T extends object> = {
+     [k in keyof T]: undefined extends T[k] ? never : k;
+   }[keyof T];
+ 
+   export type addQuestionMarks<T extends object> = {
+-    [k in optionalKeys<T>]?: T[k];
++    [k in keyof T]?: T[k];
+   } & { [k in requiredKeys<T>]: T[k] };
+ 
+   export type identity<T> = T;
+@@ -1417,9 +1393,7 @@ export namespace objectUtil {
+   };
+ }
+ 
+-export type extendShape<A, B> = {
+-  [k in Exclude<keyof A, keyof B>]: A[k];
+-} & { [k in keyof B]: B[k] };
++export type extendShape<A, B> = Omit<A, keyof B> & B;
+ 
+ const AugmentFactory =
+   <Def extends ZodObjectDef>(def: Def) =>
+@@ -1731,11 +1705,7 @@ export class ZodObject<
+ 
+   pick<Mask extends { [k in keyof T]?: true }>(
+     mask: Mask
+-  ): ZodObject<
+-    objectUtil.noNever<{ [k in keyof Mask]: k extends keyof T ? T[k] : never }>,
+-    UnknownKeys,
+-    Catchall
+-  > {
++  ): ZodObject<Pick<T, Extract<keyof T, keyof Mask>>, UnknownKeys, Catchall> {
+     const shape: any = {};
+     util.objectKeys(mask).map((key) => {
+       shape[key] = this.shape[key];
+@@ -1748,11 +1718,7 @@ export class ZodObject<
+ 
+   omit<Mask extends { [k in keyof T]?: true }>(
+     mask: Mask
+-  ): ZodObject<
+-    objectUtil.noNever<{ [k in keyof T]: k extends keyof Mask ? never : T[k] }>,
+-    UnknownKeys,
+-    Catchall
+-  > {
++  ): ZodObject<Omit<T, keyof Mask>, UnknownKeys, Catchall> {
+     const shape: any = {};
+     util.objectKeys(this.shape).map((key) => {
+       if (util.objectKeys(mask).indexOf(key) === -1) {
+diff --git a/images/glow.jpg b/images/glow.jpg
+new file mode 100644
+index 000000000..85b67bf0c
+Binary files /dev/null and b/images/glow.jpg differ
+diff --git a/index.d.ts b/index.d.ts
+new file mode 100644
+index 000000000..97b0b2272
+--- /dev/null
++++ b/index.d.ts
+@@ -0,0 +1,2 @@
++export * from "./lib";
++export as namespace Zod;
+diff --git a/package.json b/package.json
+index 6723732de..1a650649b 100644
+--- a/package.json
++++ b/package.json
+@@ -1,21 +1,22 @@
+ {
+   "name": "zod",
+-  "version": "3.14.4",
++  "version": "3.14.5",
+   "description": "TypeScript-first schema declaration and validation library with static type inference",
+   "main": "./lib/index.js",
+-  "types": "./lib/index.d.ts",
++  "types": "./index.d.ts",
+   "module": "./lib/index.mjs",
+   "dependencies": {},
+   "exports": {
+     ".": {
+       "require": "./lib/index.js",
+       "import": "./lib/index.mjs",
+-      "types": "./lib/index.d.ts"
++      "types": "./index.d.ts"
+     },
+     "./package.json": "./package.json"
+   },
+   "files": [
+-    "/lib"
++    "/lib",
++    "/index.d.ts"
+   ],
+   "repository": {
+     "type": "git",
+@@ -86,6 +87,7 @@
+     "pretty-quick": "^3.1.3",
+     "rollup": "^2.70.1",
+     "ts-jest": "^27.1.3",
++    "ts-morph": "^14.0.0",
+     "ts-node": "^10.7.0",
+     "tslib": "^2.3.1",
+     "typescript": "^4.6.2"
+diff --git a/rollup.config.js b/rollup.config.js
+index 7275a1441..76dabca04 100644
+--- a/rollup.config.js
++++ b/rollup.config.js
+@@ -10,6 +10,12 @@ export default [
+         format: "es",
+         sourcemap: false,
+       },
++      {
++        file: "lib/index.umd.js",
++        name: "Zod",
++        format: "umd",
++        sourcemap: false,
++      },
+     ],
+     plugins: [
+       typescript({
+diff --git a/src/ZodError.ts b/src/ZodError.ts
+index d7217bdc7..3f214e2f6 100644
+--- a/src/ZodError.ts
++++ b/src/ZodError.ts
+@@ -1,7 +1,21 @@
++import type { TypeOf, ZodType } from ".";
+ import { ZodParsedType } from "./helpers/parseUtil";
+ import { Primitive } from "./helpers/typeAliases";
+ import { util } from "./helpers/util";
+ 
++type allKeys<T> = T extends any ? keyof T : never;
++
++export type inferFlattenedErrors<
++  T extends ZodType<any, any, any>,
++  U = string
++> = typeToFlattenedError<TypeOf<T>, U>;
++export type typeToFlattenedError<T, U = string> = {
++  formErrors: U[];
++  fieldErrors: {
++    [P in allKeys<T>]?: U[];
++  };
++};
++
+ export const ZodIssueCode = util.arrayToEnum([
+   "invalid_type",
+   "invalid_literal",
+@@ -133,8 +147,8 @@ export const quotelessJson = (obj: any) => {
+   return json.replace(/"([^"]+)":/g, "$1:");
+ };
+ 
+-export type ZodFormattedError<T> = {
+-  _errors: string[];
++export type ZodFormattedError<T, U = string> = {
++  _errors: U[];
+ } & (T extends [any, ...any[]]
+   ? { [K in keyof T]?: ZodFormattedError<T[K]> }
+   : T extends any[]
+@@ -143,6 +157,11 @@ export type ZodFormattedError<T> = {
+   ? { [K in keyof T]?: ZodFormattedError<T[K]> }
+   : unknown);
+ 
++export type inferFormattedError<
++  T extends ZodType<any, any, any>,
++  U = string
++> = ZodFormattedError<TypeOf<T>, U>;
++
+ export class ZodError<T = any> extends Error {
+   issues: ZodIssue[] = [];
+ 
+@@ -164,7 +183,14 @@ export class ZodError<T = any> extends Error {
+     this.issues = issues;
+   }
+ 
+-  format = (): ZodFormattedError<T> => {
++  format(): ZodFormattedError<T>;
++  format<U>(mapper: (issue: ZodIssue) => U): ZodFormattedError<T, U>;
++  format(_mapper?: any) {
++    const mapper: (issue: ZodIssue) => any =
++      _mapper ||
++      function (issue: ZodIssue) {
++        return issue.message;
++      };
+     const fieldErrors: ZodFormattedError<T> = { _errors: [] } as any;
+     const processError = (error: ZodError) => {
+       for (const issue of error.issues) {
+@@ -175,7 +201,7 @@ export class ZodError<T = any> extends Error {
+         } else if (issue.code === "invalid_arguments") {
+           processError(issue.argumentsError);
+         } else if (issue.path.length === 0) {
+-          (fieldErrors as any)._errors.push(issue.message);
++          (fieldErrors as any)._errors.push(mapper(issue));
+         } else {
+           let curr: any = fieldErrors;
+           let i = 0;
+@@ -193,7 +219,7 @@ export class ZodError<T = any> extends Error {
+               }
+             } else {
+               curr[el] = curr[el] || { _errors: [] };
+-              curr[el]._errors.push(issue.message);
++              curr[el]._errors.push(mapper(issue));
+             }
+ 
+             curr = curr[el];
+@@ -205,7 +231,7 @@ export class ZodError<T = any> extends Error {
+ 
+     processError(this);
+     return fieldErrors;
+-  };
++  }
+ 
+   static create = (issues: ZodIssue[]) => {
+     const error = new ZodError(issues);
+@@ -231,20 +257,11 @@ export class ZodError<T = any> extends Error {
+     this.issues = [...this.issues, ...subs];
+   };
+ 
+-  flatten(mapper?: (issue: ZodIssue) => string): {
+-    formErrors: string[];
+-    fieldErrors: { [k: string]: string[] };
+-  };
+-  flatten<U>(mapper?: (issue: ZodIssue) => U): {
+-    formErrors: U[];
+-    fieldErrors: { [k: string]: U[] };
+-  };
++  flatten(): typeToFlattenedError<T>;
++  flatten<U>(mapper?: (issue: ZodIssue) => U): typeToFlattenedError<T, U>;
+   flatten<U = string>(
+     mapper: (issue: ZodIssue) => U = (issue: ZodIssue) => issue.message as any
+-  ): {
+-    formErrors: U[];
+-    fieldErrors: { [k: string]: U[] };
+-  } {
++  ): any {
+     const fieldErrors: any = {};
+     const formErrors: U[] = [];
+     for (const sub of this.issues) {
+diff --git a/src/__tests__/all-errors.test.ts b/src/__tests__/all-errors.test.ts
+index 22dfa3e09..4b91178a5 100644
+--- a/src/__tests__/all-errors.test.ts
++++ b/src/__tests__/all-errors.test.ts
+@@ -14,7 +14,7 @@ type TestFlattenedErrors = z.inferFlattenedErrors<
+   typeof Test,
+   { message: string; code: number }
+ >;
+-type TestFormErrors = z.inferFormErrors<typeof Test>;
++type TestFormErrors = z.inferFlattenedErrors<typeof Test>;
+ 
+ test("default flattened errors type inference", () => {
+   type TestTypeErrors = {
+@@ -23,11 +23,11 @@ test("default flattened errors type inference", () => {
+   };
+ 
+   const t1: util.AssertEqual<
+-    z.TypeOfFlattenedError<typeof Test>,
++    z.inferFlattenedErrors<typeof Test>,
+     TestTypeErrors
+   > = true;
+   const t2: util.AssertEqual<
+-    z.TypeOfFlattenedError<typeof Test, { message: string }>,
++    z.inferFlattenedErrors<typeof Test, { message: string }>,
+     TestTypeErrors
+   > = false;
+   [t1, t2];
+@@ -43,15 +43,15 @@ test("custom flattened errors type inference", () => {
+   };
+ 
+   const t1: util.AssertEqual<
+-    z.TypeOfFlattenedError<typeof Test>,
++    z.inferFlattenedErrors<typeof Test>,
+     TestTypeErrors
+   > = false;
+   const t2: util.AssertEqual<
+-    z.TypeOfFlattenedError<typeof Test, { message: string; code: number }>,
++    z.inferFlattenedErrors<typeof Test, { message: string; code: number }>,
+     TestTypeErrors
+   > = true;
+   const t3: util.AssertEqual<
+-    z.TypeOfFlattenedError<typeof Test, { message: string }>,
++    z.inferFlattenedErrors<typeof Test, { message: string }>,
+     TestTypeErrors
+   > = false;
+   [t1, t2, t3];
+@@ -64,7 +64,7 @@ test("form errors type inference", () => {
+   };
+ 
+   const t1: util.AssertEqual<
+-    z.TypeOfFormErrors<typeof Test>,
++    z.inferFlattenedErrors<typeof Test>,
+     TestTypeErrors
+   > = true;
+   [t1];
+diff --git a/src/__tests__/error.test.ts b/src/__tests__/error.test.ts
+index c1ed18a10..4ec5169a0 100644
+--- a/src/__tests__/error.test.ts
++++ b/src/__tests__/error.test.ts
+@@ -294,7 +294,8 @@ test("formatting", () => {
+     expect(error.inner?.name?.[1]).toEqual(undefined);
+   }
+   if (!result2.success) {
+-    const error = result2.error.format();
++    type FormattedError = z.inferFormattedError<typeof schema>;
++    const error: FormattedError = result2.error.format();
+     expect(error._errors).toEqual([]);
+     expect(error.inner?._errors).toEqual([]);
+     expect(error.inner?.name?._errors).toEqual(["Invalid input"]);
+@@ -302,6 +303,15 @@ test("formatting", () => {
+     expect(error.inner?.name?.[1]).toEqual(undefined);
+     expect(error.inner?.name?.[2]).toEqual(undefined);
+   }
++
++  // test custom mapper
++  if (!result2.success) {
++    type FormattedError = z.inferFormattedError<typeof schema, number>;
++    const error: FormattedError = result2.error.format(() => 5);
++    expect(error._errors).toEqual([]);
++    expect(error.inner?._errors).toEqual([]);
++    expect(error.inner?.name?._errors).toEqual([5]);
++  }
+ });
+ 
+ const stringWithCustomError = z.string({
+diff --git a/src/__tests__/languageServerFeatures.source.ts b/src/__tests__/languageServerFeatures.source.ts
+new file mode 100644
+index 000000000..f2e99a0c5
+--- /dev/null
++++ b/src/__tests__/languageServerFeatures.source.ts
+@@ -0,0 +1,76 @@
++import * as z from "../index";
++
++export const filePath = __filename;
++
++// z.object()
++
++export const Test = z.object({
++  f1: z.number(),
++});
++
++export type Test = z.infer<typeof Test>;
++
++export const instanceOfTest: Test = {
++  f1: 1,
++};
++
++// z.object().merge()
++
++export const TestMerge = z
++  .object({
++    f2: z.string().optional(),
++  })
++  .merge(Test);
++
++export type TestMerge = z.infer<typeof TestMerge>;
++
++export const instanceOfTestMerge: TestMerge = {
++  f1: 1,
++  f2: "string",
++};
++
++// z.union()
++
++export const TestUnion = z.union([
++  z.object({
++    f2: z.string().optional(),
++  }),
++  Test,
++]);
++
++export type TestUnion = z.infer<typeof TestUnion>;
++
++export const instanceOfTestUnion: TestUnion = {
++  f1: 1,
++  f2: "string",
++};
++
++// z.object().partial()
++
++export const TestPartial = Test.partial();
++
++export type TestPartial = z.infer<typeof TestPartial>;
++
++export const instanceOfTestPartial: TestPartial = {
++  f1: 1,
++};
++
++// z.object().pick()
++
++export const TestPick = TestMerge.pick({ f1: true });
++
++export type TestPick = z.infer<typeof TestPick>;
++
++export const instanceOfTestPick: TestPick = {
++  f1: 1,
++};
++
++// z.object().omit()
++
++export const TestOmit = TestMerge.omit({ f2: true });
++
++export type TestOmit = z.infer<typeof TestOmit>;
++
++export const instanceOfTestOmit: TestOmit = {
++  f1: 1,
++};
+diff --git a/src/__tests__/languageServerFeatures.test.ts b/src/__tests__/languageServerFeatures.test.ts
+new file mode 100644
+index 000000000..0d065f760
+--- /dev/null
++++ b/src/__tests__/languageServerFeatures.test.ts
+@@ -0,0 +1,206 @@
++// @ts-ignore TS6133
++import { expect, fit } from "@jest/globals";
++import { filePath } from "./languageServerFeatures.source";
++import { Project, Node, SyntaxKind } from "ts-morph";
++import path from "path";
++
++// The following tool is helpful for understanding the TypeScript AST associated with these tests:
++// https://ts-ast-viewer.com/ (just copy the contents of languageServerFeatures.source into the viewer)
++
++describe("Executing Go To Definition (and therefore Find Usages and Rename Refactoring) using an IDE works on inferred object properties", () => {
++  // Compile file developmentEnvironment.source
++  const project = new Project({
++    tsConfigFilePath: path.join(__dirname, "..", "..", "tsconfig.json"),
++    skipAddingFilesFromTsConfig: true,
++  });
++  const sourceFile = project.addSourceFileAtPath(filePath);
++
++  test("works for object properties inferred from z.object()", () => {
++    // Find usage of Test.f1 property
++    const instanceVariable =
++      sourceFile.getVariableDeclarationOrThrow("instanceOfTest");
++    const propertyBeingAssigned = getPropertyBeingAssigned(
++      instanceVariable,
++      "f1"
++    );
++
++    // Find definition of Test.f1 property
++    const definitionOfProperty = propertyBeingAssigned?.getDefinitionNodes()[0];
++    const parentOfProperty = definitionOfProperty?.getFirstAncestorByKind(
++      SyntaxKind.VariableDeclaration
++    );
++
++    // Assert that find definition returned the Zod definition of Test
++    expect(definitionOfProperty?.getText()).toEqual("f1: z.number()");
++    expect(parentOfProperty?.getName()).toEqual("Test");
++  });
++
++  test("works for first object properties inferred from z.object().merge()", () => {
++    // Find usage of TestMerge.f1 property
++    const instanceVariable = sourceFile.getVariableDeclarationOrThrow(
++      "instanceOfTestMerge"
++    );
++    const propertyBeingAssigned = getPropertyBeingAssigned(
++      instanceVariable,
++      "f1"
++    );
++
++    // Find definition of TestMerge.f1 property
++    const definitionOfProperty = propertyBeingAssigned?.getDefinitionNodes()[0];
++    const parentOfProperty = definitionOfProperty?.getFirstAncestorByKind(
++      SyntaxKind.VariableDeclaration
++    );
++
++    // Assert that find definition returned the Zod definition of Test
++    expect(definitionOfProperty?.getText()).toEqual("f1: z.number()");
++    expect(parentOfProperty?.getName()).toEqual("Test");
++  });
++
++  test("works for second object properties inferred from z.object().merge()", () => {
++    // Find usage of TestMerge.f2 property
++    const instanceVariable = sourceFile.getVariableDeclarationOrThrow(
++      "instanceOfTestMerge"
++    );
++    const propertyBeingAssigned = getPropertyBeingAssigned(
++      instanceVariable,
++      "f2"
++    );
++
++    // Find definition of TestMerge.f2 property
++    const definitionOfProperty = propertyBeingAssigned?.getDefinitionNodes()[0];
++    const parentOfProperty = definitionOfProperty?.getFirstAncestorByKind(
++      SyntaxKind.VariableDeclaration
++    );
++
++    // Assert that find definition returned the Zod definition of TestMerge
++    expect(definitionOfProperty?.getText()).toEqual(
++      "f2: z.string().optional()"
++    );
++    expect(parentOfProperty?.getName()).toEqual("TestMerge");
++  });
++
++  test("works for first object properties inferred from z.union()", () => {
++    // Find usage of TestUnion.f1 property
++    const instanceVariable = sourceFile.getVariableDeclarationOrThrow(
++      "instanceOfTestUnion"
++    );
++    const propertyBeingAssigned = getPropertyBeingAssigned(
++      instanceVariable,
++      "f1"
++    );
++
++    // Find definition of TestUnion.f1 property
++    const definitionOfProperty = propertyBeingAssigned?.getDefinitionNodes()[0];
++    const parentOfProperty = definitionOfProperty?.getFirstAncestorByKind(
++      SyntaxKind.VariableDeclaration
++    );
++
++    // Assert that find definition returned the Zod definition of Test
++    expect(definitionOfProperty?.getText()).toEqual("f1: z.number()");
++    expect(parentOfProperty?.getName()).toEqual("Test");
++  });
++
++  test("works for second object properties inferred from z.union()", () => {
++    // Find usage of TestUnion.f2 property
++    const instanceVariable = sourceFile.getVariableDeclarationOrThrow(
++      "instanceOfTestUnion"
++    );
++    const propertyBeingAssigned = getPropertyBeingAssigned(
++      instanceVariable,
++      "f2"
++    );
++
++    // Find definition of TestUnion.f2 property
++    const definitionOfProperty = propertyBeingAssigned?.getDefinitionNodes()[0];
++    const parentOfProperty = definitionOfProperty?.getFirstAncestorByKind(
++      SyntaxKind.VariableDeclaration
++    );
++
++    // Assert that find definition returned the Zod definition of TestUnion
++    expect(definitionOfProperty?.getText()).toEqual(
++      "f2: z.string().optional()"
++    );
++    expect(parentOfProperty?.getName()).toEqual("TestUnion");
++  });
++
++  test("works for object properties inferred from z.object().partial()", () => {
++    // Find usage of TestPartial.f1 property
++    const instanceVariable = sourceFile.getVariableDeclarationOrThrow(
++      "instanceOfTestPartial"
++    );
++    const propertyBeingAssigned = getPropertyBeingAssigned(
++      instanceVariable,
++      "f1"
++    );
++
++    // Find definition of TestPartial.f1 property
++    const definitionOfProperty = propertyBeingAssigned?.getDefinitionNodes()[0];
++    const parentOfProperty = definitionOfProperty?.getFirstAncestorByKind(
++      SyntaxKind.VariableDeclaration
++    );
++
++    // Assert that find definition returned the Zod definition of Test
++    expect(definitionOfProperty?.getText()).toEqual("f1: z.number()");
++    expect(parentOfProperty?.getName()).toEqual("Test");
++  });
++
++  test("works for object properties inferred from z.object().pick()", () => {
++    // Find usage of TestPick.f1 property
++    const instanceVariable =
++      sourceFile.getVariableDeclarationOrThrow("instanceOfTestPick");
++    const propertyBeingAssigned = getPropertyBeingAssigned(
++      instanceVariable,
++      "f1"
++    );
++
++    // Find definition of TestPick.f1 property
++    const definitionOfProperty = propertyBeingAssigned?.getDefinitionNodes()[0];
++    const parentOfProperty = definitionOfProperty?.getFirstAncestorByKind(
++      SyntaxKind.VariableDeclaration
++    );
++
++    // Assert that find definition returned the Zod definition of Test
++    expect(definitionOfProperty?.getText()).toEqual("f1: z.number()");
++    expect(parentOfProperty?.getName()).toEqual("Test");
++  });
++
++  test("works for object properties inferred from z.object().omit()", () => {
++    // Find usage of TestOmit.f1 property
++    const instanceVariable =
++      sourceFile.getVariableDeclarationOrThrow("instanceOfTestOmit");
++    const propertyBeingAssigned = getPropertyBeingAssigned(
++      instanceVariable,
++      "f1"
++    );
++
++    // Find definition of TestOmit.f1 property
++    const definitionOfProperty = propertyBeingAssigned?.getDefinitionNodes()[0];
++    const parentOfProperty = definitionOfProperty?.getFirstAncestorByKind(
++      SyntaxKind.VariableDeclaration
++    );
++
++    // Assert that find definition returned the Zod definition of Test
++    expect(definitionOfProperty?.getText()).toEqual("f1: z.number()");
++    expect(parentOfProperty?.getName()).toEqual("Test");
++  });
++});
++
++const getPropertyBeingAssigned = (node: Node, name: string) => {
++  const propertyAssignment = node.forEachDescendant((descendent) =>
++    Node.isPropertyAssignment(descendent) && descendent.getName() == name
++      ? descendent
++      : undefined
++  );
++
++  if (propertyAssignment == null)
++    fail(`Could not find property assignment with name ${name}`);
++
++  const propertyLiteral = propertyAssignment.getFirstDescendantByKind(
++    SyntaxKind.Identifier
++  );
++
++  if (propertyLiteral == null)
++    fail(`Could not find property literal with name ${name}`);
++
++  return propertyLiteral;
++};
+diff --git a/src/__tests__/object.test.ts b/src/__tests__/object.test.ts
+index fc01e6397..100d7a633 100644
+--- a/src/__tests__/object.test.ts
++++ b/src/__tests__/object.test.ts
+@@ -215,6 +215,46 @@ test("test inferred merged type", async () => {
+   f1;
+ });
+ 
++test("inferred merged object type with optional properties", async () => {
++  const Merged = z
++    .object({ a: z.string(), b: z.string().optional() })
++    .merge(z.object({ a: z.string().optional(), b: z.string() }));
++  type Merged = z.infer<typeof Merged>;
++  const f1: util.AssertEqual<Merged, { a?: string; b: string }> = true;
++  f1;
++});
++
++test("inferred unioned object type with optional properties", async () => {
++  const Unioned = z.union([
++    z.object({ a: z.string(), b: z.string().optional() }),
++    z.object({ a: z.string().optional(), b: z.string() }),
++  ]);
++  type Unioned = z.infer<typeof Unioned>;
++  const f1: util.AssertEqual<
++    Unioned,
++    { a: string; b?: string } | { a?: string; b: string }
++  > = true;
++  f1;
++});
++
++test("inferred partial object type with optional properties", async () => {
++  const Partial = z
++    .object({ a: z.string(), b: z.string().optional() })
++    .partial();
++  type Partial = z.infer<typeof Partial>;
++  const f1: util.AssertEqual<Partial, { a?: string; b?: string }> = true;
++  f1;
++});
++
++test("inferred picked object type with optional properties", async () => {
++  const Picked = z
++    .object({ a: z.string(), b: z.string().optional() })
++    .pick({ b: true });
++  type Picked = z.infer<typeof Picked>;
++  const f1: util.AssertEqual<Picked, { b?: string }> = true;
++  f1;
++});
++
+ test("inferred type for unknown/any keys", () => {
+   const myType = z.object({
+     anyOptional: z.any().optional(),
+@@ -307,3 +347,15 @@ test("constructor key", () => {
+     })
+   ).toThrow();
+ });
++
++test("constructor key", () => {
++  const Example = z.object({
++    prop: z.string(),
++    opt: z.number().optional(),
++    arr: z.string().array(),
++  });
++
++  type Example = z.infer<typeof Example>;
++  const f1: util.AssertEqual<keyof Example, "prop" | "opt" | "arr"> = true;
++  f1;
++});
+diff --git a/src/types.ts b/src/types.ts
+index 358b744c3..877cda9d3 100644
+--- a/src/types.ts
++++ b/src/types.ts
+@@ -52,24 +52,7 @@ export type ZodTypeAny = ZodType<any, any, any>;
+ export type TypeOf<T extends ZodType<any, any, any>> = T["_output"];
+ export type input<T extends ZodType<any, any, any>> = T["_input"];
+ export type output<T extends ZodType<any, any, any>> = T["_output"];
+-
+-type allKeys<T> = T extends any ? keyof T : never;
+-export type TypeOfFlattenedError<
+-  T extends ZodType<any, any, any>,
+-  U = string
+-> = {
+-  formErrors: U[];
+-  fieldErrors: {
+-    [P in allKeys<TypeOf<T>>]?: U[];
+-  };
+-};
+-export type TypeOfFormErrors<T extends ZodType<any, any, any>> =
+-  TypeOfFlattenedError<T>;
+-export type {
+-  TypeOf as infer,
+-  TypeOfFlattenedError as inferFlattenedErrors,
+-  TypeOfFormErrors as inferFormErrors,
+-};
++export type { TypeOf as infer };
+ 
+ export type CustomErrorParams = Partial<util.Omit<ZodCustomIssue, "code">>;
+ export interface ZodTypeDef {
+@@ -394,8 +377,6 @@ export abstract class ZodType<
+   }
+ 
+   optional(): ZodOptional<this> {
+-    ("");
+-    ("asdf");
+     return ZodOptional.create(this) as any;
+   }
+   nullable(): ZodNullable<this> {
+@@ -1382,17 +1363,12 @@ export namespace objectUtil {
+     [k in Exclude<keyof U, keyof V>]: U[k];
+   } & V;
+ 
+-  type optionalKeys<T extends object> = {
+-    [k in keyof T]: undefined extends T[k] ? k : never;
+-  }[keyof T];
+-
+-  // type requiredKeys<T extends object> = Exclude<keyof T, optionalKeys<T>>;
+-  type requiredKeys<T extends object> = {
++  export type requiredKeys<T extends object> = {
+     [k in keyof T]: undefined extends T[k] ? never : k;
+   }[keyof T];
+ 
+   export type addQuestionMarks<T extends object> = {
+-    [k in optionalKeys<T>]?: T[k];
++    [k in keyof T]?: T[k];
+   } & { [k in requiredKeys<T>]: T[k] };
+ 
+   export type identity<T> = T;
+@@ -1417,9 +1393,7 @@ export namespace objectUtil {
+   };
+ }
+ 
+-export type extendShape<A, B> = {
+-  [k in Exclude<keyof A, keyof B>]: A[k];
+-} & { [k in keyof B]: B[k] };
++export type extendShape<A, B> = Omit<A, keyof B> & B;
+ 
+ const AugmentFactory =
+   <Def extends ZodObjectDef>(def: Def) =>
+@@ -1731,11 +1705,7 @@ export class ZodObject<
+ 
+   pick<Mask extends { [k in keyof T]?: true }>(
+     mask: Mask
+-  ): ZodObject<
+-    objectUtil.noNever<{ [k in keyof Mask]: k extends keyof T ? T[k] : never }>,
+-    UnknownKeys,
+-    Catchall
+-  > {
++  ): ZodObject<Pick<T, Extract<keyof T, keyof Mask>>, UnknownKeys, Catchall> {
+     const shape: any = {};
+     util.objectKeys(mask).map((key) => {
+       shape[key] = this.shape[key];
+@@ -1748,11 +1718,7 @@ export class ZodObject<
+ 
+   omit<Mask extends { [k in keyof T]?: true }>(
+     mask: Mask
+-  ): ZodObject<
+-    objectUtil.noNever<{ [k in keyof T]: k extends keyof Mask ? never : T[k] }>,
+-    UnknownKeys,
+-    Catchall
+-  > {
++  ): ZodObject<Omit<T, keyof Mask>, UnknownKeys, Catchall> {
+     const shape: any = {};
+     util.objectKeys(this.shape).map((key) => {
+       if (util.objectKeys(mask).indexOf(key) === -1) {
+diff --git a/yarn.lock b/yarn.lock
+index fe52ffe54..b544138e5 100644
+--- a/yarn.lock
++++ b/yarn.lock
+@@ -828,6 +828,16 @@
+   resolved "https://registry.npmjs.org/@tootallnate/once/-/once-1.1.2.tgz"
+   integrity sha512-RbzJvlNzmRq5c3O09UipeuXno4tA1FE6ikOjxZK0tuxVv3412l64l5t1W5pj4+rJq9vpkm/kwiR07aZXnsKPxw==
+ 
++"@ts-morph/common@~0.13.0":
++  version "0.13.0"
++  resolved "https://registry.yarnpkg.com/@ts-morph/common/-/common-0.13.0.tgz#77dea1565baaf002d1bc2c20e05d1fb3349008a9"
++  integrity sha512-fEJ6j7Cu8yiWjA4UmybOBH9Efgb/64ZTWuvCF4KysGu4xz8ettfyaqFt8WZ1btCxXsGZJjZ2/3svOF6rL+UFdQ==
++  dependencies:
++    fast-glob "^3.2.11"
++    minimatch "^5.0.1"
++    mkdirp "^1.0.4"
++    path-browserify "^1.0.1"
++
+ "@tsconfig/node10@^1.0.7":
+   version "1.0.8"
+   resolved "https://registry.yarnpkg.com/@tsconfig/node10/-/node10-1.0.8.tgz#c1e4e80d6f964fbecb3359c43bd48b40f7cadad9"
+@@ -1394,6 +1404,13 @@ brace-expansion@^1.1.7:
+     balanced-match "^1.0.0"
+     concat-map "0.0.1"
+ 
++brace-expansion@^2.0.1:
++  version "2.0.1"
++  resolved "https://registry.yarnpkg.com/brace-expansion/-/brace-expansion-2.0.1.tgz#1edc459e0f0c548486ecf9fc99f2221364b9a0ae"
++  integrity sha512-XnAIvQ8eM+kC6aULx6wuQiwVsnzsi9d3WxzV3FpWTGA19F621kwdbsAcFKXgKUHZWsy+mY6iL1sHTxWEFCytDA==
++  dependencies:
++    balanced-match "^1.0.0"
++
+ braces@^3.0.1, braces@~3.0.2:
+   version "3.0.2"
+   resolved "https://registry.npmjs.org/braces/-/braces-3.0.2.tgz"
+@@ -1609,6 +1626,13 @@ co@^4.6.0:
+   resolved "https://registry.npmjs.org/co/-/co-4.6.0.tgz"
+   integrity sha1-bqa989hTrlTMuOR7+gvz+QMfsYQ=
+ 
++code-block-writer@^11.0.0:
++  version "11.0.0"
++  resolved "https://registry.yarnpkg.com/code-block-writer/-/code-block-writer-11.0.0.tgz#5956fb186617f6740e2c3257757fea79315dd7d4"
++  integrity sha512-GEqWvEWWsOvER+g9keO4ohFoD3ymwyCnqY3hoTr7GZipYFwEhMHJw+TtV0rfgRhNImM6QWZGO2XYjlJVyYT62w==
++  dependencies:
++    tslib "2.3.1"
++
+ collect-v8-coverage@^1.0.0:
+   version "1.0.1"
+   resolved "https://registry.npmjs.org/collect-v8-coverage/-/collect-v8-coverage-1.0.1.tgz"
+@@ -2267,7 +2291,7 @@ fast-deep-equal@^3.1.1, fast-deep-equal@^3.1.3:
+   resolved "https://registry.npmjs.org/fast-deep-equal/-/fast-deep-equal-3.1.3.tgz"
+   integrity sha512-f3qQ9oQy9j2AhBe/H9VC91wLmKBCCU/gDOnKNAYG5hswO7BLKj09Hc5HYNz9cGI++xlpDCIgDaitVs03ATR84Q==
+ 
+-fast-glob@^3.2.9:
++fast-glob@^3.2.11, fast-glob@^3.2.9:
+   version "3.2.11"
+   resolved "https://registry.yarnpkg.com/fast-glob/-/fast-glob-3.2.11.tgz#a1172ad95ceb8a16e20caa5c5e56480e5129c1d9"
+   integrity sha512-xrO3+1bxSo3ZVHAnqzyuewYT6aMFHRAd4Kcs92MAonjwQZLsK9d0SF1IyQ3k5PoirxTW0Oe/RqFgMQ6TcNE5Ew==
+@@ -3664,11 +3688,23 @@ minimatch@^3.0.4:
+   dependencies:
+     brace-expansion "^1.1.7"
+ 
++minimatch@^5.0.1:
++  version "5.0.1"
++  resolved "https://registry.yarnpkg.com/minimatch/-/minimatch-5.0.1.tgz#fb9022f7528125187c92bd9e9b6366be1cf3415b"
++  integrity sha512-nLDxIFRyhDblz3qMuq+SoRZED4+miJ/G+tdDrjkkkRnjAsBexeGpgjLEQ0blJy7rHhR2b93rhQY4SvyWu9v03g==
++  dependencies:
++    brace-expansion "^2.0.1"
++
+ minimist@^1.2.0, minimist@^1.2.5:
+   version "1.2.5"
+   resolved "https://registry.npmjs.org/minimist/-/minimist-1.2.5.tgz"
+   integrity sha512-FM9nNUYrRBAELZQT3xeZQ7fmMOBg6nWNmJKTcgsJeaLstP/UODVpGsr5OhXhhXg6f+qtJ8uiZ+PUxkDWcgIXLw==
+ 
++mkdirp@^1.0.4:
++  version "1.0.4"
++  resolved "https://registry.yarnpkg.com/mkdirp/-/mkdirp-1.0.4.tgz#3eb5ed62622756d79a5f0e2a221dfebad75c2f7e"
++  integrity sha512-vVqVZQyf3WLx2Shd0qJ9xuvqgAyKPLAiqITEtqW0oIUjzo3PePDd6fW9iFz30ef7Ysp/oiWqbhszeGWW2T6Gzw==
++
+ mri@^1.1.5:
+   version "1.2.0"
+   resolved "https://registry.yarnpkg.com/mri/-/mri-1.2.0.tgz#6721480fec2a11a4889861115a48b6cbe7cc8f0b"
+@@ -3924,6 +3960,11 @@ parse5@6.0.1:
+   resolved "https://registry.npmjs.org/parse5/-/parse5-6.0.1.tgz"
+   integrity sha512-Ofn/CTFzRGTTxwpNEs9PP93gXShHcTq255nzRYSKe8AkVpZY7e1fpmTfOyoIvjP5HG7Z2ZM7VS9PPhQGW2pOpw==
+ 
++path-browserify@^1.0.1:
++  version "1.0.1"
++  resolved "https://registry.yarnpkg.com/path-browserify/-/path-browserify-1.0.1.tgz#d98454a9c3753d5790860f16f68867b9e46be1fd"
++  integrity sha512-b7uo2UCUOYZcnF/3ID0lulOJi/bafxa1xPe7ZPsammBSpjSWQkjNxlt635YGS2MiR9GjvuXCtz2emr3jbsz98g==
++
+ path-exists@^3.0.0:
+   version "3.0.0"
+   resolved "https://registry.npmjs.org/path-exists/-/path-exists-3.0.0.tgz"
+@@ -4633,6 +4674,14 @@ ts-jest@^27.1.3:
+     semver "7.x"
+     yargs-parser "20.x"
+ 
++ts-morph@^14.0.0:
++  version "14.0.0"
++  resolved "https://registry.yarnpkg.com/ts-morph/-/ts-morph-14.0.0.tgz#6bffb7e4584cf6a9aebce2066bf4258e1d03f9fa"
++  integrity sha512-tO8YQ1dP41fw8GVmeQAdNsD8roZi1JMqB7YwZrqU856DvmG5/710e41q2XauzTYrygH9XmMryaFeLo+kdCziyA==
++  dependencies:
++    "@ts-morph/common" "~0.13.0"
++    code-block-writer "^11.0.0"
++
+ ts-node@^10.7.0:
+   version "10.7.0"
+   resolved "https://registry.yarnpkg.com/ts-node/-/ts-node-10.7.0.tgz#35d503d0fab3e2baa672a0e94f4b40653c2463f5"
+@@ -4681,16 +4730,16 @@ tsconfig-paths@^3.9.0:
+     minimist "^1.2.0"
+     strip-bom "^3.0.0"
+ 
++tslib@2.3.1, tslib@^2.1.0, tslib@^2.3.1:
++  version "2.3.1"
++  resolved "https://registry.npmjs.org/tslib/-/tslib-2.3.1.tgz"
++  integrity sha512-77EbyPPpMz+FRFRuAFlWMtmgUWGe9UOG2Z25NqCwiIjRhOf5iKGuzSe5P2w1laq+FkRy4p+PCuVkJSGkzTEKVw==
++
+ tslib@^1.8.1, tslib@^1.9.0:
+   version "1.14.1"
+   resolved "https://registry.npmjs.org/tslib/-/tslib-1.14.1.tgz"
+   integrity sha512-Xni35NKzjgMrwevysHTCArtLDpPvye8zV/0E4EyYn43P7/7qvQwPh9BGkHewbMulVntbigmcT7rdX3BNo9wRJg==
+ 
+-tslib@^2.1.0, tslib@^2.3.1:
+-  version "2.3.1"
+-  resolved "https://registry.npmjs.org/tslib/-/tslib-2.3.1.tgz"
+-  integrity sha512-77EbyPPpMz+FRFRuAFlWMtmgUWGe9UOG2Z25NqCwiIjRhOf5iKGuzSe5P2w1laq+FkRy4p+PCuVkJSGkzTEKVw==
+-
+ tsutils@^3.21.0:
+   version "3.21.0"
+   resolved "https://registry.npmjs.org/tsutils/-/tsutils-3.21.0.tgz"

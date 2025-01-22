@@ -1,0 +1,94 @@
+diff --git a/README.md b/README.md
+index 89877cc8e..378b7e13c 100644
+--- a/README.md
++++ b/README.md
+@@ -53,6 +53,7 @@
+     - [Gold](#gold)
+     - [Silver](#silver)
+     - [Bronze](#bronze)
++    - [Copper](#copper)
+   - [Ecosystem](#ecosystem)
+     - [Resources](#resources)
+     - [API libraries](#api-libraries)
+@@ -323,6 +324,9 @@ Sponsorship at any level is appreciated and encouraged. For individual developer
+     <td>Mohammad-Ali A'râbi</td>
+     <td>Supatool</td>
+   </tr>
++  <tr>
++    <td>Social Crow</td>
++  </tr>
+ </table>
+ 
+ ### Ecosystem
+diff --git a/deno/lib/README.md b/deno/lib/README.md
+index 89877cc8e..378b7e13c 100644
+--- a/deno/lib/README.md
++++ b/deno/lib/README.md
+@@ -53,6 +53,7 @@
+     - [Gold](#gold)
+     - [Silver](#silver)
+     - [Bronze](#bronze)
++    - [Copper](#copper)
+   - [Ecosystem](#ecosystem)
+     - [Resources](#resources)
+     - [API libraries](#api-libraries)
+@@ -323,6 +324,9 @@ Sponsorship at any level is appreciated and encouraged. For individual developer
+     <td>Mohammad-Ali A'râbi</td>
+     <td>Supatool</td>
+   </tr>
++  <tr>
++    <td>Social Crow</td>
++  </tr>
+ </table>
+ 
+ ### Ecosystem
+diff --git a/deno/lib/helpers/util.ts b/deno/lib/helpers/util.ts
+index 26c1cb185..058da47fa 100644
+--- a/deno/lib/helpers/util.ts
++++ b/deno/lib/helpers/util.ts
+@@ -132,11 +132,9 @@ export namespace objectUtil {
+   };
+ 
+   export type extendShape<A extends object, B extends object> = {
+-    [K in keyof A | keyof B]: K extends keyof B
+-      ? B[K]
+-      : K extends keyof A
+-      ? A[K]
+-      : never;
++    [K in keyof A as K extends keyof B ? never : K]: A[K];
++  } & {
++    [K in keyof B]: B[K];
+   };
+ }
+ 
+diff --git a/package.json b/package.json
+index 788fddf93..31681cea2 100644
+--- a/package.json
++++ b/package.json
+@@ -1,6 +1,6 @@
+ {
+   "name": "zod",
+-  "version": "3.23.6",
++  "version": "3.23.7",
+   "author": "Colin McDonnell <colin@colinhacks.com>",
+   "repository": {
+     "type": "git",
+diff --git a/src/helpers/util.ts b/src/helpers/util.ts
+index 26c1cb185..058da47fa 100644
+--- a/src/helpers/util.ts
++++ b/src/helpers/util.ts
+@@ -132,11 +132,9 @@ export namespace objectUtil {
+   };
+ 
+   export type extendShape<A extends object, B extends object> = {
+-    [K in keyof A | keyof B]: K extends keyof B
+-      ? B[K]
+-      : K extends keyof A
+-      ? A[K]
+-      : never;
++    [K in keyof A as K extends keyof B ? never : K]: A[K];
++  } & {
++    [K in keyof B]: B[K];
+   };
+ }
+ 

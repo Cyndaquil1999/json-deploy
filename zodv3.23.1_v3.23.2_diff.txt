@@ -1,0 +1,43 @@
+diff --git a/deno/lib/helpers/util.ts b/deno/lib/helpers/util.ts
+index 3732f7a1c..26c1cb185 100644
+--- a/deno/lib/helpers/util.ts
++++ b/deno/lib/helpers/util.ts
+@@ -107,7 +107,7 @@ export namespace objectUtil {
+   type requiredKeys<T extends object> = {
+     [k in keyof T]: undefined extends T[k] ? never : k;
+   }[keyof T];
+-  export type addQuestionMarks<T extends object> = {
++  export type addQuestionMarks<T extends object, _O = any> = {
+     [K in requiredKeys<T>]: T[K];
+   } & {
+     [K in optionalKeys<T>]?: T[K];
+diff --git a/package.json b/package.json
+index 6eec30149..acec0201c 100644
+--- a/package.json
++++ b/package.json
+@@ -1,10 +1,10 @@
+ {
+   "name": "zod",
+-  "version": "3.23.1",
++  "version": "3.23.2",
+   "author": "Colin McDonnell <colin@colinhacks.com>",
+   "repository": {
+     "type": "git",
+-    "url": "https://github.com/colinhacks/zod"
++    "url": "git+https://github.com/colinhacks/zod.git"
+   },
+   "main": "./lib/index.js",
+   "module": "./lib/index.mjs",
+diff --git a/src/helpers/util.ts b/src/helpers/util.ts
+index 3732f7a1c..26c1cb185 100644
+--- a/src/helpers/util.ts
++++ b/src/helpers/util.ts
+@@ -107,7 +107,7 @@ export namespace objectUtil {
+   type requiredKeys<T extends object> = {
+     [k in keyof T]: undefined extends T[k] ? never : k;
+   }[keyof T];
+-  export type addQuestionMarks<T extends object> = {
++  export type addQuestionMarks<T extends object, _O = any> = {
+     [K in requiredKeys<T>]: T[K];
+   } & {
+     [K in optionalKeys<T>]?: T[K];

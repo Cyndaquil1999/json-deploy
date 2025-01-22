@@ -1,0 +1,12 @@
+diff --git a/package.json b/package.json
+index acec0201c..00d6f2e58 100644
+--- a/package.json
++++ b/package.json
+@@ -1,6 +1,6 @@
+ {
+   "name": "zod",
+-  "version": "3.23.2",
++  "version": "3.23.3",
+   "author": "Colin McDonnell <colin@colinhacks.com>",
+   "repository": {
+     "type": "git",

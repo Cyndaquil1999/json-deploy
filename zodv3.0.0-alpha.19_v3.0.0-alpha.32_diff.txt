@@ -1,0 +1,2122 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index c2799a8d2..35902c68c 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -1,5 +1,18 @@
+ # Changelog
+ 
++### 3.0.0-alpha.32
++
++- Added `.required()` method to ZodObject
++
++### 3.0.0-alpha.30
++
++- Added Rollup for bundling ESM module
++
++### zod@3.0.0-alpha.24
++
++- Added back ZodIntersection
++- Added .and() method to base class
++
+ ### zod@3.0.0-alpha.9
+ 
+ - Added `z.strictCreate`
+diff --git a/README.md b/README.md
+index ba4c4957c..a714039f8 100644
+--- a/README.md
++++ b/README.md
+@@ -56,14 +56,19 @@ if you're happy and you know it, star this repo ⭐
+   - [Promises](#promises)
+   - [Instanceof](#instanceof)
+   - [Function schemas](#function-schemas)
+-- [Methods](#methods)
++- [Base class methods (ZodType)](#methods)
+   - [.parse](#parse)
+   - [.parseAsync](#parseasync)
+   - [.safeParse](#safeparse)
+   - [.safeParseAsync](#safeparseasync)
+-  - [.default](#default)
+   - [.refine](#refine)
+   - [.transform](#transform)
++  - [.default](#default)
++  - [.optional](#optional)
++  - [.nullable](#nullable)
++  - [.array](#array)
++  - [.or](#or)
++  - [.and](#and)
+ - [Type inference](#type-inference)
+ - [Errors](#errors)
+ - [Comparison](#comparison)
+@@ -82,7 +87,8 @@ if you're happy and you know it, star this repo ⭐
+ - Transformers! But better! See the "breaking changes" section to understand the syntax changes.
+ - You can now import Zod like `import { z } a from 'zod';` instead of using `import * as` syntax.
+ - Added the `format` method to ZodError to convert the error into a strongly-typed, nested object: [format method](#error-formatting)
+-- Added the `or` method to ZodType (the base class for all Zod schema) to easily create union types like `z.string().or(z.number())`
++- Added the `or` method to ZodType (the base class for all Zod schemas) to easily create union types like `z.string().or(z.number())`
++- Added the `and` method to ZodType (the base class for all Zod schemas) to easily create intersection types
+ - Added `z.setErrorMap`, an easier way to _globally_ customize the error messages produced by Zod: [setErrorMap](ERROR_HANDLING.md#customizing-errors-with-zoderrormap)
+ - ZodOptional and ZodNullable now have a `.unwrap()` method for retrieving the schema they wrap
+ 
+@@ -108,14 +114,14 @@ if you're happy and you know it, star this repo ⭐
+   const test = z
+     .string()
+     .transform((val) => val.length)
+-    .refine((val) => val > 5, { message: "Input is too short" })
++    .refine((val) => val > 5, { message: 'Input is too short' })
+     .transform((val) => val * 2);
+ 
+-  test.parse("12characters"); // => 24
++  test.parse('12characters'); // => 24
+   ```
+ 
+ - **Type guards** (the `.check()` method) have been removed. Type guards interact with transformers in unintuitive ways so they were removed. Use `.safeParse` instead.
+-- **ZodIntersection has been removed**. If you have an object schema, you can use the `A.merge(B)` instead. Note that this is equivalent to `A.extend(B.shape)` and is therefore not an intersection in the pure sense, as `B` takes precedence over `A` if the two schemas share a key.
++- Object merging now behaves differently. If you merge two object schema (`A.merge(B)`), the fields of B will overwrite the fields of A if there are shared keys. This is how the `.extend` method already works. If you're looking to create an intersection of the two types, use `z.intersection(A, B)` or use the new `.and` method (`A.and(B)`).
+ - There have been small internal changes to the ZodIssue type. This may impact user who have written a custom error maps. Most users will not be affected.
+ 
+ #### Migrating from v1
+@@ -221,18 +227,18 @@ npm install zod@next
+ Creating a simple string schema
+ 
+ ```ts
+-import { z } from "zod";
++import { z } from 'zod';
+ 
+ // creating a schema for strings
+ const mySchema = z.string();
+-mySchema.parse("tuna"); // => "tuna"
++mySchema.parse('tuna'); // => "tuna"
+ mySchema.parse(12); // => throws ZodError
+ ```
+ 
+ Creating an object schema
+ 
+ ```ts
+-import { z } from "zod";
++import { z } from 'zod';
+ 
+ const User = z.object({
+   username: z.string(),
+@@ -250,7 +256,7 @@ type User = z.infer<typeof User>;
+ ## Primitives
+ 
+ ```ts
+-import { z } from "zod";
++import { z } from 'zod';
+ 
+ // primitive values
+ z.string();
+@@ -277,7 +283,7 @@ z.never();
+ ## Literals
+ 
+ ```ts
+-const tuna = z.literal("tuna");
++const tuna = z.literal('tuna');
+ const twelve = z.literal(12);
+ const tru = z.literal(true);
+ ```
+@@ -308,12 +314,12 @@ z.string().nonempty();
+ Optionally, you can pass in a second argument to provide a custom error message.
+ 
+ ```ts
+-z.string().min(5, { message: "Must be 5 or more characters long" });
+-z.string().max(5, { message: "Must be 5 or fewer characters long" });
+-z.string().length(5, { message: "Must be exactly 5 characters long" });
+-z.string().email({ message: "Invalid email address." });
+-z.string().url({ message: "Invalid url" });
+-z.string().uuid({ message: "Invalid UUID" });
++z.string().min(5, { message: 'Must be 5 or more characters long' });
++z.string().max(5, { message: 'Must be 5 or fewer characters long' });
++z.string().length(5, { message: 'Must be exactly 5 characters long' });
++z.string().email({ message: 'Invalid email address.' });
++z.string().url({ message: 'Invalid url' });
++z.string().uuid({ message: 'Invalid UUID' });
+ ```
+ 
+ ## Numbers
+@@ -335,7 +341,7 @@ z.number().nonpositive(); //  <= 0
+ Optionally, you can pass in a second argument to provide a custom error message.
+ 
+ ```ts
+-z.number().max(5, { message: "this👏is👏too👏big" });
++z.number().max(5, { message: 'this👏is👏too👏big' });
+ ```
+ 
+ ## Objects
+@@ -380,7 +386,7 @@ You can use `.extend` to overwrite fields! Be careful with this power!
+ 
+ ### `.merge`
+ 
+-Merge two object schemas with `.merge`, like so:
++Equivalent to `A.merge(B.shape)`.
+ 
+ ```ts
+ const BaseTeacher = z.object({ students: z.array(z.string()) });
+@@ -390,16 +396,7 @@ const Teacher = BaseTeacher.merge(HasID);
+ type Teacher = z.infer<typeof Teacher>; // => { students: string[], id: string }
+ ```
+ 
+-If the two schemas share keys, the properties of the _merged schema_ take precedence.
+-
+-```ts
+-const Obj1 = z.object({ field: z.string() });
+-const Obj2 = z.object({ field: z.number() });
+-const Merged = Obj1.merge(Obj2);
+-
+-type Merged = z.infer<typeof merged>;
+-// => { field: number }
+-```
++> If the two schemas share keys, the properties of the _merged schema_ take precedence.
+ 
+ ### `.pick/.omit`
+ 
+@@ -488,7 +485,7 @@ const person = z.object({
+ });
+ 
+ person.parse({
+-  name: "bob dylan",
++  name: 'bob dylan',
+   extraKey: 61,
+ });
+ // => { name: "bob dylan" }
+@@ -501,7 +498,7 @@ Instead, if you want to pass through unknown keys, use `.passthrough()` .
+ 
+ ```ts
+ person.passthrough().parse({
+-  name: "bob dylan",
++  name: 'bob dylan',
+   extraKey: 61,
+ });
+ // => { name: "bob dylan", extraKey: 61 }
+@@ -519,7 +516,7 @@ const person = z
+   .strict();
+ 
+ person.parse({
+-  name: "bob dylan",
++  name: 'bob dylan',
+   extraKey: 61,
+ });
+ // => throws ZodError
+@@ -541,12 +538,12 @@ const person = z
+   .catchall(z.number());
+ 
+ person.parse({
+-  name: "bob dylan",
++  name: 'bob dylan',
+   validExtraKey: 61, // works fine
+ });
+ 
+ person.parse({
+-  name: "bob dylan",
++  name: 'bob dylan',
+   validExtraKey: false, // fails
+ });
+ // => throws ZodError
+@@ -580,7 +577,7 @@ const nonEmptyStrings = z.string().array().nonempty();
+ // [string, ...string[]]
+ 
+ nonEmptyStrings.parse([]); // throws: "Array cannot be empty"
+-nonEmptyStrings.parse(["Ariana Grande"]); // passes
++nonEmptyStrings.parse(['Ariana Grande']); // passes
+ ```
+ 
+ ### `.min/.max/.length`
+@@ -600,7 +597,7 @@ Zod includes a built-in `z.union` method for composing "OR" types.
+ ```ts
+ const stringOrNumber = z.union([z.string(), z.number()]);
+ 
+-stringOrNumber.parse("foo"); // passes
++stringOrNumber.parse('foo'); // passes
+ stringOrNumber.parse(14); // passes
+ ```
+ 
+@@ -646,7 +643,7 @@ Similarly, you can create nullable types like so:
+ 
+ ```ts
+ const nullableString = z.nullable(z.string());
+-nullableString.parse("asdf"); // => "asdf"
++nullableString.parse('asdf'); // => "asdf"
+ nullableString.parse(null); // => null
+ ```
+ 
+@@ -703,12 +700,12 @@ This is particularly useful for storing or caching items by ID.
+ ```ts
+ const userStore: UserStore = {};
+ 
+-userStore["77d2586b-9e8e-4ecf-8b21-ea7e0530eadd"] = {
+-  name: "Carlotta",
++userStore['77d2586b-9e8e-4ecf-8b21-ea7e0530eadd'] = {
++  name: 'Carlotta',
+ }; // passes
+ 
+-userStore["77d2586b-9e8e-4ecf-8b21-ea7e0530eadd"] = {
+-  whatever: "Ice cream sundae",
++userStore['77d2586b-9e8e-4ecf-8b21-ea7e0530eadd'] = {
++  whatever: 'Ice cream sundae',
+ }; // TypeError
+ ```
+ 
+@@ -720,7 +717,7 @@ As it turns out, TypeScript's behavior surrounding `[k: number]` is a little uni
+ 
+ ```ts
+ const testMap: { [k: number]: string } = {
+-  1: "one",
++  1: 'one',
+ };
+ 
+ for (const key in testMap) {
+@@ -772,7 +769,7 @@ FishEnum.parse("Flounder"); // => throws
+ For convenience Zod provides a built-in `z.enum()` function. Here's is the equivalent code: -->
+ 
+ ```ts
+-const FishEnum = z.enum(["Salmon", "Tuna", "Trout"]);
++const FishEnum = z.enum(['Salmon', 'Tuna', 'Trout']);
+ type FishEnum = z.infer<typeof FishEnum>;
+ // 'Salmon' | 'Tuna' | 'Trout'
+ ```
+@@ -780,7 +777,7 @@ type FishEnum = z.infer<typeof FishEnum>;
+ You must pass the array of values directly into `z.enum()`. This does not work:
+ 
+ ```ts
+-const fish = ["Salmon", "Tuna", "Trout"];
++const fish = ['Salmon', 'Tuna', 'Trout'];
+ const FishEnum = z.enum(fish);
+ ```
+ 
+@@ -835,8 +832,8 @@ FruitEnum.parse(3); // fails
+ 
+ ```ts
+ enum Fruits {
+-  Apple = "apple",
+-  Banana = "banana",
++  Apple = 'apple',
++  Banana = 'banana',
+   Cantaloupe, // you can mix numerical and string enums
+ }
+ 
+@@ -845,10 +842,10 @@ type FruitEnum = z.infer<typeof FruitEnum>; // Fruits
+ 
+ FruitEnum.parse(Fruits.Apple); // passes
+ FruitEnum.parse(Fruits.Cantaloupe); // passes
+-FruitEnum.parse("apple"); // passes
+-FruitEnum.parse("banana"); // passes
++FruitEnum.parse('apple'); // passes
++FruitEnum.parse('banana'); // passes
+ FruitEnum.parse(0); // passes
+-FruitEnum.parse("Cantaloupe"); // fails
++FruitEnum.parse('Cantaloupe'); // fails
+ ```
+ 
+ **Const enums**
+@@ -857,20 +854,56 @@ The `.nativeEnum()` function works for `as const` objects as well. ⚠️ `as co
+ 
+ ```ts
+ const Fruits = {
+-  Apple: "apple",
+-  Banana: "banana",
++  Apple: 'apple',
++  Banana: 'banana',
+   Cantaloupe: 3,
+ } as const;
+ 
+ const FruitEnum = z.nativeEnum(Fruits);
+ type FruitEnum = z.infer<typeof FruitEnum>; // "apple" | "banana" | 3
+ 
+-FruitEnum.parse("apple"); // passes
+-FruitEnum.parse("banana"); // passes
++FruitEnum.parse('apple'); // passes
++FruitEnum.parse('banana'); // passes
+ FruitEnum.parse(3); // passes
+-FruitEnum.parse("Cantaloupe"); // fails
++FruitEnum.parse('Cantaloupe'); // fails
++```
++
++## Intersections
++
++<!-- > ⚠️ Intersections are deprecated. If you are trying to merge objects, use the `.merge` method instead. -->
++
++Intersections are useful for creating "logical AND" types.
++
++```ts
++const a = z.union([z.number(), z.string()]);
++const b = z.union([z.number(), z.boolean()]);
++const c = z.intersection(a, b);
++
++type c = z.infer<typeof c>; // => number
++
++const stringAndNumber = z.intersection(z.string(), z.number());
++type Never = z.infer<typeof stringAndNumber>; // => never
+ ```
+ 
++<!-- Intersections in Zod are not smart. Whatever data you pass into `.parse()` gets passed into the two intersected schemas. Because Zod object schemas don't allow any unknown keys by default, there are some unintuitive behavior surrounding intersections of object schemas. -->
++
++<!--
++
++``` ts
++const A = z.object({
++  a: z.string(),
++});
++
++const B = z.object({
++  b: z.string(),
++});
++
++const AB = z.intersection(A, B);
++
++type Teacher = z.infer<typeof Teacher>;
++// { id:string; name:string };
++```  -->
++
+ ## Tuples
+ 
+ Unlike arrays, tuples have a fixed number of elements and each element can have a different type.
+@@ -907,11 +940,11 @@ const Category: z.ZodSchema<Category> = z.lazy(() =>
+ );
+ 
+ Category.parse({
+-  name: "People",
++  name: 'People',
+   subcategories: [
+     {
+-      name: "Politicians",
+-      subcategories: [{ name: "Presidents", subcategories: [] }],
++      name: 'Politicians',
++      subcategories: [{ name: 'Presidents', subcategories: [] }],
+     },
+   ],
+ }); // passes
+@@ -976,14 +1009,14 @@ const numberPromise = z.promise(z.number());
+ 2. Zod uses `.then` to attach an additional validation step onto the existing Promise. You'll have to use `.catch` on the returned Promise to handle validation failures.
+ 
+ ```ts
+-numberPromise.parse("tuna");
++numberPromise.parse('tuna');
+ // ZodError: Non-Promise type: string
+ 
+-numberPromise.parse(Promise.resolve("tuna"));
++numberPromise.parse(Promise.resolve('tuna'));
+ // => Promise<number>
+ 
+ const test = async () => {
+-  await numberPromise.parse(Promise.resolve("tuna"));
++  await numberPromise.parse(Promise.resolve('tuna'));
+   // ZodError: Non-number type: string
+ 
+   await numberPromise.parse(Promise.resolve(3.14));
+@@ -1006,9 +1039,9 @@ class Test {
+ 
+ const TestSchema = z.instanceof(Test);
+ 
+-const blob: any = "whatever";
++const blob: any = 'whatever';
+ TestSchema.parse(new Test()); // passes
+-TestSchema.parse("blob"); // throws
++TestSchema.parse('blob'); // throws
+ ```
+ 
+ ## Function schemas
+@@ -1066,8 +1099,8 @@ const trimmedLength = z
+     return x.trim().length;
+   });
+ 
+-trimmedLength("sandwich"); // => 8
+-trimmedLength(" asdf "); // => 4
++trimmedLength('sandwich'); // => 8
++trimmedLength(' asdf '); // => 4
+ ```
+ 
+ If you only care about validating inputs, that's fine:
+@@ -1082,7 +1115,7 @@ const myFunction = z
+ myFunction; // (arg: string)=>number[]
+ ```
+ 
+-# Methods
++# ZodType: methods and properties
+ 
+ All Zod schemas contain certain methods.
+ 
+@@ -1096,7 +1129,7 @@ Given any Zod schema, you can call its `.parse` method to check `data` is valid.
+ 
+ ```ts
+ const stringSchema = z.string();
+-stringSchema.parse("fish"); // => returns "fish"
++stringSchema.parse('fish'); // => returns "fish"
+ stringSchema.parse(12); // throws Error('Non-string type: number');
+ ```
+ 
+@@ -1108,7 +1141,7 @@ If you use asynchronous [refinements](#refinements) or [transforms](#transformer
+ 
+ ```ts
+ const stringSchema = z.string().refine(async (val) => val.length > 20);
+-const value = await stringSchema.parseAsync("hello"); // => hello
++const value = await stringSchema.parseAsync('hello'); // => hello
+ ```
+ 
+ ### `.safeParse`
+@@ -1121,14 +1154,14 @@ If you don't want Zod to throw errors when validation fails, use `.safeParse`. T
+ stringSchema.safeParse(12);
+ // => { success: false; error: ZodError }
+ 
+-stringSchema.safeParse("billie");
++stringSchema.safeParse('billie');
+ // => { success: true; data: 'billie' }
+ ```
+ 
+ The result is a _discriminated union_ so you can handle errors very conveniently:
+ 
+ ```ts
+-const result = stringSchema.safeParse("billie");
++const result = stringSchema.safeParse('billie');
+ if (!result.success) {
+   // handle error then return
+   result.error;
+@@ -1140,16 +1173,18 @@ if (!result.success) {
+ 
+ ### `.safeParseAsync`
+ 
+-There is also an asynchronous version of `safeParse`:
++> Alias: `.spa`
++
++An asynchronous version of `safeParse`.
+ 
+ ```ts
+-await stringSchema.safeParseAsync("billie");
++await stringSchema.safeParseAsync('billie');
+ ```
+ 
+ For convenience, this has been aliased to `.spa`:
+ 
+ ```ts
+-await stringSchema.spa("billie");
++await stringSchema.spa('billie');
+ ```
+ 
+ ### `.refine`
+@@ -1210,9 +1245,9 @@ const passwordForm = z
+   })
+   .refine((data) => data.password === data.confirm, {
+     message: "Passwords don't match",
+-    path: ["confirm"], // path of error
++    path: ['confirm'], // path of error
+   })
+-  .parse({ password: "asdf", confirm: "qwer" });
++  .parse({ password: 'asdf', confirm: 'qwer' });
+ ```
+ 
+ Because you provided a `path` parameter, the resulting error will be:
+@@ -1281,7 +1316,7 @@ To transform data after parsing, use the `transform` method.
+ 
+ ```ts
+ const stringToNumber = z.string().transform((val) => myString.length);
+-stringToNumber.parse("string"); // => 6
++stringToNumber.parse('string'); // => 6
+ ```
+ 
+ > ⚠️ Transformation functions must not throw. Make sure to use refinements before the transformer to make sure the input can be parsed by the transformer.
+@@ -1294,9 +1329,9 @@ Note that `stringToNumber` above is an instance of the `ZodEffects` subclass. It
+ const emailToDomain = z
+   .string()
+   .email()
+-  .transform((val) => val.split("@")[1]);
++  .transform((val) => val.split('@')[1]);
+ 
+-emailToDomain.parse("colinhacks@example.com"); // => example.com
++emailToDomain.parse('colinhacks@example.com'); // => example.com
+ ```
+ 
+ #### Relationship to refinements
+@@ -1330,7 +1365,7 @@ const IdToUser = z.transformer(
+ You can use transformers to implement the concept of "default values" in Zod.
+ 
+ ```ts
+-const stringWithDefault = z.string().default("tuna");
++const stringWithDefault = z.string().default('tuna');
+ 
+ stringWithDefault.parse(undefined); // => "tuna"
+ ```
+@@ -1345,6 +1380,61 @@ numberWithRandomDefault.parse(undefined); // => 0.1871840107401901
+ numberWithRandomDefault.parse(undefined); // => 0.7223408162401552
+ ```
+ 
++### `.optional`
++
++A convenience method that returns an optional version of a schema.
++
++```ts
++const optionalString = z.string().optional(); // string | undefined
++
++// equivalent to
++z.optional(z.string());
++```
++
++### `.nullable`
++
++A convenience method that returns an nullable version of a schema.
++
++```ts
++const nullableString = z.string().nullable(); // string | null
++
++// equivalent to
++z.nullable(z.string());
++```
++
++### `.array`
++
++A convenience method that returns an array schema for the given type:
++
++```ts
++const nullableString = z.string().array(); // string[]
++
++// equivalent to
++z.array(z.string());
++```
++
++### `.or`
++
++A convenience method for union types.
++
++```ts
++z.string().or(z.number()); // string | number
++
++// equivalent to
++z.union([z.string(), z.number()]);
++```
++
++### `.and`
++
++A convenience method for creating interesection types.
++
++```ts
++z.object({ name: z.string() }).and(z.object({ age: z.number() })); // { name: string } & { age: number }
++
++// equivalent to
++z.intersection(z.string(), z.number());
++```
++
+ # Type inference
+ 
+ You can extract the TypeScript type of any schema with `z.infer<typeof mySchema>` .
+@@ -1354,7 +1444,7 @@ const A = z.string();
+ type A = z.infer<typeof A>; // string
+ 
+ const u: A = 12; // TypeError
+-const u: A = "asdf"; // compiles
++const u: A = 'asdf'; // compiles
+ ```
+ 
+ #### What about transforms?
+@@ -1458,7 +1548,7 @@ Branded -->
+ * Missing lazy/recursive types
+ * Missing promise schemas
+ * Missing function schemas
+-* Missing union schemas
++* Missing union & intersection schemas
+ * Missing support for parsing cyclical data (maybe)
+ * Missing error customization -->
+ 
+@@ -1482,7 +1572,7 @@ Differences
+ <!-- - Missing nonempty arrays with proper typing (`[T, ...T[]]`) -->
+ - Missing promise schemas
+ - Missing function schemas
+-- Missing union schemas
++- Missing union & intersection schemas
+ 
+ <!-- ¹Yup has a strange interpretation of the word `required`. Instead of meaning "not undefined", Yup uses it to mean "not empty". So `yup.string().required()` will not accept an empty string, and `yup.array(yup.string()).required()` will not accept an empty array. Instead, Yup us Zod arrays there is a dedicated `.nonempty()` method to indicate this, or you can implement it with a custom refinement. -->
+ 
+@@ -1495,7 +1585,7 @@ io-ts is an excellent library by gcanti. The API of io-ts heavily inspired the d
+ In our experience, io-ts prioritizes functional programming purity over developer experience in many cases. This is a valid and admirable design goal, but it makes io-ts particularly hard to integrate into an existing codebase with a more procedural or object-oriented bias. For instance, consider how to define an object with optional properties in io-ts:
+ 
+ ```ts
+-import * as t from "io-ts";
++import * as t from 'io-ts';
+ 
+ const A = t.type({
+   foo: t.string,
+@@ -1537,7 +1627,7 @@ This more declarative API makes schema definitions vastly more concise.
+ - Missing lazy/recursive types
+ - Missing promise schemas
+ - Missing function schemas
+-- Missing union schemas
++- Missing union & intersection schemas
+ - Missing support for parsing cyclical data (maybe)
+ - Missing error customization
+ 
+@@ -1553,7 +1643,7 @@ Good type inference support, but limited options for object type masking (no `.p
+ - Missing nonempty arrays with proper typing (`[T, ...T[]]`)
+ - Missing lazy/recursive types
+ - Missing promise schemas
+-- Missing union schemas
++- Missing union & intersection schemas
+ - Missing error customization
+ - Missing record schemas (their "record" is equivalent to Zod "object")
+ 
+diff --git a/coverage.svg b/coverage.svg
+index 8de378603..a020c924b 100644
+--- a/coverage.svg
++++ b/coverage.svg
+@@ -1 +1 @@
+-<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="116" height="20" role="img" aria-label="Coverage: 94.06%"><title>Coverage: 94.06%</title><linearGradient id="s" x2="0" y2="100%"><stop offset="0" stop-color="#bbb" stop-opacity=".1"/><stop offset="1" stop-opacity=".1"/></linearGradient><clipPath id="r"><rect width="116" height="20" rx="3" fill="#fff"/></clipPath><g clip-path="url(#r)"><rect width="63" height="20" fill="#555"/><rect x="63" width="53" height="20" fill="#4c1"/><rect width="116" height="20" fill="url(#s)"/></g><g fill="#fff" text-anchor="middle" font-family="Verdana,Geneva,DejaVu Sans,sans-serif" text-rendering="geometricPrecision" font-size="110"><text aria-hidden="true" x="325" y="150" fill="#010101" fill-opacity=".3" transform="scale(.1)" textLength="530">Coverage</text><text x="325" y="140" transform="scale(.1)" fill="#fff" textLength="530">Coverage</text><text aria-hidden="true" x="885" y="150" fill="#010101" fill-opacity=".3" transform="scale(.1)" textLength="430">94.06%</text><text x="885" y="140" transform="scale(.1)" fill="#fff" textLength="430">94.06%</text></g></svg>
+\ No newline at end of file
++<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="110" height="20" role="img" aria-label="Coverage: 92.7%"><title>Coverage: 92.7%</title><linearGradient id="s" x2="0" y2="100%"><stop offset="0" stop-color="#bbb" stop-opacity=".1"/><stop offset="1" stop-opacity=".1"/></linearGradient><clipPath id="r"><rect width="110" height="20" rx="3" fill="#fff"/></clipPath><g clip-path="url(#r)"><rect width="63" height="20" fill="#555"/><rect x="63" width="47" height="20" fill="#4c1"/><rect width="110" height="20" fill="url(#s)"/></g><g fill="#fff" text-anchor="middle" font-family="Verdana,Geneva,DejaVu Sans,sans-serif" text-rendering="geometricPrecision" font-size="110"><text aria-hidden="true" x="325" y="150" fill="#010101" fill-opacity=".3" transform="scale(.1)" textLength="530">Coverage</text><text x="325" y="140" transform="scale(.1)" fill="#fff" textLength="530">Coverage</text><text aria-hidden="true" x="855" y="150" fill="#010101" fill-opacity=".3" transform="scale(.1)" textLength="370">92.7%</text><text x="855" y="140" transform="scale(.1)" fill="#fff" textLength="370">92.7%</text></g></svg>
+\ No newline at end of file
+diff --git a/deno/lib/ZodError.ts b/deno/lib/ZodError.ts
+index 0eed71a29..54249f9a3 100644
+--- a/deno/lib/ZodError.ts
++++ b/deno/lib/ZodError.ts
+@@ -13,6 +13,7 @@ export const ZodIssueCode = util.arrayToEnum([
+   "invalid_string",
+   "too_small",
+   "too_big",
++  "invalid_intersection_types",
+ ]);
+ 
+ export type ZodIssueCode = keyof typeof ZodIssueCode;
+@@ -79,6 +80,10 @@ export interface ZodTooBigIssue extends ZodIssueBase {
+   type: "array" | "string" | "number";
+ }
+ 
++export interface ZodInvalidIntersectionTypesIssue extends ZodIssueBase {
++  code: typeof ZodIssueCode.invalid_intersection_types;
++}
++
+ export interface ZodCustomIssue extends ZodIssueBase {
+   code: typeof ZodIssueCode.custom;
+   params?: { [k: string]: any };
+@@ -99,6 +104,7 @@ export type ZodIssueOptionalMessage =
+   | ZodInvalidStringIssue
+   | ZodTooSmallIssue
+   | ZodTooBigIssue
++  | ZodInvalidIntersectionTypesIssue
+   | ZodCustomIssue;
+ 
+ export type ZodIssue = ZodIssueOptionalMessage & { message: string };
+@@ -348,6 +354,9 @@ export let defaultErrorMap = (
+     case ZodIssueCode.custom:
+       message = `Invalid input.`;
+       break;
++    case ZodIssueCode.invalid_intersection_types:
++      message = `Intersections only support objects`;
++      break;
+     default:
+       message = `Invalid input.`;
+       util.assertNever(error);
+diff --git a/deno/lib/__tests__/complex.test.ts b/deno/lib/__tests__/complex.test.ts
+index 571744187..0d4b70c97 100644
+--- a/deno/lib/__tests__/complex.test.ts
++++ b/deno/lib/__tests__/complex.test.ts
+@@ -11,8 +11,10 @@ test("parse", () => {
+     merged: { k1: "asdf", k2: 12 },
+     union: ["asdf", 12, "asdf", 12, "asdf", 12],
+     array: [12, 15, 16],
++    // sumTransformer: [12, 15, 16],
+     sumMinLength: [12, 15, 16, 98, 24, 63],
+-    mergedObjects: { p1: 3.154 },
++    intersection: {},
++    enum: "one",
+     nonstrict: { points: 1234 },
+     numProm: Promise.resolve(12),
+     lenfun: (x: string) => x.length,
+diff --git a/deno/lib/__tests__/crazySchema.ts b/deno/lib/__tests__/crazySchema.ts
+index 2e0c3c83a..42725e1db 100644
+--- a/deno/lib/__tests__/crazySchema.ts
++++ b/deno/lib/__tests__/crazySchema.ts
+@@ -16,15 +16,27 @@ export const crazySchema = z.object({
+     .merge(z.object({ k1: z.string().nullable(), k2: z.number() })),
+   union: z.array(z.union([z.literal("asdf"), z.literal(12)])).nonempty(),
+   array: z.array(z.number()),
++  // sumTransformer: z.transformer(z.array(z.number()), z.number(), (arg) => {
++  //   return arg.reduce((a, b) => a + b, 0);
++  // }),
+   sumMinLength: z.array(z.number()).refine((arg) => arg.length > 5),
+-  mergedObjects: z
+-    .object({ p1: z.string().optional() })
+-    .merge(z.object({ p1: z.number().optional() })),
++  intersection: z.intersection(
++    z.object({ p1: z.string().optional() }),
++    z.object({ p1: z.number().optional() })
++  ),
++  enum: z.intersection(z.enum(["zero", "one"]), z.enum(["one", "two"])),
+   nonstrict: z.object({ points: z.number() }).nonstrict(),
+   numProm: z.promise(z.number()),
+   lenfun: z.function(z.tuple([z.string()]), z.boolean()),
+ });
+ 
+ export const asyncCrazySchema = crazySchema.extend({
++  // async_transform: z.transformer(
++  //   z.array(z.number()),
++  //   z.number(),
++  //   async (arg) => {
++  //     return arg.reduce((a, b) => a + b, 0);
++  //   }
++  // ),
+   async_refine: z.array(z.number()).refine(async (arg) => arg.length > 5),
+ });
+diff --git a/deno/lib/__tests__/intersection.test.ts b/deno/lib/__tests__/intersection.test.ts
+new file mode 100644
+index 000000000..531b35eeb
+--- /dev/null
++++ b/deno/lib/__tests__/intersection.test.ts
+@@ -0,0 +1,25 @@
++// @ts-ignore TS6133
++import { expect } from "https://deno.land/x/expect@v0.2.6/mod.ts";
++const test = Deno.test;
++
++import * as z from "../index.ts";
++
++test("object intersection", () => {
++  const BaseTeacher = z.object({
++    subjects: z.array(z.string()),
++  });
++  const HasID = z.object({ id: z.string() });
++
++  const Teacher = z.intersection(BaseTeacher.passthrough(), HasID); // BaseTeacher.merge(HasID);
++  const data = {
++    subjects: ["math"],
++    id: "asdfasdf",
++  };
++  expect(Teacher.parse(data)).toEqual(data);
++  expect(() => Teacher.parse({ subject: data.subjects })).toThrow();
++  expect(Teacher.parse({ ...data, extra: 12 })).toEqual({ ...data, extra: 12 });
++
++  expect(() =>
++    z.intersection(BaseTeacher.strict(), HasID).parse({ ...data, extra: 12 })
++  ).toThrow();
++});
+diff --git a/deno/lib/__tests__/object.test.ts b/deno/lib/__tests__/object.test.ts
+index 28474a0da..010efab92 100644
+--- a/deno/lib/__tests__/object.test.ts
++++ b/deno/lib/__tests__/object.test.ts
+@@ -207,33 +207,3 @@ test("test async PseudoPromise.all", async () => {
+   const result = await Schema2.spa(obj); // Works with 1.11.10, breaks with 2.0.0-beta.21
+   expect(result.success).toEqual(true);
+ });
+-
+-test("merging", () => {
+-  const BaseTeacher = z.object({
+-    subjects: z.array(z.string()),
+-  });
+-  const HasID = z.object({ id: z.string() });
+-
+-  const Teacher = BaseTeacher.merge(HasID);
+-
+-  const data = {
+-    subjects: ["math"],
+-    id: "asdfasdf",
+-  };
+-  expect(Teacher.parse(data)).toEqual(data);
+-  expect(() => Teacher.parse({ subject: data.subjects })).toThrow();
+-  expect(
+-    BaseTeacher.passthrough()
+-      .merge(HasID)
+-      .parse({ ...data, extra: 12 })
+-  ).toEqual({
+-    ...data,
+-    extra: 12,
+-  });
+-
+-  expect(() =>
+-    BaseTeacher.strict()
+-      .merge(HasID)
+-      .parse({ ...data, extra: 12 })
+-  ).toThrow();
+-});
+diff --git a/deno/lib/__tests__/parser.test.ts b/deno/lib/__tests__/parser.test.ts
+index 1f1069215..6d2e0de42 100644
+--- a/deno/lib/__tests__/parser.test.ts
++++ b/deno/lib/__tests__/parser.test.ts
+@@ -19,6 +19,18 @@ test("parse nonstrict object with unknown keys", () => {
+     .parse({ name: "bill", unknownKey: 12 });
+ });
+ 
++test("invalid left side of intersection", () => {
++  expect(() =>
++    z.intersection(z.string(), z.number()).parse(12 as any)
++  ).toThrow();
++});
++
++test("invalid right side of intersection", () => {
++  expect(() =>
++    z.intersection(z.string(), z.number()).parse("12" as any)
++  ).toThrow();
++});
++
+ test("parsing non-array in tuple schema", () => {
+   expect(() => z.tuple([]).parse("12" as any)).toThrow();
+ });
+diff --git a/deno/lib/__tests__/partials.test.ts b/deno/lib/__tests__/partials.test.ts
+index 0f1f44c64..1058dc464 100644
+--- a/deno/lib/__tests__/partials.test.ts
++++ b/deno/lib/__tests__/partials.test.ts
+@@ -76,3 +76,16 @@ test("deep partial runtime tests", () => {
+     },
+   });
+ });
++
++test("required", () => {
++  const object = z.object({
++    name: z.string(),
++    age: z.number().optional(),
++    field: z.string().optional().default(undefined),
++  });
++
++  const requiredObject = object.required();
++  expect(requiredObject.shape.name).toBeInstanceOf(z.ZodString);
++  expect(requiredObject.shape.age).toBeInstanceOf(z.ZodNumber);
++  expect(requiredObject.shape.field).toBeInstanceOf(z.ZodString);
++});
+diff --git a/deno/lib/defaultErrorMap.ts b/deno/lib/defaultErrorMap.ts
+index 2350edd04..076ce2e02 100644
+--- a/deno/lib/defaultErrorMap.ts
++++ b/deno/lib/defaultErrorMap.ts
+@@ -82,6 +82,9 @@ export const defaultErrorMap = (
+     case ZodIssueCode.custom:
+       message = `Invalid input.`;
+       break;
++    case ZodIssueCode.invalid_intersection_types:
++      message = `Intersections only support objects`;
++      break;
+     default:
+       message = `Invalid input.`;
+       util.assertNever(error);
+diff --git a/deno/lib/helpers/util.ts b/deno/lib/helpers/util.ts
+index 051865c05..b9eefb772 100644
+--- a/deno/lib/helpers/util.ts
++++ b/deno/lib/helpers/util.ts
+@@ -62,7 +62,4 @@ export namespace util {
+   export type identity<T> = T;
+   export type flatten<T extends object> = identity<{ [k in keyof T]: T[k] }>;
+   export type noUndefined<T> = T extends undefined ? never : T;
+-
+-  export type Primitive = string | number | bigint | boolean | null | undefined;
+-  export type Scalar = Primitive | Primitive[];
+ }
+diff --git a/deno/lib/playground.ts b/deno/lib/playground.ts
+index f96b6e003..0bad2b805 100644
+--- a/deno/lib/playground.ts
++++ b/deno/lib/playground.ts
+@@ -7,3 +7,14 @@ const run = async () => {
+ run();
+ 
+ export {};
++
++const object = z.object({
++  name: z.string(),
++  age: z.number().optional(),
++  field: z.string().optional().default(undefined),
++});
++
++const requiredObject = object.required();
++console.log(requiredObject.shape.name instanceof z.ZodString);
++console.log(requiredObject.shape.age instanceof z.ZodNumber);
++console.log(requiredObject.shape.field instanceof z.ZodString);
+diff --git a/deno/lib/types.ts b/deno/lib/types.ts
+index fef7f80a2..32a6b41de 100644
+--- a/deno/lib/types.ts
++++ b/deno/lib/types.ts
+@@ -332,6 +332,10 @@ export abstract class ZodType<
+     return ZodUnion.create([this, option]);
+   }
+ 
++  and<T extends ZodTypeAny>(incoming: T): ZodIntersection<this, T> {
++    return ZodIntersection.create(this, incoming);
++  }
++
+   transform<NewOut, This extends this>(
+     transform: (arg: Output) => NewOut | Promise<NewOut>
+   ): This extends ZodEffects<infer T, any>
+@@ -436,7 +440,7 @@ export class ZodString extends ZodType<string, ZodStringDef> {
+ 
+     if (this._def.isUUID && !uuidRegex.test(ctx.data)) {
+       ctx.addIssue({
+-        validation: "email",
++        validation: "uuid",
+         code: ZodIssueCode.invalid_string,
+         message: this._def.isUUID.message,
+       });
+@@ -1130,32 +1134,30 @@ export class ZodNonEmptyArray<T extends ZodTypeAny> extends ZodType<
+ /////////////////////////////////////////
+ 
+ export namespace objectUtil {
+-  export type extendShape<U extends ZodRawShape, V extends ZodRawShape> = {
++  export type MergeShapes<U extends ZodRawShape, V extends ZodRawShape> = {
+     [k in Exclude<keyof U, keyof V>]: U[k];
+   } &
+     V;
+-  export type optionalKeys<T extends object> = {
++
++  type optionalKeys<T extends object> = {
+     [k in keyof T]: undefined extends T[k] ? k : never;
+   }[keyof T];
+ 
+-  export type requiredKeys<T extends object> = Exclude<
+-    keyof T,
+-    optionalKeys<T>
+-  >;
++  type requiredKeys<T extends object> = Exclude<keyof T, optionalKeys<T>>;
+ 
+   export type addQuestionMarks<T extends object> = {
+     [k in optionalKeys<T>]?: T[k];
+   } &
+     { [k in requiredKeys<T>]: T[k] };
+ 
+-  // export type identity<T> = T;
+-  // export type flatten<T extends object> = identity<{ [k in keyof T]: T[k] }>;
++  export type identity<T> = T;
++  export type flatten<T extends object> = identity<{ [k in keyof T]: T[k] }>;
+ 
+   export type noNeverKeys<T extends ZodRawShape> = {
+     [k in keyof T]: [T[k]] extends [never] ? never : k;
+   }[keyof T];
+ 
+-  export type noNever<T extends ZodRawShape> = util.identity<
++  export type noNever<T extends ZodRawShape> = identity<
+     {
+       [k in noNeverKeys<T>]: k extends keyof T ? T[k] : never;
+     }
+@@ -1165,27 +1167,54 @@ export namespace objectUtil {
+     first: U,
+     second: T
+   ): T & U => {
+-    // const firstKeys = Object.keys(first);
+-    // const secondKeys = Object.keys(second);
+-    // const sharedKeys = firstKeys.filter((k) => secondKeys.indexOf(k) !== -1);
+-
+-    // const sharedShape: any = {};
+-    // for (const k of sharedKeys) {
+-    //   sharedShape[k] = ZodIntersection.create(first[k], second[k]);
+-    // }
+-    // return {
+-    //   ...(first as object),
+-    //   ...(second as object),
+-    //   ...sharedShape,
+-    // };
+     return {
+       ...first,
+       ...second, // second overwrites first
+     };
+   };
++
++  export const intersectShapes = <U extends ZodRawShape, T extends ZodRawShape>(
++    first: U,
++    second: T
++  ): T & U => {
++    const firstKeys = Object.keys(first);
++    const secondKeys = Object.keys(second);
++    const sharedKeys = firstKeys.filter((k) => secondKeys.indexOf(k) !== -1);
++
++    const sharedShape: any = {};
++    for (const k of sharedKeys) {
++      sharedShape[k] = ZodIntersection.create(first[k], second[k]);
++    }
++    return {
++      ...(first as object),
++      ...(second as object),
++      ...sharedShape,
++    };
++  };
+ }
++export const mergeObjects = <First extends AnyZodObject>(first: First) => <
++  Second extends AnyZodObject
++>(
++  second: Second
++): ZodObject<
++  First["_shape"] & Second["_shape"],
++  First["_unknownKeys"],
++  First["_catchall"]
++> => {
++  const mergedShape = objectUtil.mergeShapes(
++    first._def.shape(),
++    second._def.shape()
++  );
++  const merged: any = new ZodObject({
++    // effects: [...(first._def.effects || []), ...(second._def.effects || [])],
++    unknownKeys: first._def.unknownKeys,
++    catchall: first._def.catchall,
++    shape: () => mergedShape,
++  }) as any;
++  return merged;
++};
+ 
+-const ExtendFactory = <Def extends ZodObjectDef>(def: Def) => <
++const AugmentFactory = <Def extends ZodObjectDef>(def: Def) => <
+   Augmentation extends ZodRawShape
+ >(
+   augmentation: Augmentation
+@@ -1211,6 +1240,9 @@ const ExtendFactory = <Def extends ZodObjectDef>(def: Def) => <
+ 
+ type UnknownKeysParam = "passthrough" | "strict" | "strip";
+ 
++export type Primitive = string | number | bigint | boolean | null | undefined;
++export type Scalars = Primitive | Primitive[];
++
+ export interface ZodObjectDef<
+   T extends ZodRawShape = ZodRawShape,
+   UnknownKeys extends UnknownKeysParam = UnknownKeysParam,
+@@ -1221,7 +1253,9 @@ export interface ZodObjectDef<
+   unknownKeys: UnknownKeys;
+ }
+ 
+-export type baseObjectOutputType<Shape extends ZodRawShape> = util.flatten<
++export type baseObjectOutputType<
++  Shape extends ZodRawShape
++> = objectUtil.flatten<
+   objectUtil.addQuestionMarks<
+     {
+       [k in keyof Shape]: Shape[k]["_output"];
+@@ -1234,11 +1268,11 @@ export type objectOutputType<
+   Catchall extends ZodTypeAny
+ > = ZodTypeAny extends Catchall
+   ? baseObjectOutputType<Shape>
+-  : util.flatten<
++  : objectUtil.flatten<
+       baseObjectOutputType<Shape> & { [k: string]: Catchall["_output"] }
+     >;
+ 
+-export type baseObjectInputType<Shape extends ZodRawShape> = util.flatten<
++export type baseObjectInputType<Shape extends ZodRawShape> = objectUtil.flatten<
+   objectUtil.addQuestionMarks<
+     {
+       [k in keyof Shape]: Shape[k]["_input"];
+@@ -1251,10 +1285,14 @@ export type objectInputType<
+   Catchall extends ZodTypeAny
+ > = ZodTypeAny extends Catchall
+   ? baseObjectInputType<Shape>
+-  : util.flatten<
++  : objectUtil.flatten<
+       baseObjectInputType<Shape> & { [k: string]: Catchall["_input"] }
+     >;
+ 
++type deoptional<T extends ZodTypeAny> = T extends ZodOptional<infer U, any>
++  ? deoptional<U>
++  : T;
++
+ export class ZodObject<
+   T extends ZodRawShape,
+   UnknownKeys extends UnknownKeysParam = "strip",
+@@ -1403,8 +1441,8 @@ export class ZodObject<
+ 
+   nonstrict = this.passthrough;
+ 
+-  augment = ExtendFactory<ZodObjectDef<T, UnknownKeys, Catchall>>(this._def);
+-  extend = ExtendFactory<ZodObjectDef<T, UnknownKeys, Catchall>>(this._def);
++  augment = AugmentFactory<ZodObjectDef<T, UnknownKeys, Catchall>>(this._def);
++  extend = AugmentFactory<ZodObjectDef<T, UnknownKeys, Catchall>>(this._def);
+ 
+   setKey = <Key extends string, Schema extends ZodTypeAny>(
+     key: Key,
+@@ -1518,6 +1556,27 @@ export class ZodObject<
+     }) as any;
+   };
+ 
++  required = (): ZodObject<
++    { [k in keyof T]: deoptional<T[k]> },
++    UnknownKeys,
++    Catchall
++  > => {
++    const newShape: any = {};
++    for (const key in this.shape) {
++      const fieldSchema = this.shape[key];
++      let newField = fieldSchema;
++      while (newField instanceof ZodOptional) {
++        newField = (newField as ZodOptional<any, any>)._def.innerType;
++      }
++
++      newShape[key] = newField;
++    }
++    return new ZodObject({
++      ...this._def,
++      shape: () => newShape,
++    }) as any;
++  };
++
+   static create = <T extends ZodRawShape>(shape: T): ZodObject<T> => {
+     return new ZodObject({
+       shape: () => shape,
+@@ -1641,6 +1700,75 @@ export class ZodUnion<T extends ZodUnionOptions> extends ZodType<
+   };
+ }
+ 
++///////////////////////////////////////////////
++///////////////////////////////////////////////
++//////////                           //////////
++//////////      ZodIntersection      //////////
++//////////                           //////////
++///////////////////////////////////////////////
++///////////////////////////////////////////////
++export interface ZodIntersectionDef<
++  T extends ZodTypeAny = ZodTypeAny,
++  U extends ZodTypeAny = ZodTypeAny
++> extends ZodTypeDef {
++  left: T;
++  right: U;
++}
++
++export class ZodIntersection<
++  T extends ZodTypeAny,
++  U extends ZodTypeAny
++> extends ZodType<
++  T["_output"] & U["_output"],
++  ZodIntersectionDef<T, U>,
++  T["_input"] & U["_input"]
++> {
++  _parse(ctx: ParseContext): any {
++    return PseudoPromise.all([
++      new PseudoPromise().then(() => {
++        return this._def.left._parseWithInvalidFallback(ctx.data, {
++          ...ctx,
++          parentError: ctx.currentError,
++        });
++      }),
++      new PseudoPromise().then(() => {
++        return this._def.right._parseWithInvalidFallback(ctx.data, {
++          ...ctx,
++          parentError: ctx.currentError,
++        });
++      }),
++    ]).then(([parsedLeft, parsedRight]: any) => {
++      if (parsedLeft === INVALID || parsedRight === INVALID) return INVALID;
++
++      const parsedLeftType = getParsedType(parsedLeft);
++      const parsedRightType = getParsedType(parsedRight);
++
++      if (parsedLeft === parsedRight) {
++        return parsedLeft;
++      } else if (
++        parsedLeftType === ZodParsedType.object &&
++        parsedRightType === ZodParsedType.object
++      ) {
++        return { ...parsedLeft, ...parsedRight };
++      } else {
++        ctx.addIssue({
++          code: ZodIssueCode.invalid_intersection_types,
++        });
++      }
++    });
++  }
++
++  static create = <T extends ZodTypeAny, U extends ZodTypeAny>(
++    left: T,
++    right: U
++  ): ZodIntersection<T, U> => {
++    return new ZodIntersection({
++      left: left,
++      right: right,
++    });
++  };
++}
++
+ ////////////////////////////////////////
+ ////////////////////////////////////////
+ //////////                    //////////
+@@ -2044,6 +2172,13 @@ export class ZodFunction<
+     return validatedFunc as any;
+   };
+ 
++  strictImplement = (
++    func: InnerTypeOfFunction<Args, Returns>
++  ): InnerTypeOfFunction<Args, Returns> => {
++    const validatedFunc = this.parse(func);
++    return validatedFunc as any;
++  };
++
+   validate = this.implement;
+ 
+   static create = <
+@@ -2122,7 +2257,7 @@ export class ZodLiteral<T extends any> extends ZodType<T, ZodLiteralDef<T>> {
+     return ctx.data;
+   }
+ 
+-  static create = <T extends util.Primitive>(value: T): ZodLiteral<T> => {
++  static create = <T extends Primitive>(value: T): ZodLiteral<T> => {
+     return new ZodLiteral({
+       value: value,
+     });
+@@ -2579,6 +2714,7 @@ export type ZodFirstPartySchemaTypes =
+   | ZodArray<any>
+   | ZodObject<any>
+   | ZodUnion<any>
++  | ZodIntersection<any, any>
+   | ZodTuple
+   | ZodRecord
+   | ZodMap
+@@ -2615,6 +2751,7 @@ const arrayType = ZodArray.create;
+ const objectType = ZodObject.create;
+ const strictObjectType = ZodObject.strictCreate;
+ const unionType = ZodUnion.create;
++const intersectionType = ZodIntersection.create;
+ const tupleType = ZodTuple.create;
+ const recordType = ZodRecord.create;
+ const mapType = ZodMap.create;
+@@ -2642,6 +2779,7 @@ export {
+   enumType as enum,
+   functionType as function,
+   instanceOfType as instanceof,
++  intersectionType as intersection,
+   lazyType as lazy,
+   literalType as literal,
+   mapType as map,
+diff --git a/package.json b/package.json
+index aa1f0d179..737a3d764 100644
+--- a/package.json
++++ b/package.json
+@@ -1,13 +1,13 @@
+ {
+   "name": "zod",
+-  "version": "3.0.0-alpha.19",
++  "version": "3.0.0-alpha.32",
+   "description": "TypeScript-first schema declaration and validation library with static type inference",
+-  "main": "./lib/cjs/index.js",
+-  "types": "./lib/cjs/index.d.ts",
+-  "module": "./lib/esm/index.js",
++  "main": "./lib/index.js",
++  "types": "./lib/index.d.ts",
++  "module": "./lib/index.mjs",
+   "exports": {
+-    "require": "./lib/cjs/index.js",
+-    "import": "./lib/esm/index.js"
++    "require": "./lib/index.js",
++    "import": "./lib/index.mjs"
+   },
+   "files": [
+     "/lib"
+@@ -46,16 +46,19 @@
+     "clean": "rm -rf lib/* deno/lib/*",
+     "build": "yarn run clean && npm run build:cjs && npm run build:esm && npm run build:deno",
+     "build:deno": "node ./deno/build.mjs",
+-    "build:esm": "tsc --p tsconfig.esm.json",
++    "build:esm": "rollup --config rollup.config.js",
+     "build:cjs": "tsc --p tsconfig.cjs.json",
++    "build:types": "tsc --p tsconfig.types.json",
++    "rollup": "rollup --config rollup.config.js",
+     "test": "node --trace-warnings node_modules/.bin/jest --coverage && yarn run badge",
+     "testone": "jest",
+     "badge": "make-coverage-badge --output-path ./coverage.svg",
+-    "prepublishOnly": "npm run build && npm run build:deno",
++    "prepublishOnly": "npm run test && npm run build && npm run build:deno",
+     "play": "nodemon -e ts -w . -x ts-node src/playground.ts --project tsconfig.json --trace-warnings",
+     "depcruise": "depcruise -c .dependency-cruiser.js src"
+   },
+   "devDependencies": {
++    "@rollup/plugin-typescript": "^8.2.0",
+     "@types/jest": "^26.0.17",
+     "@types/node": "^14.14.10",
+     "@typescript-eslint/eslint-plugin": "^4.11.1",
+@@ -72,13 +75,16 @@
+     "make-coverage-badge": "^1.2.0",
+     "nodemon": "^2.0.2",
+     "prettier": "^2.2.1",
++    "rollup": "^2.42.1",
+     "ts-jest": "^26.4.4",
+     "ts-node": "^9.1.0",
++    "tslib": "^2.1.0",
+     "typescript": "4.1"
+   },
+   "husky": {
+     "hooks": {
+-      "pre-commit": "yarn build:deno && lint-staged"
++      "pre-commit": "lint-staged && yarn build:deno && git add .",
++      "pre-push": "lint-staged && yarn build && yarn test"
+     }
+   },
+   "lint-staged": {
+diff --git a/rollup.config.js b/rollup.config.js
+new file mode 100644
+index 000000000..9b42b9cc9
+--- /dev/null
++++ b/rollup.config.js
+@@ -0,0 +1,33 @@
++// rollup.config.js
++import typescript from "@rollup/plugin-typescript";
++
++export default [
++  // {
++  //   input: "src/index.ts",
++  //   output: [
++  //     {
++  //       file: "lib/index.cjs",
++  //       format: "cjs",
++  //     },
++  //   ],
++  //   plugins: [
++  //     typescript({
++  //       tsconfig: "tsconfig.cjs.json",
++  //     }),
++  //   ],
++  // },
++  {
++    input: "src/index.ts",
++    output: [
++      {
++        file: "lib/index.mjs",
++        format: "es",
++      },
++    ],
++    plugins: [
++      typescript({
++        tsconfig: "tsconfig.esm.json",
++      }),
++    ],
++  },
++];
+diff --git a/src/ZodError.ts b/src/ZodError.ts
+index 5ee38d2f8..d239dfc89 100644
+--- a/src/ZodError.ts
++++ b/src/ZodError.ts
+@@ -13,6 +13,7 @@ export const ZodIssueCode = util.arrayToEnum([
+   "invalid_string",
+   "too_small",
+   "too_big",
++  "invalid_intersection_types",
+ ]);
+ 
+ export type ZodIssueCode = keyof typeof ZodIssueCode;
+@@ -79,6 +80,10 @@ export interface ZodTooBigIssue extends ZodIssueBase {
+   type: "array" | "string" | "number";
+ }
+ 
++export interface ZodInvalidIntersectionTypesIssue extends ZodIssueBase {
++  code: typeof ZodIssueCode.invalid_intersection_types;
++}
++
+ export interface ZodCustomIssue extends ZodIssueBase {
+   code: typeof ZodIssueCode.custom;
+   params?: { [k: string]: any };
+@@ -99,6 +104,7 @@ export type ZodIssueOptionalMessage =
+   | ZodInvalidStringIssue
+   | ZodTooSmallIssue
+   | ZodTooBigIssue
++  | ZodInvalidIntersectionTypesIssue
+   | ZodCustomIssue;
+ 
+ export type ZodIssue = ZodIssueOptionalMessage & { message: string };
+@@ -348,6 +354,9 @@ export let defaultErrorMap = (
+     case ZodIssueCode.custom:
+       message = `Invalid input.`;
+       break;
++    case ZodIssueCode.invalid_intersection_types:
++      message = `Intersections only support objects`;
++      break;
+     default:
+       message = `Invalid input.`;
+       util.assertNever(error);
+diff --git a/src/__tests__/complex.test.ts b/src/__tests__/complex.test.ts
+index 6676ccf2d..ee9c0d933 100644
+--- a/src/__tests__/complex.test.ts
++++ b/src/__tests__/complex.test.ts
+@@ -10,8 +10,10 @@ test("parse", () => {
+     merged: { k1: "asdf", k2: 12 },
+     union: ["asdf", 12, "asdf", 12, "asdf", 12],
+     array: [12, 15, 16],
++    // sumTransformer: [12, 15, 16],
+     sumMinLength: [12, 15, 16, 98, 24, 63],
+-    mergedObjects: { p1: 3.154 },
++    intersection: {},
++    enum: "one",
+     nonstrict: { points: 1234 },
+     numProm: Promise.resolve(12),
+     lenfun: (x: string) => x.length,
+diff --git a/src/__tests__/crazySchema.ts b/src/__tests__/crazySchema.ts
+index 81088e589..05f3ffbe1 100644
+--- a/src/__tests__/crazySchema.ts
++++ b/src/__tests__/crazySchema.ts
+@@ -16,15 +16,27 @@ export const crazySchema = z.object({
+     .merge(z.object({ k1: z.string().nullable(), k2: z.number() })),
+   union: z.array(z.union([z.literal("asdf"), z.literal(12)])).nonempty(),
+   array: z.array(z.number()),
++  // sumTransformer: z.transformer(z.array(z.number()), z.number(), (arg) => {
++  //   return arg.reduce((a, b) => a + b, 0);
++  // }),
+   sumMinLength: z.array(z.number()).refine((arg) => arg.length > 5),
+-  mergedObjects: z
+-    .object({ p1: z.string().optional() })
+-    .merge(z.object({ p1: z.number().optional() })),
++  intersection: z.intersection(
++    z.object({ p1: z.string().optional() }),
++    z.object({ p1: z.number().optional() })
++  ),
++  enum: z.intersection(z.enum(["zero", "one"]), z.enum(["one", "two"])),
+   nonstrict: z.object({ points: z.number() }).nonstrict(),
+   numProm: z.promise(z.number()),
+   lenfun: z.function(z.tuple([z.string()]), z.boolean()),
+ });
+ 
+ export const asyncCrazySchema = crazySchema.extend({
++  // async_transform: z.transformer(
++  //   z.array(z.number()),
++  //   z.number(),
++  //   async (arg) => {
++  //     return arg.reduce((a, b) => a + b, 0);
++  //   }
++  // ),
+   async_refine: z.array(z.number()).refine(async (arg) => arg.length > 5),
+ });
+diff --git a/src/__tests__/intersection.test.ts b/src/__tests__/intersection.test.ts
+new file mode 100644
+index 000000000..a765e49df
+--- /dev/null
++++ b/src/__tests__/intersection.test.ts
+@@ -0,0 +1,24 @@
++// @ts-ignore TS6133
++import { expect, test } from "@jest/globals";
++
++import * as z from "../index";
++
++test("object intersection", () => {
++  const BaseTeacher = z.object({
++    subjects: z.array(z.string()),
++  });
++  const HasID = z.object({ id: z.string() });
++
++  const Teacher = z.intersection(BaseTeacher.passthrough(), HasID); // BaseTeacher.merge(HasID);
++  const data = {
++    subjects: ["math"],
++    id: "asdfasdf",
++  };
++  expect(Teacher.parse(data)).toEqual(data);
++  expect(() => Teacher.parse({ subject: data.subjects })).toThrow();
++  expect(Teacher.parse({ ...data, extra: 12 })).toEqual({ ...data, extra: 12 });
++
++  expect(() =>
++    z.intersection(BaseTeacher.strict(), HasID).parse({ ...data, extra: 12 })
++  ).toThrow();
++});
+diff --git a/src/__tests__/object.test.ts b/src/__tests__/object.test.ts
+index 28e062446..2ca58e8a8 100644
+--- a/src/__tests__/object.test.ts
++++ b/src/__tests__/object.test.ts
+@@ -206,33 +206,3 @@ test("test async PseudoPromise.all", async () => {
+   const result = await Schema2.spa(obj); // Works with 1.11.10, breaks with 2.0.0-beta.21
+   expect(result.success).toEqual(true);
+ });
+-
+-test("merging", () => {
+-  const BaseTeacher = z.object({
+-    subjects: z.array(z.string()),
+-  });
+-  const HasID = z.object({ id: z.string() });
+-
+-  const Teacher = BaseTeacher.merge(HasID);
+-
+-  const data = {
+-    subjects: ["math"],
+-    id: "asdfasdf",
+-  };
+-  expect(Teacher.parse(data)).toEqual(data);
+-  expect(() => Teacher.parse({ subject: data.subjects })).toThrow();
+-  expect(
+-    BaseTeacher.passthrough()
+-      .merge(HasID)
+-      .parse({ ...data, extra: 12 })
+-  ).toEqual({
+-    ...data,
+-    extra: 12,
+-  });
+-
+-  expect(() =>
+-    BaseTeacher.strict()
+-      .merge(HasID)
+-      .parse({ ...data, extra: 12 })
+-  ).toThrow();
+-});
+diff --git a/src/__tests__/parser.test.ts b/src/__tests__/parser.test.ts
+index 01058cfdf..5769fafd7 100644
+--- a/src/__tests__/parser.test.ts
++++ b/src/__tests__/parser.test.ts
+@@ -18,6 +18,18 @@ test("parse nonstrict object with unknown keys", () => {
+     .parse({ name: "bill", unknownKey: 12 });
+ });
+ 
++test("invalid left side of intersection", () => {
++  expect(() =>
++    z.intersection(z.string(), z.number()).parse(12 as any)
++  ).toThrow();
++});
++
++test("invalid right side of intersection", () => {
++  expect(() =>
++    z.intersection(z.string(), z.number()).parse("12" as any)
++  ).toThrow();
++});
++
+ test("parsing non-array in tuple schema", () => {
+   expect(() => z.tuple([]).parse("12" as any)).toThrow();
+ });
+diff --git a/src/__tests__/partials.test.ts b/src/__tests__/partials.test.ts
+index b09292e98..2a60d4f4e 100644
+--- a/src/__tests__/partials.test.ts
++++ b/src/__tests__/partials.test.ts
+@@ -75,3 +75,16 @@ test("deep partial runtime tests", () => {
+     },
+   });
+ });
++
++test("required", () => {
++  const object = z.object({
++    name: z.string(),
++    age: z.number().optional(),
++    field: z.string().optional().default(undefined),
++  });
++
++  const requiredObject = object.required();
++  expect(requiredObject.shape.name).toBeInstanceOf(z.ZodString);
++  expect(requiredObject.shape.age).toBeInstanceOf(z.ZodNumber);
++  expect(requiredObject.shape.field).toBeInstanceOf(z.ZodString);
++});
+diff --git a/src/defaultErrorMap.ts b/src/defaultErrorMap.ts
+index db1ad1047..1916497ea 100644
+--- a/src/defaultErrorMap.ts
++++ b/src/defaultErrorMap.ts
+@@ -82,6 +82,9 @@ export const defaultErrorMap = (
+     case ZodIssueCode.custom:
+       message = `Invalid input.`;
+       break;
++    case ZodIssueCode.invalid_intersection_types:
++      message = `Intersections only support objects`;
++      break;
+     default:
+       message = `Invalid input.`;
+       util.assertNever(error);
+diff --git a/src/helpers/util.ts b/src/helpers/util.ts
+index 051865c05..b9eefb772 100644
+--- a/src/helpers/util.ts
++++ b/src/helpers/util.ts
+@@ -62,7 +62,4 @@ export namespace util {
+   export type identity<T> = T;
+   export type flatten<T extends object> = identity<{ [k in keyof T]: T[k] }>;
+   export type noUndefined<T> = T extends undefined ? never : T;
+-
+-  export type Primitive = string | number | bigint | boolean | null | undefined;
+-  export type Scalar = Primitive | Primitive[];
+ }
+diff --git a/src/playground.ts b/src/playground.ts
+index 746f94e03..dbf6ffb3e 100644
+--- a/src/playground.ts
++++ b/src/playground.ts
+@@ -7,3 +7,14 @@ const run = async () => {
+ run();
+ 
+ export {};
++
++const object = z.object({
++  name: z.string(),
++  age: z.number().optional(),
++  field: z.string().optional().default(undefined),
++});
++
++const requiredObject = object.required();
++console.log(requiredObject.shape.name instanceof z.ZodString);
++console.log(requiredObject.shape.age instanceof z.ZodNumber);
++console.log(requiredObject.shape.field instanceof z.ZodString);
+diff --git a/src/types.ts b/src/types.ts
+index e3335ae60..4e70b3909 100644
+--- a/src/types.ts
++++ b/src/types.ts
+@@ -332,6 +332,10 @@ export abstract class ZodType<
+     return ZodUnion.create([this, option]);
+   }
+ 
++  and<T extends ZodTypeAny>(incoming: T): ZodIntersection<this, T> {
++    return ZodIntersection.create(this, incoming);
++  }
++
+   transform<NewOut, This extends this>(
+     transform: (arg: Output) => NewOut | Promise<NewOut>
+   ): This extends ZodEffects<infer T, any>
+@@ -436,7 +440,7 @@ export class ZodString extends ZodType<string, ZodStringDef> {
+ 
+     if (this._def.isUUID && !uuidRegex.test(ctx.data)) {
+       ctx.addIssue({
+-        validation: "email",
++        validation: "uuid",
+         code: ZodIssueCode.invalid_string,
+         message: this._def.isUUID.message,
+       });
+@@ -1130,32 +1134,30 @@ export class ZodNonEmptyArray<T extends ZodTypeAny> extends ZodType<
+ /////////////////////////////////////////
+ 
+ export namespace objectUtil {
+-  export type extendShape<U extends ZodRawShape, V extends ZodRawShape> = {
++  export type MergeShapes<U extends ZodRawShape, V extends ZodRawShape> = {
+     [k in Exclude<keyof U, keyof V>]: U[k];
+   } &
+     V;
+-  export type optionalKeys<T extends object> = {
++
++  type optionalKeys<T extends object> = {
+     [k in keyof T]: undefined extends T[k] ? k : never;
+   }[keyof T];
+ 
+-  export type requiredKeys<T extends object> = Exclude<
+-    keyof T,
+-    optionalKeys<T>
+-  >;
++  type requiredKeys<T extends object> = Exclude<keyof T, optionalKeys<T>>;
+ 
+   export type addQuestionMarks<T extends object> = {
+     [k in optionalKeys<T>]?: T[k];
+   } &
+     { [k in requiredKeys<T>]: T[k] };
+ 
+-  // export type identity<T> = T;
+-  // export type flatten<T extends object> = identity<{ [k in keyof T]: T[k] }>;
++  export type identity<T> = T;
++  export type flatten<T extends object> = identity<{ [k in keyof T]: T[k] }>;
+ 
+   export type noNeverKeys<T extends ZodRawShape> = {
+     [k in keyof T]: [T[k]] extends [never] ? never : k;
+   }[keyof T];
+ 
+-  export type noNever<T extends ZodRawShape> = util.identity<
++  export type noNever<T extends ZodRawShape> = identity<
+     {
+       [k in noNeverKeys<T>]: k extends keyof T ? T[k] : never;
+     }
+@@ -1165,27 +1167,54 @@ export namespace objectUtil {
+     first: U,
+     second: T
+   ): T & U => {
+-    // const firstKeys = Object.keys(first);
+-    // const secondKeys = Object.keys(second);
+-    // const sharedKeys = firstKeys.filter((k) => secondKeys.indexOf(k) !== -1);
+-
+-    // const sharedShape: any = {};
+-    // for (const k of sharedKeys) {
+-    //   sharedShape[k] = ZodIntersection.create(first[k], second[k]);
+-    // }
+-    // return {
+-    //   ...(first as object),
+-    //   ...(second as object),
+-    //   ...sharedShape,
+-    // };
+     return {
+       ...first,
+       ...second, // second overwrites first
+     };
+   };
++
++  export const intersectShapes = <U extends ZodRawShape, T extends ZodRawShape>(
++    first: U,
++    second: T
++  ): T & U => {
++    const firstKeys = Object.keys(first);
++    const secondKeys = Object.keys(second);
++    const sharedKeys = firstKeys.filter((k) => secondKeys.indexOf(k) !== -1);
++
++    const sharedShape: any = {};
++    for (const k of sharedKeys) {
++      sharedShape[k] = ZodIntersection.create(first[k], second[k]);
++    }
++    return {
++      ...(first as object),
++      ...(second as object),
++      ...sharedShape,
++    };
++  };
+ }
++export const mergeObjects = <First extends AnyZodObject>(first: First) => <
++  Second extends AnyZodObject
++>(
++  second: Second
++): ZodObject<
++  First["_shape"] & Second["_shape"],
++  First["_unknownKeys"],
++  First["_catchall"]
++> => {
++  const mergedShape = objectUtil.mergeShapes(
++    first._def.shape(),
++    second._def.shape()
++  );
++  const merged: any = new ZodObject({
++    // effects: [...(first._def.effects || []), ...(second._def.effects || [])],
++    unknownKeys: first._def.unknownKeys,
++    catchall: first._def.catchall,
++    shape: () => mergedShape,
++  }) as any;
++  return merged;
++};
+ 
+-const ExtendFactory = <Def extends ZodObjectDef>(def: Def) => <
++const AugmentFactory = <Def extends ZodObjectDef>(def: Def) => <
+   Augmentation extends ZodRawShape
+ >(
+   augmentation: Augmentation
+@@ -1211,6 +1240,9 @@ const ExtendFactory = <Def extends ZodObjectDef>(def: Def) => <
+ 
+ type UnknownKeysParam = "passthrough" | "strict" | "strip";
+ 
++export type Primitive = string | number | bigint | boolean | null | undefined;
++export type Scalars = Primitive | Primitive[];
++
+ export interface ZodObjectDef<
+   T extends ZodRawShape = ZodRawShape,
+   UnknownKeys extends UnknownKeysParam = UnknownKeysParam,
+@@ -1221,7 +1253,9 @@ export interface ZodObjectDef<
+   unknownKeys: UnknownKeys;
+ }
+ 
+-export type baseObjectOutputType<Shape extends ZodRawShape> = util.flatten<
++export type baseObjectOutputType<
++  Shape extends ZodRawShape
++> = objectUtil.flatten<
+   objectUtil.addQuestionMarks<
+     {
+       [k in keyof Shape]: Shape[k]["_output"];
+@@ -1234,11 +1268,11 @@ export type objectOutputType<
+   Catchall extends ZodTypeAny
+ > = ZodTypeAny extends Catchall
+   ? baseObjectOutputType<Shape>
+-  : util.flatten<
++  : objectUtil.flatten<
+       baseObjectOutputType<Shape> & { [k: string]: Catchall["_output"] }
+     >;
+ 
+-export type baseObjectInputType<Shape extends ZodRawShape> = util.flatten<
++export type baseObjectInputType<Shape extends ZodRawShape> = objectUtil.flatten<
+   objectUtil.addQuestionMarks<
+     {
+       [k in keyof Shape]: Shape[k]["_input"];
+@@ -1251,10 +1285,14 @@ export type objectInputType<
+   Catchall extends ZodTypeAny
+ > = ZodTypeAny extends Catchall
+   ? baseObjectInputType<Shape>
+-  : util.flatten<
++  : objectUtil.flatten<
+       baseObjectInputType<Shape> & { [k: string]: Catchall["_input"] }
+     >;
+ 
++type deoptional<T extends ZodTypeAny> = T extends ZodOptional<infer U, any>
++  ? deoptional<U>
++  : T;
++
+ export class ZodObject<
+   T extends ZodRawShape,
+   UnknownKeys extends UnknownKeysParam = "strip",
+@@ -1403,8 +1441,8 @@ export class ZodObject<
+ 
+   nonstrict = this.passthrough;
+ 
+-  augment = ExtendFactory<ZodObjectDef<T, UnknownKeys, Catchall>>(this._def);
+-  extend = ExtendFactory<ZodObjectDef<T, UnknownKeys, Catchall>>(this._def);
++  augment = AugmentFactory<ZodObjectDef<T, UnknownKeys, Catchall>>(this._def);
++  extend = AugmentFactory<ZodObjectDef<T, UnknownKeys, Catchall>>(this._def);
+ 
+   setKey = <Key extends string, Schema extends ZodTypeAny>(
+     key: Key,
+@@ -1518,6 +1556,27 @@ export class ZodObject<
+     }) as any;
+   };
+ 
++  required = (): ZodObject<
++    { [k in keyof T]: deoptional<T[k]> },
++    UnknownKeys,
++    Catchall
++  > => {
++    const newShape: any = {};
++    for (const key in this.shape) {
++      const fieldSchema = this.shape[key];
++      let newField = fieldSchema;
++      while (newField instanceof ZodOptional) {
++        newField = (newField as ZodOptional<any, any>)._def.innerType;
++      }
++
++      newShape[key] = newField;
++    }
++    return new ZodObject({
++      ...this._def,
++      shape: () => newShape,
++    }) as any;
++  };
++
+   static create = <T extends ZodRawShape>(shape: T): ZodObject<T> => {
+     return new ZodObject({
+       shape: () => shape,
+@@ -1641,6 +1700,75 @@ export class ZodUnion<T extends ZodUnionOptions> extends ZodType<
+   };
+ }
+ 
++///////////////////////////////////////////////
++///////////////////////////////////////////////
++//////////                           //////////
++//////////      ZodIntersection      //////////
++//////////                           //////////
++///////////////////////////////////////////////
++///////////////////////////////////////////////
++export interface ZodIntersectionDef<
++  T extends ZodTypeAny = ZodTypeAny,
++  U extends ZodTypeAny = ZodTypeAny
++> extends ZodTypeDef {
++  left: T;
++  right: U;
++}
++
++export class ZodIntersection<
++  T extends ZodTypeAny,
++  U extends ZodTypeAny
++> extends ZodType<
++  T["_output"] & U["_output"],
++  ZodIntersectionDef<T, U>,
++  T["_input"] & U["_input"]
++> {
++  _parse(ctx: ParseContext): any {
++    return PseudoPromise.all([
++      new PseudoPromise().then(() => {
++        return this._def.left._parseWithInvalidFallback(ctx.data, {
++          ...ctx,
++          parentError: ctx.currentError,
++        });
++      }),
++      new PseudoPromise().then(() => {
++        return this._def.right._parseWithInvalidFallback(ctx.data, {
++          ...ctx,
++          parentError: ctx.currentError,
++        });
++      }),
++    ]).then(([parsedLeft, parsedRight]: any) => {
++      if (parsedLeft === INVALID || parsedRight === INVALID) return INVALID;
++
++      const parsedLeftType = getParsedType(parsedLeft);
++      const parsedRightType = getParsedType(parsedRight);
++
++      if (parsedLeft === parsedRight) {
++        return parsedLeft;
++      } else if (
++        parsedLeftType === ZodParsedType.object &&
++        parsedRightType === ZodParsedType.object
++      ) {
++        return { ...parsedLeft, ...parsedRight };
++      } else {
++        ctx.addIssue({
++          code: ZodIssueCode.invalid_intersection_types,
++        });
++      }
++    });
++  }
++
++  static create = <T extends ZodTypeAny, U extends ZodTypeAny>(
++    left: T,
++    right: U
++  ): ZodIntersection<T, U> => {
++    return new ZodIntersection({
++      left: left,
++      right: right,
++    });
++  };
++}
++
+ ////////////////////////////////////////
+ ////////////////////////////////////////
+ //////////                    //////////
+@@ -2044,6 +2172,13 @@ export class ZodFunction<
+     return validatedFunc as any;
+   };
+ 
++  strictImplement = (
++    func: InnerTypeOfFunction<Args, Returns>
++  ): InnerTypeOfFunction<Args, Returns> => {
++    const validatedFunc = this.parse(func);
++    return validatedFunc as any;
++  };
++
+   validate = this.implement;
+ 
+   static create = <
+@@ -2122,7 +2257,7 @@ export class ZodLiteral<T extends any> extends ZodType<T, ZodLiteralDef<T>> {
+     return ctx.data;
+   }
+ 
+-  static create = <T extends util.Primitive>(value: T): ZodLiteral<T> => {
++  static create = <T extends Primitive>(value: T): ZodLiteral<T> => {
+     return new ZodLiteral({
+       value: value,
+     });
+@@ -2579,6 +2714,7 @@ export type ZodFirstPartySchemaTypes =
+   | ZodArray<any>
+   | ZodObject<any>
+   | ZodUnion<any>
++  | ZodIntersection<any, any>
+   | ZodTuple
+   | ZodRecord
+   | ZodMap
+@@ -2615,6 +2751,7 @@ const arrayType = ZodArray.create;
+ const objectType = ZodObject.create;
+ const strictObjectType = ZodObject.strictCreate;
+ const unionType = ZodUnion.create;
++const intersectionType = ZodIntersection.create;
+ const tupleType = ZodTuple.create;
+ const recordType = ZodRecord.create;
+ const mapType = ZodMap.create;
+@@ -2642,6 +2779,7 @@ export {
+   enumType as enum,
+   functionType as function,
+   instanceOfType as instanceof,
++  intersectionType as intersection,
+   lazyType as lazy,
+   literalType as literal,
+   mapType as map,
+diff --git a/tsconfig.base.json b/tsconfig.base.json
+index 60ecd93dc..7364c0a90 100644
+--- a/tsconfig.base.json
++++ b/tsconfig.base.json
+@@ -9,9 +9,7 @@
+     ],
+     "target": "es5",
+     "removeComments": false,
+-    "declaration": true,
+     "esModuleInterop": true,
+-    "sourceMap": true,
+     "moduleResolution": "node",
+     "resolveJsonModule": true,
+     "strict": true,
+diff --git a/tsconfig.cjs.json b/tsconfig.cjs.json
+index bab1d539f..ca964d971 100644
+--- a/tsconfig.cjs.json
++++ b/tsconfig.cjs.json
+@@ -2,7 +2,10 @@
+   "extends": "./tsconfig.base.json",
+   "compilerOptions": {
+     "module": "commonjs",
+-    "outDir": "./lib/cjs"
++    "outDir": "lib",
++    "declaration": true,
++    "declarationMap": true,
++    "sourceMap": true,
+   },
+   "exclude": [
+     "./src/**/__tests__",
+diff --git a/tsconfig.esm.json b/tsconfig.esm.json
+index c8dff15ff..1a4521f05 100644
+--- a/tsconfig.esm.json
++++ b/tsconfig.esm.json
+@@ -1,9 +1,11 @@
+ {
+   "extends": "./tsconfig.base.json",
+   "compilerOptions": {
+-    "target": "es5",
+     "module": "es2015",
+-    "outDir": "./lib/esm"
++    // "outDir": "./lib/esm",
++    "declaration": false,
++    "declarationMap": false,
++    "sourceMap": true,
+   },
+   "exclude": [
+     "./src/**/__tests__",
+diff --git a/tsconfig.types.json b/tsconfig.types.json
+new file mode 100644
+index 000000000..64c977006
+--- /dev/null
++++ b/tsconfig.types.json
+@@ -0,0 +1,13 @@
++{
++  "extends": "./tsconfig.base.json",
++  "compilerOptions": {
++    "outDir": "./lib/types",
++    "declaration": true,
++    "declarationMap": true,
++    "emitDeclarationOnly": true
++  },
++  "exclude": [
++    "./src/**/__tests__",
++    "./src/playground.ts"
++  ]
++}
+\ No newline at end of file
+diff --git a/yarn.lock b/yarn.lock
+index cc273540f..ec8dad245 100644
+--- a/yarn.lock
++++ b/yarn.lock
+@@ -493,6 +493,23 @@
+     "@nodelib/fs.scandir" "2.1.3"
+     fastq "^1.6.0"
+ 
++"@rollup/plugin-typescript@^8.2.0":
++  version "8.2.0"
++  resolved "https://registry.yarnpkg.com/@rollup/plugin-typescript/-/plugin-typescript-8.2.0.tgz#3e2059cbcae916785d8d7bf07816210c829f817c"
++  integrity sha512-5DyVsb7L+ehLfNPu/nat8Gq3uJGzku4bMFPt90XahtgiSBf7z9YKPLqFUJKMT41W/mJ98SVGDPOhzikGrr/Lhg==
++  dependencies:
++    "@rollup/pluginutils" "^3.1.0"
++    resolve "^1.17.0"
++
++"@rollup/pluginutils@^3.1.0":
++  version "3.1.0"
++  resolved "https://registry.yarnpkg.com/@rollup/pluginutils/-/pluginutils-3.1.0.tgz#706b4524ee6dc8b103b3c995533e5ad680c02b9b"
++  integrity sha512-GksZ6pr6TpIjHm8h9lSQ8pi8BE9VeubNT0OMJ3B5uZJ8pz73NPiqOtCog/x2/QzM1ENChPKxMDhiQuRHsqc+lg==
++  dependencies:
++    "@types/estree" "0.0.39"
++    estree-walker "^1.0.1"
++    picomatch "^2.2.2"
++
+ "@sinonjs/commons@^1.7.0":
+   version "1.7.1"
+   resolved "https://registry.yarnpkg.com/@sinonjs/commons/-/commons-1.7.1.tgz#da5fd19a5f71177a53778073978873964f49acf1"
+@@ -552,6 +569,11 @@
+   resolved "https://registry.yarnpkg.com/@types/color-name/-/color-name-1.1.1.tgz#1c1261bbeaa10a8055bbc5d8ab84b7b2afc846a0"
+   integrity sha512-rr+OQyAjxze7GgWrSaJwydHStIhHq2lvY3BOC2Mj7KnzI7XK0Uw1TOOdI9lDoajEbSWLiYgoo4f1R51erQfhPQ==
+ 
++"@types/estree@0.0.39":
++  version "0.0.39"
++  resolved "https://registry.yarnpkg.com/@types/estree/-/estree-0.0.39.tgz#e177e699ee1b8c22d23174caaa7422644389509f"
++  integrity sha512-EYNwp3bU+98cpU4lAWYYL7Zz+2gryWH1qbdDTidVd6hkiR6weksdbMadyXKXNPEkQFhXM+hVO9ZygomHXp+AIw==
++
+ "@types/graceful-fs@^4.1.2":
+   version "4.1.4"
+   resolved "https://registry.yarnpkg.com/@types/graceful-fs/-/graceful-fs-4.1.4.tgz#4ff9f641a7c6d1a3508ff88bc3141b152772e753"
+@@ -1953,6 +1975,11 @@ estraverse@^5.1.0, estraverse@^5.2.0:
+   resolved "https://registry.yarnpkg.com/estraverse/-/estraverse-5.2.0.tgz#307df42547e6cc7324d3cf03c155d5cdb8c53880"
+   integrity sha512-BxbNGGNm0RyRYvUdHpIwv9IWzeM9XClbOxwoATuFdOE7ZE6wHL+HQ5T8hoPM+zHvmKzzsEqhgy0GrQ5X13afiQ==
+ 
++estree-walker@^1.0.1:
++  version "1.0.1"
++  resolved "https://registry.yarnpkg.com/estree-walker/-/estree-walker-1.0.1.tgz#31bc5d612c96b704106b477e6dd5d8aa138cb700"
++  integrity sha512-1fMXF3YP4pZZVozF8j/ZLfvnR8NSIljt56UhbZ5PeeDmmGHpgpdwQt7ITlGvYaQukCvuBRMLEiKiYC+oeIg4cg==
++
+ esutils@^2.0.2:
+   version "2.0.3"
+   resolved "https://registry.yarnpkg.com/esutils/-/esutils-2.0.3.tgz#74d2eb4de0b8da1293711910d50775b9b710ef64"
+@@ -2230,6 +2257,11 @@ fsevents@^2.1.2, fsevents@~2.1.2:
+   resolved "https://registry.yarnpkg.com/fsevents/-/fsevents-2.1.2.tgz#4c0a1fb34bc68e543b4b82a9ec392bfbda840805"
+   integrity sha512-R4wDiBwZ0KzpgOWetKDug1FZcYhqYnUYKtfZYt4mD5SBz76q0KR4Q9o7GIPamsVPGmW3EYPPJ0dOOjvx32ldZA==
+ 
++fsevents@~2.3.1:
++  version "2.3.2"
++  resolved "https://registry.yarnpkg.com/fsevents/-/fsevents-2.3.2.tgz#8a526f78b8fdf4623b709e0b975c52c24c02fd1a"
++  integrity sha512-xiqMQR4xAeHTuB9uWm+fFRcIOgKBMiOBP+eXiyT7jsgVCq1bkVygt00oASowB7EdtpOHaaPgKt812P9ab+DDKA==
++
+ function-bind@^1.1.1:
+   version "1.1.1"
+   resolved "https://registry.yarnpkg.com/function-bind/-/function-bind-1.1.1.tgz#a56899d3ea3c9bab874bb9773b7c5ede92f4895d"
+@@ -4138,7 +4170,7 @@ picomatch@^2.0.4, picomatch@^2.0.5, picomatch@^2.0.7:
+   resolved "https://registry.yarnpkg.com/picomatch/-/picomatch-2.2.1.tgz#21bac888b6ed8601f831ce7816e335bc779f0a4a"
+   integrity sha512-ISBaA8xQNmwELC7eOjqFKMESB2VIqt4PPDD0nsS95b/9dZXvVKOlz9keMSnoGGKcOHXfTvDD6WMaRoSc9UuhRA==
+ 
+-picomatch@^2.2.1:
++picomatch@^2.2.1, picomatch@^2.2.2:
+   version "2.2.2"
+   resolved "https://registry.yarnpkg.com/picomatch/-/picomatch-2.2.2.tgz#21f333e9b6b8eaff02468f5146ea406d345f4dad"
+   integrity sha512-q0M/9eZHzmr0AulXyPwNfZjtwZ/RBZlbN3K3CErVrk50T2ASYI7Bye0EvekFY3IP1Nt2DHu0re+V2ZHIpMkuWg==
+@@ -4512,6 +4544,13 @@ rimraf@^3.0.0, rimraf@^3.0.2:
+   dependencies:
+     glob "^7.1.3"
+ 
++rollup@^2.42.1:
++  version "2.42.1"
++  resolved "https://registry.yarnpkg.com/rollup/-/rollup-2.42.1.tgz#6d675b7971e3bee510935326a0f7e556bb7d43de"
++  integrity sha512-/y7M2ULg06JOXmMpPzhTeQroJSchy8lX8q6qrjqil0jmLz6ejCWbQzVnWTsdmMQRhfU0QcwtiW8iZlmrGXWV4g==
++  optionalDependencies:
++    fsevents "~2.3.1"
++
+ rsvp@^4.8.4:
+   version "4.8.5"
+   resolved "https://registry.yarnpkg.com/rsvp/-/rsvp-4.8.5.tgz#c8f155311d167f68f21e168df71ec5b083113734"
+@@ -5223,6 +5262,11 @@ tslib@^1.8.1, tslib@^1.9.0:
+   resolved "https://registry.yarnpkg.com/tslib/-/tslib-1.14.1.tgz#cf2d38bdc34a134bcaf1091c41f6619e2f672d00"
+   integrity sha512-Xni35NKzjgMrwevysHTCArtLDpPvye8zV/0E4EyYn43P7/7qvQwPh9BGkHewbMulVntbigmcT7rdX3BNo9wRJg==
+ 
++tslib@^2.1.0:
++  version "2.1.0"
++  resolved "https://registry.yarnpkg.com/tslib/-/tslib-2.1.0.tgz#da60860f1c2ecaa5703ab7d39bc05b6bf988b97a"
++  integrity sha512-hcVC3wYEziELGGmEEXue7D75zbwIIVUMWAVbHItGPx0ziyXxrOMQx4rQEVEV45Ut/1IotuEvwqPopzIOkDMf0A==
++
+ tsutils@^3.17.1:
+   version "3.17.1"
+   resolved "https://registry.yarnpkg.com/tsutils/-/tsutils-3.17.1.tgz#ed719917f11ca0dee586272b2ac49e015a2dd759"

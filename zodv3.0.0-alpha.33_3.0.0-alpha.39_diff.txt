@@ -1,0 +1,615 @@
+diff --git a/.eslintrc.js b/.eslintrc.js
+index b19858a0b..57e4d8352 100644
+--- a/.eslintrc.js
++++ b/.eslintrc.js
+@@ -42,5 +42,7 @@ module.exports = {
+      */
+     "no-case-declarations": "off",
+     "no-empty": "off",
++    "no-useless-escape": "off",
++    "no-control-regex": "off",
+   },
+ };
+diff --git a/ERROR_HANDLING.md b/ERROR_HANDLING.md
+index 9cd6e82af..2c405df0f 100644
+--- a/ERROR_HANDLING.md
++++ b/ERROR_HANDLING.md
+@@ -41,12 +41,10 @@ _Every_ ZodIssue has these fields:
+ ## ZodIssueCode
+ 
+ | code                             | additional fields                                                                                                                                                                                                                                                                    |
+-| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------- | --- |
++| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+ | ZodIssueCode.invalid_type        | `expected: ZodParsedType` <br> `received: ZodParsedType` <br><br>Jump to [this section](#parsedtype) for a breakdown of the possible values of ZodParsedType.                                                                                                                        |
+-| <!--                             | ZodIssueCode.nonempty_array_is_empty                                                                                                                                                                                                                                                 | _no additional properties_                                      | --> |
+ | ZodIssueCode.unrecognized_keys   | `keys: string[]`<br>The list of unrecognized keys<br>                                                                                                                                                                                                                                |
+ | ZodIssueCode.invalid_union       | `unionErrors: ZodError[]` <br> The errors thrown by each element of the union.                                                                                                                                                                                                       |
+-| <!--                             | ZodIssueCode.invalid_literal_value                                                                                                                                                                                                                                                   | `expected: string \| number \| boolean` <br> The literal value. | --> |
+ | ZodIssueCode.invalid_enum_value  | `options: string[]` <br> The set of acceptable string values for this enum.                                                                                                                                                                                                          |
+ | ZodIssueCode.invalid_arguments   | `argumentsError: ZodError` <br> This is a special error code only thrown by a wrapped function returned by `ZodFunction.implement()`. The `argumentsError` property is another ZodError containing the validation error details.                                                     |
+ | ZodIssueCode.invalid_return_type | `returnTypeError: ZodError` <br> This is a special error code only thrown by a wrapped function returned by `ZodFunction.implement()`. The `returnTypeError` property is another ZodError containing the validation error details.                                                   |
+@@ -56,6 +54,11 @@ _Every_ ZodIssue has these fields:
+ | ZodIssueCode.too_big             | `type: "string" \| "number" \| "array"` <br>The type of the data failing validation<br><br> `maximum: number` <br>The expected length/value.<br><br>`inclusive: boolean`<br>Whether the minimum is included in the range of acceptable values.<br>                                   |
+ | ZodIssueCode.custom              | `params: { [k: string]: any }` <br> This is the error code throw by **all custom refinements**. You are able to pass in a `params` object here that is available in your custom error maps (see [ZodErrorMap](#Customizing-errors-with-ZodErrorMap) below for details on error maps) |
+ 
++<!--
++| ZodIssueCode.nonempty_array_is_empty | _no additional properties_                                      |
++| ZodIssueCode.invalid_literal_value   | `expected: string \| number \| boolean` <br> The literal value. |
++-->
++
+ ## ZodParsedType
+ 
+ This is an enum used by Zod internally to represent the type of a parsed value. The possible values are:
+diff --git a/README.md b/README.md
+index e5012b2c7..e647645c7 100644
+--- a/README.md
++++ b/README.md
+@@ -16,10 +16,68 @@ if you're happy and you know it, star this repo ⭐
+ 
+ <br/>
+ 
++## Zod v3 is in alpha
++
++#### New features
++
++- Transformers! But better! See the "breaking changes" section to understand the syntax changes.
++- You can now import Zod like `import { z } from 'zod';` instead of using `import * as` syntax.
++- Added the `format` method to ZodError to convert the error into a strongly-typed, nested object: [format method](#error-formatting)
++- Added the `or` method to ZodType (the base class for all Zod schemas) to easily create union types like `z.string().or(z.number())`
++- Added the `and` method to ZodType (the base class for all Zod schemas) to easily create intersection types
++- Added `z.setErrorMap`, an easier way to _globally_ customize the error messages produced by Zod: [setErrorMap](ERROR_HANDLING.md#customizing-errors-with-zoderrormap)
++- ZodOptional and ZodNullable now have a `.unwrap()` method for retrieving the schema they wrap
++
++#### Breaking changes in v3
++
++- The **minimum TypeScript version** is now _4.1_ (up from 3.7 for Zod 2). Several features have been rewritten to use [recursive conditional types](https://devblogs.microsoft.com/typescript/announcing-typescript-4-1/#recursive-conditional-types), an incredibly powerful new feature introduced in TS4.1.
++
++- **Transformers syntax**. Previously, creating a transformer required an input schema, an output schema, and a function to tranform between them. You created transformers like `z.transform(A, B, func)`, where `A` and `B` are Zod schemas. This is no longer the case. Accordingly:
++
++  The old syntax (`z.transformer(A, B, func)`) is no longer available.
++
++  The convenience method `A.transform(B, func)` is no longer available.
++
++  Instead, you apply transformations by simply using the `.transform()` method that exists on all Zod schemas.
++
++  ```ts
++  z.string().transform((val) => val.length);
++  ```
++
++- Under the hood, all refinements and transformations are executed inside a dedicated "ZodEffects" class. Post-parsing, ZodEffects passes the data through a chain of refinements and transformations, then returns the final value. As such, you can now _interleave_ transformations and refinements. For instance:
++
++  ```ts
++  const test = z
++    .string()
++    .transform((val) => val.length)
++    .refine((val) => val > 5, { message: "Input is too short" })
++    .transform((val) => val * 2);
++
++  test.parse("12characters"); // => 24
++  ```
++
++- **Type guards** (the `.check()` method) have been removed. Type guards interact with transformers in unintuitive ways so they were removed. Use `.safeParse` instead.
++- Object merging now behaves differently. If you merge two object schema (`A.merge(B)`), the fields of B will overwrite the fields of A if there are shared keys. This is how the `.extend` method already works. If you're looking to create an intersection of the two types, use `z.intersection(A, B)` or use the new `.and` method (`A.and(B)`).
++- There have been small internal changes to the ZodIssue type. This may impact user who have written a custom error maps. Most users will not be affected.
++
++#### Migrating from v1
++
++If you're upgrading straight to v3 from v1, you'll need to be aware of the breaking changes introduced in both v2 and v3. The v1->v2 migration guide is [here](https://github.com/colinhacks/zod/tree/v2#migration-from-v1).
++
++#### Migrating from v2
++
++Zod 2 is being retired and will not leave beta. This is due to some issues with it's implementation of transformers: details [here](https://github.com/colinhacks/zod/issues/264). Zod 3 is currently in alpha — install it at `zod@next`. (Zod 2 will continue to be available with `zod@beta` for the time being.)
++
++```
++npm install zod@next
++yarn add zod@next
++```
++
+ # Table of contents
+ 
+ - [What is Zod](#what-is-zod)
+ - [Installation](#installation)
++- [Ecosystem](#ecosystem)
+ - [Basic usage](#basic-usage)
+ - [Defining schemas](#defining-schemas)
+   - [Primitives](#primitives)
+@@ -62,6 +120,7 @@ if you're happy and you know it, star this repo ⭐
+   - [.safeParse](#safeparse)
+   - [.safeParseAsync](#safeparseasync)
+   - [.refine](#refine)
++  - [.superRefine](#superRefine)
+   - [.transform](#transform)
+   - [.default](#default)
+   - [.optional](#optional)
+@@ -80,63 +139,6 @@ if you're happy and you know it, star this repo ⭐
+ 
+ <!-- **Zod 2 is coming! Follow [@colinhacks](https://twitter.com/colinhacks) to stay updated and discuss the future of Zod.** -->
+ 
+-## Zod v3 is in alpha
+-
+-#### New features
+-
+-- Transformers! But better! See the "breaking changes" section to understand the syntax changes.
+-- You can now import Zod like `import { z } a from 'zod';` instead of using `import * as` syntax.
+-- Added the `format` method to ZodError to convert the error into a strongly-typed, nested object: [format method](#error-formatting)
+-- Added the `or` method to ZodType (the base class for all Zod schemas) to easily create union types like `z.string().or(z.number())`
+-- Added the `and` method to ZodType (the base class for all Zod schemas) to easily create intersection types
+-- Added `z.setErrorMap`, an easier way to _globally_ customize the error messages produced by Zod: [setErrorMap](ERROR_HANDLING.md#customizing-errors-with-zoderrormap)
+-- ZodOptional and ZodNullable now have a `.unwrap()` method for retrieving the schema they wrap
+-
+-#### Breaking changes in v3
+-
+-- The **minimum TypeScript version** is now _4.1_ (up from 3.7 for Zod 2). Several features have been rewritten to use [recursive conditional types](https://devblogs.microsoft.com/typescript/announcing-typescript-4-1/#recursive-conditional-types), an incredibly powerful new feature introduced in TS4.1.
+-
+-- **Transformers syntax**. Previously, creating a transformer required an input schema, an output schema, and a function to tranform between them. You created transformers like `z.transform(A, B, func)`, where `A` and `B` are Zod schemas. This is no longer the case. Accordingly:
+-
+-  The old syntax (`z.transformer(A, B, func)`) is no longer available.
+-
+-  The convenience method `A.transform(B, func)` is no longer available.
+-
+-  Instead, you apply transformations by simply using the `.transform()` method that exists on all Zod schemas.
+-
+-  ```ts
+-  z.string().transform((val) => val.length);
+-  ```
+-
+-- Under the hood, all refinements and transformations are executed inside a dedicated "ZodEffects" class. Post-parsing, ZodEffects passes the data through a chain of refinements and transformations, then returns the final value. As such, you can now _interleave_ transformations and refinements. For instance:
+-
+-  ```ts
+-  const test = z
+-    .string()
+-    .transform((val) => val.length)
+-    .refine((val) => val > 5, { message: "Input is too short" })
+-    .transform((val) => val * 2);
+-
+-  test.parse("12characters"); // => 24
+-  ```
+-
+-- **Type guards** (the `.check()` method) have been removed. Type guards interact with transformers in unintuitive ways so they were removed. Use `.safeParse` instead.
+-- Object merging now behaves differently. If you merge two object schema (`A.merge(B)`), the fields of B will overwrite the fields of A if there are shared keys. This is how the `.extend` method already works. If you're looking to create an intersection of the two types, use `z.intersection(A, B)` or use the new `.and` method (`A.and(B)`).
+-- There have been small internal changes to the ZodIssue type. This may impact user who have written a custom error maps. Most users will not be affected.
+-
+-#### Migrating from v1
+-
+-If you're upgrading straight to v3 from v1, you'll need to be aware of the breaking changes introduced in both v2 and v3. The v1->v2 migration guide is [here](https://github.com/colinhacks/zod/tree/v2#migration-from-v1).
+-
+-#### Migrating from v2
+-
+-Zod 2 is being retired and will not leave beta. This is due to some issues with it's implementation of transformers: details [here](https://github.com/colinhacks/zod/issues/264). Zod 3 is currently in alpha — install it at `zod@next`. (Zod 2 will continue to be available with `zod@beta` for the time being.)
+-
+-```
+-npm install zod@next
+-yarn add zod@next
+-```
+-
+ # What is Zod
+ 
+ Zod is a TypeScript-first schema declaration and validation library. I'm using the term "schema" to broadly refer to any data type, from a simple `string` to a complex nested object.
+@@ -222,6 +224,16 @@ npm install zod@next
+ }
+ ```
+ 
++# Ecosystem
++
++There are a growing number of tools that are built atop or support Zod natively! If you've built a tool or library on top of Zod, tell me about it [on Twitter](https://twitter.com/colinhacks) or [start a Discussion](https://github.com/colinhacks/zod/discussions). I'll add it below and tweet it out.
++
++- [`ts-to-zod`](https://github.com/fabien0102/ts-to-zod): Convert TypeScript definitions into Zod schemas.
++- [`zod-mocking`](https://github.com/dipasqualew/zod-mocking): Generate mock data from your Zod schemas.
++- [`react-hook-form`](https://github.com/react-hook-form/resolvers): Build type-safe forms easily with React Hook Form and the Zod resolver. I use this all the time and it's glorious.
++
++> If you like Zod, you'll love [`tRPC`](https://github.com/trpc/trpc), a toolkit for building end-to-end typesafe API without GraphQL or code generation...just plain TypeScript. It makes it easy to validate API payloads with Zod schemas (or other libraries). It's the best way to build a fully typed API, especially for Next.js users. I built the proof-of-concept, and it's currently actively maintained by [@katt](https://github.com/katt).
++
+ # Basic usage
+ 
+ Creating a simple string schema
+@@ -386,7 +398,7 @@ You can use `.extend` to overwrite fields! Be careful with this power!
+ 
+ ### `.merge`
+ 
+-Equivalent to `A.merge(B.shape)`.
++Equivalent to `A.extend(B.shape)`.
+ 
+ ```ts
+ const BaseTeacher = z.object({ students: z.array(z.string()) });
+@@ -396,7 +408,7 @@ const Teacher = BaseTeacher.merge(HasID);
+ type Teacher = z.infer<typeof Teacher>; // => { students: string[], id: string }
+ ```
+ 
+-> If the two schemas share keys, the properties of the _merged schema_ take precedence.
++> If the two schemas share keys, the properties of B overrides the property of A. The returned schema also inherits the "unknownKeys" policy (strip/strict/passthrough) and the catchall schema of B.
+ 
+ ### `.pick/.omit`
+ 
+@@ -1202,7 +1214,7 @@ await stringSchema.spa("billie");
+ 
+ `.refine(validator: (data:T)=>any, params?: RefineParams)`
+ 
+-Zod lets you provide custom validation logic via _refinements_.
++Zod lets you provide custom validation logic via _refinements_. (For advanced features like creating multiple issues and customizing error codes, see [`.superRefine`](#superrefine).)
+ 
+ Zod was designed to mirror TypeScript as closely as possible. But there are many so-called "refinement types" you may wish to check for that can't be represented in TypeScript's type system. For instance: checking that a number is an integer or that a string is a valid email address.
+ 
+@@ -1321,6 +1333,35 @@ ZodError {
+ }
+ ``` -->
+ 
++### `.superRefine`
++
++The `.refine` method is actually syntactic sugar atop a more versatile (and verbose) method called `superRefine`. Here's an example:
++
++```ts
++const Strings = z.array(z.string()).superRefine((val, ctx) => {
++  if (val.length > 3) {
++    ctx.addIssue({
++      code: z.ZodIssueCode.too_big,
++      maximum: 3,
++      type: "array",
++      inclusive: true,
++      message: "Too many items 😡",
++    });
++  }
++
++  if (val.length !== new Set(val).size) {
++    ctx.addIssue({
++      code: z.ZodIssueCode.custom,
++      message: `No duplicated allowed.`,
++    });
++  }
++});
++```
++
++You can add as many issues as you like. If `ctx.addIssue` is NOT called during the execution of the function, validation passes.
++
++Normally refinements always create issues with a `ZodIssueCode.custom` error code, but with `superRefine` you can create any issue of any code. Each issue code is described in detail in the Error Handling guide (ERROR_HANDLING.md).
++
+ ### `.transform`
+ 
+ To transform data after parsing, use the `transform` method.
+@@ -1650,13 +1691,10 @@ Good type inference support, but limited options for object type masking (no `.p
+ 
+ - Supports "pattern matching": computed properties that distribute over unions
+ - Supports readonly types
+-- Missing object methods: (pick, omit, partial, deepPartial, merge, extend)
++- Missing object methods: (deepPartial, merge)
+ - Missing nonempty arrays with proper typing (`[T, ...T[]]`)
+-- Missing lazy/recursive types
+ - Missing promise schemas
+-- Missing union & intersection schemas
+ - Missing error customization
+-- Missing record schemas (their "record" is equivalent to Zod "object")
+ 
+ #### Ow
+ 
+diff --git a/coverage.svg b/coverage.svg
+index 54566e156..2300ea257 100644
+--- a/coverage.svg
++++ b/coverage.svg
+@@ -1 +1 @@
+-<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="116" height="20" role="img" aria-label="Coverage: 92.58%"><title>Coverage: 92.58%</title><linearGradient id="s" x2="0" y2="100%"><stop offset="0" stop-color="#bbb" stop-opacity=".1"/><stop offset="1" stop-opacity=".1"/></linearGradient><clipPath id="r"><rect width="116" height="20" rx="3" fill="#fff"/></clipPath><g clip-path="url(#r)"><rect width="63" height="20" fill="#555"/><rect x="63" width="53" height="20" fill="#4c1"/><rect width="116" height="20" fill="url(#s)"/></g><g fill="#fff" text-anchor="middle" font-family="Verdana,Geneva,DejaVu Sans,sans-serif" text-rendering="geometricPrecision" font-size="110"><text aria-hidden="true" x="325" y="150" fill="#010101" fill-opacity=".3" transform="scale(.1)" textLength="530">Coverage</text><text x="325" y="140" transform="scale(.1)" fill="#fff" textLength="530">Coverage</text><text aria-hidden="true" x="885" y="150" fill="#010101" fill-opacity=".3" transform="scale(.1)" textLength="430">92.58%</text><text x="885" y="140" transform="scale(.1)" fill="#fff" textLength="430">92.58%</text></g></svg>
+\ No newline at end of file
++<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="110" height="20" role="img" aria-label="Coverage: 92.6%"><title>Coverage: 92.6%</title><linearGradient id="s" x2="0" y2="100%"><stop offset="0" stop-color="#bbb" stop-opacity=".1"/><stop offset="1" stop-opacity=".1"/></linearGradient><clipPath id="r"><rect width="110" height="20" rx="3" fill="#fff"/></clipPath><g clip-path="url(#r)"><rect width="63" height="20" fill="#555"/><rect x="63" width="47" height="20" fill="#4c1"/><rect width="110" height="20" fill="url(#s)"/></g><g fill="#fff" text-anchor="middle" font-family="Verdana,Geneva,DejaVu Sans,sans-serif" text-rendering="geometricPrecision" font-size="110"><text aria-hidden="true" x="325" y="150" fill="#010101" fill-opacity=".3" transform="scale(.1)" textLength="530">Coverage</text><text x="325" y="140" transform="scale(.1)" fill="#fff" textLength="530">Coverage</text><text aria-hidden="true" x="855" y="150" fill="#010101" fill-opacity=".3" transform="scale(.1)" textLength="370">92.6%</text><text x="855" y="140" transform="scale(.1)" fill="#fff" textLength="370">92.6%</text></g></svg>
+\ No newline at end of file
+diff --git a/deno/lib/__tests__/async-parsing.test.ts b/deno/lib/__tests__/async-parsing.test.ts
+index bcc141f92..9900361c9 100644
+--- a/deno/lib/__tests__/async-parsing.test.ts
++++ b/deno/lib/__tests__/async-parsing.test.ts
+@@ -304,7 +304,6 @@ test("promise async parse bad", async () => {
+   if (badResult.success) {
+     await expect(badResult.data).rejects.toBeInstanceOf(Error);
+   } else {
+-    console.log(`SUCCESS SHOULD BE TRUE`);
+     throw new Error("success should be true");
+   }
+ });
+diff --git a/deno/lib/__tests__/object.test.ts b/deno/lib/__tests__/object.test.ts
+index 010efab92..300f3015a 100644
+--- a/deno/lib/__tests__/object.test.ts
++++ b/deno/lib/__tests__/object.test.ts
+@@ -207,3 +207,10 @@ test("test async PseudoPromise.all", async () => {
+   const result = await Schema2.spa(obj); // Works with 1.11.10, breaks with 2.0.0-beta.21
+   expect(result.success).toEqual(true);
+ });
++
++test("test inferred merged type", async () => {
++  const asdf = z.object({ a: z.string() }).merge(z.object({ a: z.number() }));
++  type asdf = z.infer<typeof asdf>;
++  const f1: util.AssertEqual<asdf, { a: number }> = true;
++  f1;
++});
+diff --git a/deno/lib/__tests__/string.test.ts b/deno/lib/__tests__/string.test.ts
+index 4a9011f77..9fac50f99 100644
+--- a/deno/lib/__tests__/string.test.ts
++++ b/deno/lib/__tests__/string.test.ts
+@@ -34,6 +34,21 @@ test("email validations", () => {
+   expect(() => email.parse("asdf@sdf.")).toThrow();
+ });
+ 
++test("more email validations", () => {
++  const data = [
++    `"josé.arrañoça"@domain.com`,
++    `"сайт"@domain.com`,
++    `"💩"@domain.com`,
++    `"🍺🕺🎉"@domain.com`,
++    `poop@💩.la`,
++    `"🌮"@i❤️tacos.ws`,
++  ];
++  const email = z.string().email();
++  for (const datum of data) {
++    email.parse(datum);
++  }
++});
++
+ test("url validations", () => {
+   const url = z.string().url();
+   try {
+@@ -66,6 +81,16 @@ test("url error overrides", () => {
+ });
+ 
+ test("uuid", () => {
++  const uuid = z.string().uuid("custom error");
++  uuid.parse("9491d710-3185-4e06-bea0-6a2f275345e0");
++  const result = uuid.safeParse("9491d710-3185-4e06-bea0-6a2f275345e0X");
++  expect(result.success).toEqual(false);
++  if (!result.success) {
++    expect(result.error.issues[0].message).toEqual("custom error");
++  }
++});
++
++test("bad uuid", () => {
+   const uuid = z.string().uuid("custom error");
+   uuid.parse("9491d710-3185-4e06-bea0-6a2f275345e0");
+   const result = uuid.safeParse("invalid uuid");
+diff --git a/deno/lib/types.ts b/deno/lib/types.ts
+index 3c00cf4d8..eec0e4259 100644
+--- a/deno/lib/types.ts
++++ b/deno/lib/types.ts
+@@ -403,9 +403,12 @@ export interface ZodStringDef extends ZodTypeDef {
+   maxLength: { value: number; message?: string } | null;
+ }
+ 
++const uuidRegex = /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89aAbB][a-f0-9]{3}-[a-f0-9]{12}$/;
++// from https://stackoverflow.com/a/46181/1550155
++// old version: too slow, didn't support unicode
++// const emailRegex = /^((([a-z]|\d|[!#\$%&'\*\+\-\/=\?\^_`{\|}~]|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])+(\.([a-z]|\d|[!#\$%&'\*\+\-\/=\?\^_`{\|}~]|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])+)*)|((\x22)((((\x20|\x09)*(\x0d\x0a))?(\x20|\x09)+)?(([\x01-\x08\x0b\x0c\x0e-\x1f\x7f]|\x21|[\x23-\x5b]|[\x5d-\x7e]|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])|(\\([\x01-\x09\x0b\x0c\x0d-\x7f]|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF]))))*(((\x20|\x09)*(\x0d\x0a))?(\x20|\x09)+)?(\x22)))@((([a-z]|\d|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])|(([a-z]|\d|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])([a-z]|\d|-|\.|_|~|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])*([a-z]|\d|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])))\.)+(([a-z]|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])|(([a-z]|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])([a-z]|\d|-|\.|_|~|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])*([a-z]|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])))$/i;
+ // eslint-disable-next-line
+-const emailRegex = /^((([a-z]|\d|[!#\$%&'\*\+\-\/=\?\^_`{\|}~]|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])+(\.([a-z]|\d|[!#\$%&'\*\+\-\/=\?\^_`{\|}~]|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])+)*)|((\x22)((((\x20|\x09)*(\x0d\x0a))?(\x20|\x09)+)?(([\x01-\x08\x0b\x0c\x0e-\x1f\x7f]|\x21|[\x23-\x5b]|[\x5d-\x7e]|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])|(\\([\x01-\x09\x0b\x0c\x0d-\x7f]|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF]))))*(((\x20|\x09)*(\x0d\x0a))?(\x20|\x09)+)?(\x22)))@((([a-z]|\d|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])|(([a-z]|\d|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])([a-z]|\d|-|\.|_|~|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])*([a-z]|\d|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])))\.)+(([a-z]|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])|(([a-z]|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])([a-z]|\d|-|\.|_|~|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])*([a-z]|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])))$/i;
+-const uuidRegex = /([a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}){1}/i;
++const emailRegex = /^(([^<>()[\]\.,;:\s@\"]+(\.[^<>()[\]\.,;:\s@\"]+)*)|(\".+\"))@(([^<>()[\]\.,;:\s@\"]+\.)+[^<>()[\]\.,;:\s@\"]{2,})$/i;
+ 
+ export class ZodString extends ZodType<string, ZodStringDef> {
+   _parse(ctx: ParseContext): ParseReturnType<string> {
+@@ -1214,18 +1217,24 @@ export const mergeObjects = <First extends AnyZodObject>(first: First) => <
+   return merged;
+ };
+ 
++type extend<A, B> = {
++  [k in Exclude<keyof A, keyof B>]: A[k];
++} &
++  { [k in keyof B]: B[k] };
++
+ const AugmentFactory = <Def extends ZodObjectDef>(def: Def) => <
+   Augmentation extends ZodRawShape
+ >(
+   augmentation: Augmentation
+ ): ZodObject<
+-  {
+-    [k in Exclude<
+-      keyof ReturnType<Def["shape"]>,
+-      keyof Augmentation
+-    >]: ReturnType<Def["shape"]>[k];
+-  } &
+-    { [k in keyof Augmentation]: Augmentation[k] },
++  extend<ReturnType<Def["shape"]>, Augmentation>,
++  // {
++  //   [k in Exclude<
++  //     keyof ReturnType<Def["shape"]>,
++  //     keyof Augmentation
++  //   >]: ReturnType<Def["shape"]>[k];
++  // } &
++  //   { [k in keyof Augmentation]: Augmentation[k] },
+   Def["unknownKeys"],
+   Def["catchall"]
+ > => {
+@@ -1458,15 +1467,18 @@ export class ZodObject<
+    */
+   merge: <Incoming extends AnyZodObject>(
+     merging: Incoming
+-  ) => ZodObject<T & Incoming["_shape"], UnknownKeys, Catchall> = (merging) => {
++  ) => //ZodObject<T & Incoming["_shape"], UnknownKeys, Catchall> = (merging) => {
++  ZodObject<extend<T, Incoming["_shape"]>, UnknownKeys, Catchall> = (
++    merging
++  ) => {
+     const mergedShape = objectUtil.mergeShapes(
+       this._def.shape(),
+       merging._def.shape()
+     );
+     const merged: any = new ZodObject({
+       // effects: [], // wipe all refinements
+-      unknownKeys: this._def.unknownKeys,
+-      catchall: this._def.catchall,
++      unknownKeys: merging._def.unknownKeys,
++      catchall: merging._def.catchall,
+       shape: () => mergedShape,
+     }) as any;
+     return merged;
+@@ -1825,6 +1837,12 @@ export class ZodTuple<
+     return PseudoPromise.all(
+       tupleData.map((item, index) => {
+         const itemParser = this._def.items[index];
++
++        if (!itemParser) {
++          // tupleData length != ZodTuple.items length
++          // this issue already addressed above
++          return PseudoPromise.resolve(item);
++        }
+         return new PseudoPromise()
+           .then(() => {
+             return itemParser._parseWithInvalidFallback(item, {
+diff --git a/package.json b/package.json
+index 62d2f274a..c47e4027e 100644
+--- a/package.json
++++ b/package.json
+@@ -1,6 +1,6 @@
+ {
+   "name": "zod",
+-  "version": "3.0.0-alpha.33",
++  "version": "3.0.0-alpha.39",
+   "description": "TypeScript-first schema declaration and validation library with static type inference",
+   "main": "./lib/index.js",
+   "types": "./lib/index.d.ts",
+diff --git a/src/__tests__/async-parsing.test.ts b/src/__tests__/async-parsing.test.ts
+index 4edf7e9a3..e513dda83 100644
+--- a/src/__tests__/async-parsing.test.ts
++++ b/src/__tests__/async-parsing.test.ts
+@@ -303,7 +303,6 @@ test("promise async parse bad", async () => {
+   if (badResult.success) {
+     await expect(badResult.data).rejects.toBeInstanceOf(Error);
+   } else {
+-    console.log(`SUCCESS SHOULD BE TRUE`);
+     throw new Error("success should be true");
+   }
+ });
+diff --git a/src/__tests__/object.test.ts b/src/__tests__/object.test.ts
+index 2ca58e8a8..2b2553195 100644
+--- a/src/__tests__/object.test.ts
++++ b/src/__tests__/object.test.ts
+@@ -206,3 +206,10 @@ test("test async PseudoPromise.all", async () => {
+   const result = await Schema2.spa(obj); // Works with 1.11.10, breaks with 2.0.0-beta.21
+   expect(result.success).toEqual(true);
+ });
++
++test("test inferred merged type", async () => {
++  const asdf = z.object({ a: z.string() }).merge(z.object({ a: z.number() }));
++  type asdf = z.infer<typeof asdf>;
++  const f1: util.AssertEqual<asdf, { a: number }> = true;
++  f1;
++});
+diff --git a/src/__tests__/string.test.ts b/src/__tests__/string.test.ts
+index 1ab4d40a9..bdca21192 100644
+--- a/src/__tests__/string.test.ts
++++ b/src/__tests__/string.test.ts
+@@ -33,6 +33,21 @@ test("email validations", () => {
+   expect(() => email.parse("asdf@sdf.")).toThrow();
+ });
+ 
++test("more email validations", () => {
++  const data = [
++    `"josé.arrañoça"@domain.com`,
++    `"сайт"@domain.com`,
++    `"💩"@domain.com`,
++    `"🍺🕺🎉"@domain.com`,
++    `poop@💩.la`,
++    `"🌮"@i❤️tacos.ws`,
++  ];
++  const email = z.string().email();
++  for (const datum of data) {
++    email.parse(datum);
++  }
++});
++
+ test("url validations", () => {
+   const url = z.string().url();
+   try {
+@@ -65,6 +80,16 @@ test("url error overrides", () => {
+ });
+ 
+ test("uuid", () => {
++  const uuid = z.string().uuid("custom error");
++  uuid.parse("9491d710-3185-4e06-bea0-6a2f275345e0");
++  const result = uuid.safeParse("9491d710-3185-4e06-bea0-6a2f275345e0X");
++  expect(result.success).toEqual(false);
++  if (!result.success) {
++    expect(result.error.issues[0].message).toEqual("custom error");
++  }
++});
++
++test("bad uuid", () => {
+   const uuid = z.string().uuid("custom error");
+   uuid.parse("9491d710-3185-4e06-bea0-6a2f275345e0");
+   const result = uuid.safeParse("invalid uuid");
+diff --git a/src/types.ts b/src/types.ts
+index e27aad8fa..bca6361e2 100644
+--- a/src/types.ts
++++ b/src/types.ts
+@@ -403,9 +403,12 @@ export interface ZodStringDef extends ZodTypeDef {
+   maxLength: { value: number; message?: string } | null;
+ }
+ 
++const uuidRegex = /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89aAbB][a-f0-9]{3}-[a-f0-9]{12}$/;
++// from https://stackoverflow.com/a/46181/1550155
++// old version: too slow, didn't support unicode
++// const emailRegex = /^((([a-z]|\d|[!#\$%&'\*\+\-\/=\?\^_`{\|}~]|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])+(\.([a-z]|\d|[!#\$%&'\*\+\-\/=\?\^_`{\|}~]|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])+)*)|((\x22)((((\x20|\x09)*(\x0d\x0a))?(\x20|\x09)+)?(([\x01-\x08\x0b\x0c\x0e-\x1f\x7f]|\x21|[\x23-\x5b]|[\x5d-\x7e]|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])|(\\([\x01-\x09\x0b\x0c\x0d-\x7f]|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF]))))*(((\x20|\x09)*(\x0d\x0a))?(\x20|\x09)+)?(\x22)))@((([a-z]|\d|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])|(([a-z]|\d|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])([a-z]|\d|-|\.|_|~|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])*([a-z]|\d|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])))\.)+(([a-z]|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])|(([a-z]|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])([a-z]|\d|-|\.|_|~|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])*([a-z]|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])))$/i;
+ // eslint-disable-next-line
+-const emailRegex = /^((([a-z]|\d|[!#\$%&'\*\+\-\/=\?\^_`{\|}~]|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])+(\.([a-z]|\d|[!#\$%&'\*\+\-\/=\?\^_`{\|}~]|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])+)*)|((\x22)((((\x20|\x09)*(\x0d\x0a))?(\x20|\x09)+)?(([\x01-\x08\x0b\x0c\x0e-\x1f\x7f]|\x21|[\x23-\x5b]|[\x5d-\x7e]|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])|(\\([\x01-\x09\x0b\x0c\x0d-\x7f]|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF]))))*(((\x20|\x09)*(\x0d\x0a))?(\x20|\x09)+)?(\x22)))@((([a-z]|\d|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])|(([a-z]|\d|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])([a-z]|\d|-|\.|_|~|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])*([a-z]|\d|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])))\.)+(([a-z]|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])|(([a-z]|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])([a-z]|\d|-|\.|_|~|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])*([a-z]|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])))$/i;
+-const uuidRegex = /([a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}){1}/i;
++const emailRegex = /^(([^<>()[\]\.,;:\s@\"]+(\.[^<>()[\]\.,;:\s@\"]+)*)|(\".+\"))@(([^<>()[\]\.,;:\s@\"]+\.)+[^<>()[\]\.,;:\s@\"]{2,})$/i;
+ 
+ export class ZodString extends ZodType<string, ZodStringDef> {
+   _parse(ctx: ParseContext): ParseReturnType<string> {
+@@ -1214,18 +1217,24 @@ export const mergeObjects = <First extends AnyZodObject>(first: First) => <
+   return merged;
+ };
+ 
++type extend<A, B> = {
++  [k in Exclude<keyof A, keyof B>]: A[k];
++} &
++  { [k in keyof B]: B[k] };
++
+ const AugmentFactory = <Def extends ZodObjectDef>(def: Def) => <
+   Augmentation extends ZodRawShape
+ >(
+   augmentation: Augmentation
+ ): ZodObject<
+-  {
+-    [k in Exclude<
+-      keyof ReturnType<Def["shape"]>,
+-      keyof Augmentation
+-    >]: ReturnType<Def["shape"]>[k];
+-  } &
+-    { [k in keyof Augmentation]: Augmentation[k] },
++  extend<ReturnType<Def["shape"]>, Augmentation>,
++  // {
++  //   [k in Exclude<
++  //     keyof ReturnType<Def["shape"]>,
++  //     keyof Augmentation
++  //   >]: ReturnType<Def["shape"]>[k];
++  // } &
++  //   { [k in keyof Augmentation]: Augmentation[k] },
+   Def["unknownKeys"],
+   Def["catchall"]
+ > => {
+@@ -1458,15 +1467,18 @@ export class ZodObject<
+    */
+   merge: <Incoming extends AnyZodObject>(
+     merging: Incoming
+-  ) => ZodObject<T & Incoming["_shape"], UnknownKeys, Catchall> = (merging) => {
++  ) => //ZodObject<T & Incoming["_shape"], UnknownKeys, Catchall> = (merging) => {
++  ZodObject<extend<T, Incoming["_shape"]>, UnknownKeys, Catchall> = (
++    merging
++  ) => {
+     const mergedShape = objectUtil.mergeShapes(
+       this._def.shape(),
+       merging._def.shape()
+     );
+     const merged: any = new ZodObject({
+       // effects: [], // wipe all refinements
+-      unknownKeys: this._def.unknownKeys,
+-      catchall: this._def.catchall,
++      unknownKeys: merging._def.unknownKeys,
++      catchall: merging._def.catchall,
+       shape: () => mergedShape,
+     }) as any;
+     return merged;
+@@ -1825,6 +1837,12 @@ export class ZodTuple<
+     return PseudoPromise.all(
+       tupleData.map((item, index) => {
+         const itemParser = this._def.items[index];
++
++        if (!itemParser) {
++          // tupleData length != ZodTuple.items length
++          // this issue already addressed above
++          return PseudoPromise.resolve(item);
++        }
+         return new PseudoPromise()
+           .then(() => {
+             return itemParser._parseWithInvalidFallback(item, {

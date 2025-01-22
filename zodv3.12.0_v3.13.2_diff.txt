@@ -1,0 +1,1003 @@
+diff --git a/CODE_OF_CONDUCT.md b/CODE_OF_CONDUCT.md
+new file mode 100644
+index 000000000..2daa233fc
+--- /dev/null
++++ b/CODE_OF_CONDUCT.md
+@@ -0,0 +1,132 @@
++# Contributor Covenant Code of Conduct
++
++## Our Pledge
++
++We as members, contributors, and leaders pledge to make participation in our
++community a harassment-free experience for everyone, regardless of age, body
++size, visible or invisible disability, ethnicity, sex characteristics, gender
++identity and expression, level of experience, education, socio-economic status,
++nationality, personal appearance, race, caste, color, religion, or sexual
++identity and orientation.
++
++We pledge to act and interact in ways that contribute to an open, welcoming,
++diverse, inclusive, and healthy community.
++
++## Our Standards
++
++Examples of behavior that contributes to a positive environment for our
++community include:
++
++- Demonstrating empathy and kindness toward other people
++- Being respectful of differing opinions, viewpoints, and experiences
++- Giving and gracefully accepting constructive feedback
++- Accepting responsibility and apologizing to those affected by our mistakes,
++  and learning from the experience
++- Focusing on what is best not just for us as individuals, but for the overall
++  community
++
++Examples of unacceptable behavior include:
++
++- The use of sexualized language or imagery, and sexual attention or advances of
++  any kind
++- Trolling, insulting or derogatory comments, and personal or political attacks
++- Public or private harassment
++- Publishing others' private information, such as a physical or email address,
++  without their explicit permission
++- Other conduct which could reasonably be considered inappropriate in a
++  professional setting
++
++## Enforcement Responsibilities
++
++Community leaders are responsible for clarifying and enforcing our standards of
++acceptable behavior and will take appropriate and fair corrective action in
++response to any behavior that they deem inappropriate, threatening, offensive,
++or harmful.
++
++Community leaders have the right and responsibility to remove, edit, or reject
++comments, commits, code, wiki edits, issues, and other contributions that are
++not aligned to this Code of Conduct, and will communicate reasons for moderation
++decisions when appropriate.
++
++## Scope
++
++This Code of Conduct applies within all community spaces, and also applies when
++an individual is officially representing the community in public spaces.
++Examples of representing our community include using an official e-mail address,
++posting via an official social media account, or acting as an appointed
++representative at an online or offline event.
++
++## Enforcement
++
++Instances of abusive, harassing, or otherwise unacceptable behavior may be
++reported to the community leaders responsible for enforcement at
++colinmcd94@gmail.com or scott@scotttrinh.com.
++All complaints will be reviewed and investigated promptly and fairly.
++
++All community leaders are obligated to respect the privacy and security of the
++reporter of any incident.
++
++## Enforcement Guidelines
++
++Community leaders will follow these Community Impact Guidelines in determining
++the consequences for any action they deem in violation of this Code of Conduct:
++
++### 1. Correction
++
++**Community Impact**: Use of inappropriate language or other behavior deemed
++unprofessional or unwelcome in the community.
++
++**Consequence**: A private, written warning from community leaders, providing
++clarity around the nature of the violation and an explanation of why the
++behavior was inappropriate. A public apology may be requested.
++
++### 2. Warning
++
++**Community Impact**: A violation through a single incident or series of
++actions.
++
++**Consequence**: A warning with consequences for continued behavior. No
++interaction with the people involved, including unsolicited interaction with
++those enforcing the Code of Conduct, for a specified period of time. This
++includes avoiding interactions in community spaces as well as external channels
++like social media. Violating these terms may lead to a temporary or permanent
++ban.
++
++### 3. Temporary Ban
++
++**Community Impact**: A serious violation of community standards, including
++sustained inappropriate behavior.
++
++**Consequence**: A temporary ban from any sort of interaction or public
++communication with the community for a specified period of time. No public or
++private interaction with the people involved, including unsolicited interaction
++with those enforcing the Code of Conduct, is allowed during this period.
++Violating these terms may lead to a permanent ban.
++
++### 4. Permanent Ban
++
++**Community Impact**: Demonstrating a pattern of violation of community
++standards, including sustained inappropriate behavior, harassment of an
++individual, or aggression toward or disparagement of classes of individuals.
++
++**Consequence**: A permanent ban from any sort of public interaction within the
++community.
++
++## Attribution
++
++This Code of Conduct is adapted from the [Contributor Covenant][homepage],
++version 2.1, available at
++[https://www.contributor-covenant.org/version/2/1/code_of_conduct.html][v2.1].
++
++Community Impact Guidelines were inspired by
++[Mozilla's code of conduct enforcement ladder][mozilla coc].
++
++For answers to common questions about this code of conduct, see the FAQ at
++[https://www.contributor-covenant.org/faq][faq]. Translations are available at
++[https://www.contributor-covenant.org/translations][translations].
++
++[homepage]: https://www.contributor-covenant.org
++[v2.1]: https://www.contributor-covenant.org/version/2/1/code_of_conduct.html
++[mozilla coc]: https://github.com/mozilla/diversity
++[faq]: https://www.contributor-covenant.org/faq
++[translations]: https://www.contributor-covenant.org/translations
+diff --git a/README.md b/README.md
+index 0703a84bb..fdcf90e78 100644
+--- a/README.md
++++ b/README.md
+@@ -43,6 +43,7 @@ These docs have been translated into [Chinese](./README_ZH.md).
+   - [Literals](#literals)
+   - [Strings](#strings)
+   - [Numbers](#numbers)
++  - [NaNs](#nans)
+   - [Booleans](#booleans)
+   - [Dates](#dates)
+   - [Zod enums](#zod-enums)
+@@ -244,7 +245,7 @@ There are a growing number of tools that are built atop or support Zod natively!
+ ### Form integrations
+ 
+ - [`react-hook-form`](https://github.com/react-hook-form/resolvers#zod): A first-party Zod resolver for React Hook Form
+-- [`formik`](https://github.com/robertLichtnow/zod-formik-adapter): A community-maintained Formik adapter for Zod
++- [`zod-formik-adapter`](https://github.com/robertLichtnow/zod-formik-adapter): A community-maintained Formik adapter for Zod
+ 
+ # Basic usage
+ 
+@@ -403,6 +404,17 @@ Optionally, you can pass in a second argument to provide a custom error message.
+ z.number().lte(5, { message: "this👏is👏too👏big" });
+ ```
+ 
++## NaNs
++
++You can customize certain error messages when creating a nan schema.
++
++```ts
++const isNaN = z.nan({
++  required_error: "isNaN is required",
++  invalid_type_error: "isNaN must be not a number",
++});
++```
++
+ ## Booleans
+ 
+ You can customize certain error messages when creating a boolean schema.
+@@ -1066,8 +1078,8 @@ interface Category {
+   subcategories: Category[];
+ }
+ 
+-// cast to z.ZodSchema<Category>
+-const Category: z.ZodSchema<Category> = z.lazy(() =>
++// cast to z.ZodType<Category>
++const Category: z.ZodType<Category> = z.lazy(() =>
+   z.object({
+     name: z.string(),
+     subcategories: z.array(Category),
+@@ -1104,7 +1116,7 @@ interface Category extends z.infer<typeof BaseCategory> {
+ 
+ // merge the base schema with
+ // a new Zod schema containing relations
+-const Category: z.ZodSchema<Category> = BaseCategory.merge(
++const Category: z.ZodType<Category> = BaseCategory.merge(
+   z.object({
+     subcategories: z.lazy(() => z.array(Category)),
+   })
+@@ -1119,7 +1131,7 @@ If you want to validate any JSON value, you can use the snippet below.
+ type Literal = boolean | null | number | string;
+ type Json = Literal | { [key: string]: Json } | Json[];
+ const literalSchema = z.union([z.string(), z.number(), z.boolean(), z.null()]);
+-const jsonSchema: z.ZodSchema<Json> = z.lazy(() =>
++const jsonSchema: z.ZodType<Json> = z.lazy(() =>
+   z.union([literalSchema, z.array(jsonSchema), z.record(jsonSchema)])
+ );
+ 
+diff --git a/coverage.svg b/coverage.svg
+index 6cd1e0216..e4b7a516e 100644
+--- a/coverage.svg
++++ b/coverage.svg
+@@ -1 +1 @@
+-<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="116" height="20" role="img" aria-label="Coverage: 96.09%"><title>Coverage: 96.09%</title><linearGradient id="s" x2="0" y2="100%"><stop offset="0" stop-color="#bbb" stop-opacity=".1"/><stop offset="1" stop-opacity=".1"/></linearGradient><clipPath id="r"><rect width="116" height="20" rx="3" fill="#fff"/></clipPath><g clip-path="url(#r)"><rect width="63" height="20" fill="#555"/><rect x="63" width="53" height="20" fill="#4c1"/><rect width="116" height="20" fill="url(#s)"/></g><g fill="#fff" text-anchor="middle" font-family="Verdana,Geneva,DejaVu Sans,sans-serif" text-rendering="geometricPrecision" font-size="110"><text aria-hidden="true" x="325" y="150" fill="#010101" fill-opacity=".3" transform="scale(.1)" textLength="530">Coverage</text><text x="325" y="140" transform="scale(.1)" fill="#fff" textLength="530">Coverage</text><text aria-hidden="true" x="885" y="150" fill="#010101" fill-opacity=".3" transform="scale(.1)" textLength="430">96.09%</text><text x="885" y="140" transform="scale(.1)" fill="#fff" textLength="430">96.09%</text></g></svg>
+\ No newline at end of file
++<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="116" height="20" role="img" aria-label="Coverage: 96.03%"><title>Coverage: 96.03%</title><linearGradient id="s" x2="0" y2="100%"><stop offset="0" stop-color="#bbb" stop-opacity=".1"/><stop offset="1" stop-opacity=".1"/></linearGradient><clipPath id="r"><rect width="116" height="20" rx="3" fill="#fff"/></clipPath><g clip-path="url(#r)"><rect width="63" height="20" fill="#555"/><rect x="63" width="53" height="20" fill="#4c1"/><rect width="116" height="20" fill="url(#s)"/></g><g fill="#fff" text-anchor="middle" font-family="Verdana,Geneva,DejaVu Sans,sans-serif" text-rendering="geometricPrecision" font-size="110"><text aria-hidden="true" x="325" y="150" fill="#010101" fill-opacity=".3" transform="scale(.1)" textLength="530">Coverage</text><text x="325" y="140" transform="scale(.1)" fill="#fff" textLength="530">Coverage</text><text aria-hidden="true" x="885" y="150" fill="#010101" fill-opacity=".3" transform="scale(.1)" textLength="430">96.03%</text><text x="885" y="140" transform="scale(.1)" fill="#fff" textLength="430">96.03%</text></g></svg>
+\ No newline at end of file
+diff --git a/deno/lib/__tests__/firstparty.test.ts b/deno/lib/__tests__/firstparty.test.ts
+index e8714137d..20302bb20 100644
+--- a/deno/lib/__tests__/firstparty.test.ts
++++ b/deno/lib/__tests__/firstparty.test.ts
+@@ -13,6 +13,8 @@ test("first party switch", () => {
+       break;
+     case z.ZodFirstPartyTypeKind.ZodNumber:
+       break;
++    case z.ZodFirstPartyTypeKind.ZodNaN:
++      break;
+     case z.ZodFirstPartyTypeKind.ZodBigInt:
+       break;
+     case z.ZodFirstPartyTypeKind.ZodBoolean:
+diff --git a/deno/lib/__tests__/nan.test.ts b/deno/lib/__tests__/nan.test.ts
+new file mode 100644
+index 000000000..222d3fb5b
+--- /dev/null
++++ b/deno/lib/__tests__/nan.test.ts
+@@ -0,0 +1,22 @@
++// @ts-ignore TS6133
++import { expect } from "https://deno.land/x/expect@v0.2.6/mod.ts";
++const test = Deno.test;
++
++import * as z from "../index.ts";
++
++const schema = z.nan();
++
++test("passing validations", () => {
++  schema.parse(NaN);
++  schema.parse(Number("Not a number"));
++});
++
++test("failing validations", () => {
++  expect(() => schema.parse(5)).toThrow();
++  expect(() => schema.parse("John")).toThrow();
++  expect(() => schema.parse(true)).toThrow();
++  expect(() => schema.parse(null)).toThrow();
++  expect(() => schema.parse(undefined)).toThrow();
++  expect(() => schema.parse({})).toThrow();
++  expect(() => schema.parse([])).toThrow();
++});
+diff --git a/deno/lib/__tests__/object.test.ts b/deno/lib/__tests__/object.test.ts
+index e7ea349ab..fac2b9ffd 100644
+--- a/deno/lib/__tests__/object.test.ts
++++ b/deno/lib/__tests__/object.test.ts
+@@ -293,3 +293,18 @@ test("intersection of object with refine with date", async () => {
+   const result = await schema.parseAsync({ a: new Date(1637353595983) });
+   expect(result).toEqual({ a: new Date(1637353595983) });
+ });
++
++test("constructor key", () => {
++  const person = z
++    .object({
++      name: z.string(),
++    })
++    .strict();
++
++  expect(() =>
++    person.parse({
++      name: "bob dylan",
++      constructor: 61,
++    })
++  ).toThrow();
++});
+diff --git a/deno/lib/__tests__/record.test.ts b/deno/lib/__tests__/record.test.ts
+index 8ea322ff3..9f5135f2f 100644
+--- a/deno/lib/__tests__/record.test.ts
++++ b/deno/lib/__tests__/record.test.ts
+@@ -18,17 +18,20 @@ const recordWithLiteralKeys = z.record(
+ type recordWithLiteralKeys = z.infer<typeof recordWithLiteralKeys>;
+ 
+ test("type inference", () => {
+-  const f1: util.AssertEqual<booleanRecord, Record<string, boolean>> = true;
++  const f1: util.AssertEqual<
++    booleanRecord,
++    Partial<Record<string, boolean>>
++  > = true;
+   f1;
+ 
+   const f2: util.AssertEqual<
+     recordWithEnumKeys,
+-    Record<"Tuna" | "Salmon", string>
++    Partial<Record<"Tuna" | "Salmon", string>>
+   > = true;
+   f2;
+   const f3: util.AssertEqual<
+     recordWithLiteralKeys,
+-    Record<"Tuna" | "Salmon", string>
++    Partial<Record<"Tuna" | "Salmon", string>>
+   > = true;
+   f3;
+ });
+@@ -91,6 +94,22 @@ test("key schema", () => {
+     Salmon: "asdf",
+   });
+ 
++  // shouldn't require us to specify all props in record
++  const result3 = recordWithEnumKeys.parse({
++    Tuna: "abcd",
++  });
++  expect(result3).toEqual({
++    Tuna: "abcd",
++  });
++
++  // shouldn't require us to specify all props in record
++  const result4 = recordWithLiteralKeys.parse({
++    Salmon: "abcd",
++  });
++  expect(result4).toEqual({
++    Salmon: "abcd",
++  });
++
+   expect(() =>
+     recordWithEnumKeys.parse({
+       Tuna: "asdf",
+diff --git a/deno/lib/__tests__/recursive.test.ts b/deno/lib/__tests__/recursive.test.ts
+index 2a4a84857..d184c2391 100644
+--- a/deno/lib/__tests__/recursive.test.ts
++++ b/deno/lib/__tests__/recursive.test.ts
+@@ -30,7 +30,7 @@ const testCategory: Category = {
+ };
+ 
+ test("recursion with z.late.object", () => {
+-  const Category: z.Schema<Category> = z.late.object(() => ({
++  const Category: z.ZodType<Category> = z.late.object(() => ({
+     name: z.string(),
+     subcategories: z.array(Category),
+   }));
+@@ -38,7 +38,7 @@ test("recursion with z.late.object", () => {
+ });
+ 
+ test("recursion with z.lazy", () => {
+-  const Category: z.Schema<Category> = z.lazy(() =>
++  const Category: z.ZodType<Category> = z.lazy(() =>
+     z.object({
+       name: z.string(),
+       subcategories: z.array(Category),
+@@ -130,7 +130,7 @@ test("schema getter", () => {
+ //     subcategories: Category[];
+ //   }
+ 
+-//   const Category: z.Schema<Category> = z.late.object(() => ({
++//   const Category: z.ZodType<Category> = z.late.object(() => ({
+ //     name: z.string(),
+ //     subcategories: z.array(Category),
+ //   }));
+@@ -151,7 +151,7 @@ test("schema getter", () => {
+ 
+ //   type Category = BaseCategory & { subcategories: Category[] };
+ 
+-//   const Category: z.Schema<Category> = z.late
++//   const Category: z.ZodType<Category> = z.late
+ //     .object(() => ({
+ //       subcategories: z.array(Category),
+ //     }))
+diff --git a/deno/lib/index.ts b/deno/lib/index.ts
+index 0ab1ee020..85b7bfda4 100644
+--- a/deno/lib/index.ts
++++ b/deno/lib/index.ts
+@@ -1,3 +1,4 @@
+ import * as mod from "./external.ts";
+ export * from "./external.ts";
+ export { mod as z };
++export default mod;
+diff --git a/deno/lib/types.ts b/deno/lib/types.ts
+index 379eb3fd2..93092b920 100644
+--- a/deno/lib/types.ts
++++ b/deno/lib/types.ts
+@@ -50,13 +50,15 @@ export type ZodTypeAny = ZodType<any, any, any>;
+ export type TypeOf<T extends ZodType<any, any, any>> = T["_output"];
+ export type input<T extends ZodType<any, any, any>> = T["_input"];
+ export type output<T extends ZodType<any, any, any>> = T["_output"];
++
++type allKeys<T> = T extends any ? keyof T : never;
+ export type TypeOfFlattenedError<
+   T extends ZodType<any, any, any>,
+   U = string
+ > = {
+   formErrors: U[];
+   fieldErrors: {
+-    [P in keyof TypeOf<T>]?: U[];
++    [P in allKeys<TypeOf<T>>]?: U[];
+   };
+ };
+ export type TypeOfFormErrors<
+@@ -329,8 +331,26 @@ export abstract class ZodType<
+ 
+   constructor(def: Def) {
+     this._def = def;
+-    this.transform = this.transform.bind(this) as any;
++    this.parse = this.parse.bind(this);
++    this.safeParse = this.safeParse.bind(this);
++    this.parseAsync = this.parseAsync.bind(this);
++    this.safeParseAsync = this.safeParseAsync.bind(this);
++    this.spa = this.spa.bind(this);
++    this.refine = this.refine.bind(this);
++    this.refinement = this.refinement.bind(this);
++    this.superRefine = this.superRefine.bind(this);
++    this.optional = this.optional.bind(this);
++    this.nullable = this.nullable.bind(this);
++    this.nullish = this.nullish.bind(this);
++    this.array = this.array.bind(this);
++    this.promise = this.promise.bind(this);
++    this.or = this.or.bind(this);
++    this.and = this.and.bind(this);
++    this.transform = this.transform.bind(this);
+     this.default = this.default.bind(this);
++    this.describe = this.describe.bind(this);
++    this.isOptional = this.isOptional.bind(this);
++    this.isNullable = this.isNullable.bind(this);
+   }
+ 
+   optional(): ZodOptional<this> {
+@@ -1303,7 +1323,10 @@ export namespace objectUtil {
+     [k in keyof T]: undefined extends T[k] ? k : never;
+   }[keyof T];
+ 
+-  type requiredKeys<T extends object> = Exclude<keyof T, optionalKeys<T>>;
++  // type requiredKeys<T extends object> = Exclude<keyof T, optionalKeys<T>>;
++  type requiredKeys<T extends object> = {
++    [k in keyof T]: undefined extends T[k] ? never : k;
++  }[keyof T];
+ 
+   export type addQuestionMarks<T extends object> = {
+     [k in optionalKeys<T>]?: T[k];
+@@ -1476,7 +1499,7 @@ export class ZodObject<
+ 
+     const { shape, keys: shapeKeys } = this._getCached();
+     const dataKeys = util.objectKeys(ctx.data);
+-    const extraKeys = dataKeys.filter((k) => !(k in shape));
++    const extraKeys = dataKeys.filter((k) => !shapeKeys.includes(k));
+ 
+     const pairs: {
+       key: ParseReturnType<any>;
+@@ -1623,14 +1646,15 @@ export class ZodObject<
+     merging: Incoming
+   ): //ZodObject<T & Incoming["_shape"], UnknownKeys, Catchall> = (merging) => {
+   ZodObject<extendShape<T, Incoming["_shape"]>, UnknownKeys, Catchall> {
+-    const mergedShape = objectUtil.mergeShapes(
+-      this._def.shape(),
+-      merging._def.shape()
+-    );
++    // const mergedShape = objectUtil.mergeShapes(
++    //   this._def.shape(),
++    //   merging._def.shape()
++    // );
+     const merged: any = new ZodObject({
+       unknownKeys: merging._def.unknownKeys,
+       catchall: merging._def.catchall,
+-      shape: () => mergedShape,
++      shape: () =>
++        objectUtil.mergeShapes(this._def.shape(), merging._def.shape()),
+       typeName: ZodFirstPartyTypeKind.ZodObject,
+     }) as any;
+     return merged;
+@@ -1912,7 +1936,7 @@ export class ZodUnion<T extends ZodUnionOptions> extends ZodType<
+ /////////////////////////////////////////////////////
+ /////////////////////////////////////////////////////
+ 
+-type ZodDiscriminatedUnionOption<
++export type ZodDiscriminatedUnionOption<
+   Discriminator extends string,
+   DiscriminatorValue extends Primitive
+ > = ZodObject<
+@@ -2343,9 +2367,9 @@ export class ZodRecord<
+   Key extends KeySchema = ZodString,
+   Value extends ZodTypeAny = ZodTypeAny
+ > extends ZodType<
+-  Record<Key["_output"], Value["_output"]>,
++  Partial<Record<Key["_output"], Value["_output"]>>,
+   ZodRecordDef<Key, Value>,
+-  Record<Key["_input"], Value["_input"]>
++  Partial<Record<Key["_input"], Value["_input"]>>
+ > {
+   get keySchema() {
+     return this._def.keyType;
+@@ -3434,6 +3458,41 @@ export class ZodDefault<T extends ZodTypeAny> extends ZodType<
+   };
+ }
+ 
++/////////////////////////////////////////
++/////////////////////////////////////////
++//////////                     //////////
++//////////      ZodNaN         //////////
++//////////                     //////////
++/////////////////////////////////////////
++/////////////////////////////////////////
++
++export interface ZodNaNDef extends ZodTypeDef {
++  typeName: ZodFirstPartyTypeKind.ZodNaN;
++}
++
++export class ZodNaN extends ZodType<number, ZodNaNDef> {
++  _parse(input: ParseInput): ParseReturnType<any> {
++    const { status, ctx } = this._processInputParams(input);
++    if (ctx.parsedType !== ZodParsedType.nan) {
++      addIssueToContext(ctx, {
++        code: ZodIssueCode.invalid_type,
++        expected: ZodParsedType.nan,
++        received: ctx.parsedType,
++      });
++      return INVALID;
++    }
++
++    return { status: status.value, value: ctx.data };
++  }
++
++  static create = (params?: RawCreateParams): ZodNaN => {
++    return new ZodNaN({
++      typeName: ZodFirstPartyTypeKind.ZodNaN,
++      ...processCreateParams(params),
++    });
++  };
++}
++
+ export const custom = <T>(
+   check?: (data: unknown) => any,
+   params?: Parameters<ZodTypeAny["refine"]>[1]
+@@ -3451,6 +3510,7 @@ export const late = {
+ export enum ZodFirstPartyTypeKind {
+   ZodString = "ZodString",
+   ZodNumber = "ZodNumber",
++  ZodNaN = "ZodNaN",
+   ZodBigInt = "ZodBigInt",
+   ZodBoolean = "ZodBoolean",
+   ZodDate = "ZodDate",
+@@ -3483,6 +3543,7 @@ export enum ZodFirstPartyTypeKind {
+ export type ZodFirstPartySchemaTypes =
+   | ZodString
+   | ZodNumber
++  | ZodNaN
+   | ZodBigInt
+   | ZodBoolean
+   | ZodDate
+@@ -3520,6 +3581,7 @@ const instanceOfType = <T extends new (...args: any[]) => any>(
+ 
+ const stringType = ZodString.create;
+ const numberType = ZodNumber.create;
++const nanType = ZodNaN.create;
+ const bigIntType = ZodBigInt.create;
+ const booleanType = ZodBoolean.create;
+ const dateType = ZodDate.create;
+@@ -3568,6 +3630,7 @@ export {
+   lazyType as lazy,
+   literalType as literal,
+   mapType as map,
++  nanType as nan,
+   nativeEnumType as nativeEnum,
+   neverType as never,
+   nullType as null,
+diff --git a/package.json b/package.json
+index 6b122cb88..d51965548 100644
+--- a/package.json
++++ b/package.json
+@@ -1,6 +1,6 @@
+ {
+   "name": "zod",
+-  "version": "3.12.0",
++  "version": "3.13.0",
+   "description": "TypeScript-first schema declaration and validation library with static type inference",
+   "main": "./lib/index.js",
+   "types": "./lib/index.d.ts",
+@@ -8,7 +8,8 @@
+   "exports": {
+     ".": {
+       "require": "./lib/index.js",
+-      "import": "./lib/index.mjs"
++      "import": "./lib/index.mjs",
++      "types": "./lib/index.d.ts"
+     },
+     "./package.json": "./package.json"
+   },
+diff --git a/rollup.config.js b/rollup.config.js
+index 5ee9288e5..7275a1441 100644
+--- a/rollup.config.js
++++ b/rollup.config.js
+@@ -1,6 +1,5 @@
+ // rollup.config.js
+ import typescript from "@rollup/plugin-typescript";
+-import { uglify } from "rollup-plugin-uglify";
+ 
+ export default [
+   {
+@@ -9,15 +8,14 @@ export default [
+       {
+         file: "lib/index.mjs",
+         format: "es",
+-        sourcemap: true,
++        sourcemap: false,
+       },
+     ],
+     plugins: [
+       typescript({
+         tsconfig: "tsconfig.esm.json",
+-        sourceMap: true,
++        sourceMap: false,
+       }),
+-      uglify(),
+     ],
+   },
+ ];
+diff --git a/src/__tests__/firstparty.test.ts b/src/__tests__/firstparty.test.ts
+index 6ad58d265..40984f876 100644
+--- a/src/__tests__/firstparty.test.ts
++++ b/src/__tests__/firstparty.test.ts
+@@ -12,6 +12,8 @@ test("first party switch", () => {
+       break;
+     case z.ZodFirstPartyTypeKind.ZodNumber:
+       break;
++    case z.ZodFirstPartyTypeKind.ZodNaN:
++      break;
+     case z.ZodFirstPartyTypeKind.ZodBigInt:
+       break;
+     case z.ZodFirstPartyTypeKind.ZodBoolean:
+diff --git a/src/__tests__/nan.test.ts b/src/__tests__/nan.test.ts
+new file mode 100644
+index 000000000..b98d5a628
+--- /dev/null
++++ b/src/__tests__/nan.test.ts
+@@ -0,0 +1,21 @@
++// @ts-ignore TS6133
++import { expect, test } from "@jest/globals";
++
++import * as z from "../index";
++
++const schema = z.nan();
++
++test("passing validations", () => {
++  schema.parse(NaN);
++  schema.parse(Number("Not a number"));
++});
++
++test("failing validations", () => {
++  expect(() => schema.parse(5)).toThrow();
++  expect(() => schema.parse("John")).toThrow();
++  expect(() => schema.parse(true)).toThrow();
++  expect(() => schema.parse(null)).toThrow();
++  expect(() => schema.parse(undefined)).toThrow();
++  expect(() => schema.parse({})).toThrow();
++  expect(() => schema.parse([])).toThrow();
++});
+diff --git a/src/__tests__/object.test.ts b/src/__tests__/object.test.ts
+index 3512c3879..fc01e6397 100644
+--- a/src/__tests__/object.test.ts
++++ b/src/__tests__/object.test.ts
+@@ -292,3 +292,18 @@ test("intersection of object with refine with date", async () => {
+   const result = await schema.parseAsync({ a: new Date(1637353595983) });
+   expect(result).toEqual({ a: new Date(1637353595983) });
+ });
++
++test("constructor key", () => {
++  const person = z
++    .object({
++      name: z.string(),
++    })
++    .strict();
++
++  expect(() =>
++    person.parse({
++      name: "bob dylan",
++      constructor: 61,
++    })
++  ).toThrow();
++});
+diff --git a/src/__tests__/record.test.ts b/src/__tests__/record.test.ts
+index 9d964d73f..612b4b221 100644
+--- a/src/__tests__/record.test.ts
++++ b/src/__tests__/record.test.ts
+@@ -17,17 +17,20 @@ const recordWithLiteralKeys = z.record(
+ type recordWithLiteralKeys = z.infer<typeof recordWithLiteralKeys>;
+ 
+ test("type inference", () => {
+-  const f1: util.AssertEqual<booleanRecord, Record<string, boolean>> = true;
++  const f1: util.AssertEqual<
++    booleanRecord,
++    Partial<Record<string, boolean>>
++  > = true;
+   f1;
+ 
+   const f2: util.AssertEqual<
+     recordWithEnumKeys,
+-    Record<"Tuna" | "Salmon", string>
++    Partial<Record<"Tuna" | "Salmon", string>>
+   > = true;
+   f2;
+   const f3: util.AssertEqual<
+     recordWithLiteralKeys,
+-    Record<"Tuna" | "Salmon", string>
++    Partial<Record<"Tuna" | "Salmon", string>>
+   > = true;
+   f3;
+ });
+@@ -90,6 +93,22 @@ test("key schema", () => {
+     Salmon: "asdf",
+   });
+ 
++  // shouldn't require us to specify all props in record
++  const result3 = recordWithEnumKeys.parse({
++    Tuna: "abcd",
++  });
++  expect(result3).toEqual({
++    Tuna: "abcd",
++  });
++
++  // shouldn't require us to specify all props in record
++  const result4 = recordWithLiteralKeys.parse({
++    Salmon: "abcd",
++  });
++  expect(result4).toEqual({
++    Salmon: "abcd",
++  });
++
+   expect(() =>
+     recordWithEnumKeys.parse({
+       Tuna: "asdf",
+diff --git a/src/__tests__/recursive.test.ts b/src/__tests__/recursive.test.ts
+index 0e1f9e4dd..9d79d941f 100644
+--- a/src/__tests__/recursive.test.ts
++++ b/src/__tests__/recursive.test.ts
+@@ -29,7 +29,7 @@ const testCategory: Category = {
+ };
+ 
+ test("recursion with z.late.object", () => {
+-  const Category: z.Schema<Category> = z.late.object(() => ({
++  const Category: z.ZodType<Category> = z.late.object(() => ({
+     name: z.string(),
+     subcategories: z.array(Category),
+   }));
+@@ -37,7 +37,7 @@ test("recursion with z.late.object", () => {
+ });
+ 
+ test("recursion with z.lazy", () => {
+-  const Category: z.Schema<Category> = z.lazy(() =>
++  const Category: z.ZodType<Category> = z.lazy(() =>
+     z.object({
+       name: z.string(),
+       subcategories: z.array(Category),
+@@ -129,7 +129,7 @@ test("schema getter", () => {
+ //     subcategories: Category[];
+ //   }
+ 
+-//   const Category: z.Schema<Category> = z.late.object(() => ({
++//   const Category: z.ZodType<Category> = z.late.object(() => ({
+ //     name: z.string(),
+ //     subcategories: z.array(Category),
+ //   }));
+@@ -150,7 +150,7 @@ test("schema getter", () => {
+ 
+ //   type Category = BaseCategory & { subcategories: Category[] };
+ 
+-//   const Category: z.Schema<Category> = z.late
++//   const Category: z.ZodType<Category> = z.late
+ //     .object(() => ({
+ //       subcategories: z.array(Category),
+ //     }))
+diff --git a/src/index.ts b/src/index.ts
+index 369ee11b2..31fa52484 100644
+--- a/src/index.ts
++++ b/src/index.ts
+@@ -1,3 +1,4 @@
+ import * as mod from "./external";
+ export * from "./external";
+ export { mod as z };
++export default mod;
+diff --git a/src/types.ts b/src/types.ts
+index 437605490..2e66aaf80 100644
+--- a/src/types.ts
++++ b/src/types.ts
+@@ -50,13 +50,15 @@ export type ZodTypeAny = ZodType<any, any, any>;
+ export type TypeOf<T extends ZodType<any, any, any>> = T["_output"];
+ export type input<T extends ZodType<any, any, any>> = T["_input"];
+ export type output<T extends ZodType<any, any, any>> = T["_output"];
++
++type allKeys<T> = T extends any ? keyof T : never;
+ export type TypeOfFlattenedError<
+   T extends ZodType<any, any, any>,
+   U = string
+ > = {
+   formErrors: U[];
+   fieldErrors: {
+-    [P in keyof TypeOf<T>]?: U[];
++    [P in allKeys<TypeOf<T>>]?: U[];
+   };
+ };
+ export type TypeOfFormErrors<
+@@ -329,8 +331,26 @@ export abstract class ZodType<
+ 
+   constructor(def: Def) {
+     this._def = def;
+-    this.transform = this.transform.bind(this) as any;
++    this.parse = this.parse.bind(this);
++    this.safeParse = this.safeParse.bind(this);
++    this.parseAsync = this.parseAsync.bind(this);
++    this.safeParseAsync = this.safeParseAsync.bind(this);
++    this.spa = this.spa.bind(this);
++    this.refine = this.refine.bind(this);
++    this.refinement = this.refinement.bind(this);
++    this.superRefine = this.superRefine.bind(this);
++    this.optional = this.optional.bind(this);
++    this.nullable = this.nullable.bind(this);
++    this.nullish = this.nullish.bind(this);
++    this.array = this.array.bind(this);
++    this.promise = this.promise.bind(this);
++    this.or = this.or.bind(this);
++    this.and = this.and.bind(this);
++    this.transform = this.transform.bind(this);
+     this.default = this.default.bind(this);
++    this.describe = this.describe.bind(this);
++    this.isOptional = this.isOptional.bind(this);
++    this.isNullable = this.isNullable.bind(this);
+   }
+ 
+   optional(): ZodOptional<this> {
+@@ -1303,7 +1323,10 @@ export namespace objectUtil {
+     [k in keyof T]: undefined extends T[k] ? k : never;
+   }[keyof T];
+ 
+-  type requiredKeys<T extends object> = Exclude<keyof T, optionalKeys<T>>;
++  // type requiredKeys<T extends object> = Exclude<keyof T, optionalKeys<T>>;
++  type requiredKeys<T extends object> = {
++    [k in keyof T]: undefined extends T[k] ? never : k;
++  }[keyof T];
+ 
+   export type addQuestionMarks<T extends object> = {
+     [k in optionalKeys<T>]?: T[k];
+@@ -1476,7 +1499,7 @@ export class ZodObject<
+ 
+     const { shape, keys: shapeKeys } = this._getCached();
+     const dataKeys = util.objectKeys(ctx.data);
+-    const extraKeys = dataKeys.filter((k) => !(k in shape));
++    const extraKeys = dataKeys.filter((k) => !shapeKeys.includes(k));
+ 
+     const pairs: {
+       key: ParseReturnType<any>;
+@@ -1623,14 +1646,15 @@ export class ZodObject<
+     merging: Incoming
+   ): //ZodObject<T & Incoming["_shape"], UnknownKeys, Catchall> = (merging) => {
+   ZodObject<extendShape<T, Incoming["_shape"]>, UnknownKeys, Catchall> {
+-    const mergedShape = objectUtil.mergeShapes(
+-      this._def.shape(),
+-      merging._def.shape()
+-    );
++    // const mergedShape = objectUtil.mergeShapes(
++    //   this._def.shape(),
++    //   merging._def.shape()
++    // );
+     const merged: any = new ZodObject({
+       unknownKeys: merging._def.unknownKeys,
+       catchall: merging._def.catchall,
+-      shape: () => mergedShape,
++      shape: () =>
++        objectUtil.mergeShapes(this._def.shape(), merging._def.shape()),
+       typeName: ZodFirstPartyTypeKind.ZodObject,
+     }) as any;
+     return merged;
+@@ -1912,7 +1936,7 @@ export class ZodUnion<T extends ZodUnionOptions> extends ZodType<
+ /////////////////////////////////////////////////////
+ /////////////////////////////////////////////////////
+ 
+-type ZodDiscriminatedUnionOption<
++export type ZodDiscriminatedUnionOption<
+   Discriminator extends string,
+   DiscriminatorValue extends Primitive
+ > = ZodObject<
+@@ -2343,9 +2367,9 @@ export class ZodRecord<
+   Key extends KeySchema = ZodString,
+   Value extends ZodTypeAny = ZodTypeAny
+ > extends ZodType<
+-  Record<Key["_output"], Value["_output"]>,
++  Partial<Record<Key["_output"], Value["_output"]>>,
+   ZodRecordDef<Key, Value>,
+-  Record<Key["_input"], Value["_input"]>
++  Partial<Record<Key["_input"], Value["_input"]>>
+ > {
+   get keySchema() {
+     return this._def.keyType;
+@@ -3434,6 +3458,41 @@ export class ZodDefault<T extends ZodTypeAny> extends ZodType<
+   };
+ }
+ 
++/////////////////////////////////////////
++/////////////////////////////////////////
++//////////                     //////////
++//////////      ZodNaN         //////////
++//////////                     //////////
++/////////////////////////////////////////
++/////////////////////////////////////////
++
++export interface ZodNaNDef extends ZodTypeDef {
++  typeName: ZodFirstPartyTypeKind.ZodNaN;
++}
++
++export class ZodNaN extends ZodType<number, ZodNaNDef> {
++  _parse(input: ParseInput): ParseReturnType<any> {
++    const { status, ctx } = this._processInputParams(input);
++    if (ctx.parsedType !== ZodParsedType.nan) {
++      addIssueToContext(ctx, {
++        code: ZodIssueCode.invalid_type,
++        expected: ZodParsedType.nan,
++        received: ctx.parsedType,
++      });
++      return INVALID;
++    }
++
++    return { status: status.value, value: ctx.data };
++  }
++
++  static create = (params?: RawCreateParams): ZodNaN => {
++    return new ZodNaN({
++      typeName: ZodFirstPartyTypeKind.ZodNaN,
++      ...processCreateParams(params),
++    });
++  };
++}
++
+ export const custom = <T>(
+   check?: (data: unknown) => any,
+   params?: Parameters<ZodTypeAny["refine"]>[1]
+@@ -3451,6 +3510,7 @@ export const late = {
+ export enum ZodFirstPartyTypeKind {
+   ZodString = "ZodString",
+   ZodNumber = "ZodNumber",
++  ZodNaN = "ZodNaN",
+   ZodBigInt = "ZodBigInt",
+   ZodBoolean = "ZodBoolean",
+   ZodDate = "ZodDate",
+@@ -3483,6 +3543,7 @@ export enum ZodFirstPartyTypeKind {
+ export type ZodFirstPartySchemaTypes =
+   | ZodString
+   | ZodNumber
++  | ZodNaN
+   | ZodBigInt
+   | ZodBoolean
+   | ZodDate
+@@ -3520,6 +3581,7 @@ const instanceOfType = <T extends new (...args: any[]) => any>(
+ 
+ const stringType = ZodString.create;
+ const numberType = ZodNumber.create;
++const nanType = ZodNaN.create;
+ const bigIntType = ZodBigInt.create;
+ const booleanType = ZodBoolean.create;
+ const dateType = ZodDate.create;
+@@ -3568,6 +3630,7 @@ export {
+   lazyType as lazy,
+   literalType as literal,
+   mapType as map,
++  nanType as nan,
+   nativeEnumType as nativeEnum,
+   neverType as never,
+   nullType as null,
+diff --git a/tsconfig.cjs.json b/tsconfig.cjs.json
+index ca964d971..f5c579467 100644
+--- a/tsconfig.cjs.json
++++ b/tsconfig.cjs.json
+@@ -4,11 +4,11 @@
+     "module": "commonjs",
+     "outDir": "lib",
+     "declaration": true,
+-    "declarationMap": true,
+-    "sourceMap": true,
++    "declarationMap": false,
++    "sourceMap": false,
+   },
+   "exclude": [
+     "./src/**/__tests__",
+     "./src/playground.ts"
+   ]
+-}
+\ No newline at end of file
++}
+diff --git a/tsconfig.esm.json b/tsconfig.esm.json
+index 1a4521f05..45214e678 100644
+--- a/tsconfig.esm.json
++++ b/tsconfig.esm.json
+@@ -5,10 +5,10 @@
+     // "outDir": "./lib/esm",
+     "declaration": false,
+     "declarationMap": false,
+-    "sourceMap": true,
++    "sourceMap": false,
+   },
+   "exclude": [
+     "./src/**/__tests__",
+     "./src/playground.ts"
+   ]
+-}
+\ No newline at end of file
++}

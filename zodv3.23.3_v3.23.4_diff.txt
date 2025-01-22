@@ -1,0 +1,64 @@
+diff --git a/README.md b/README.md
+index 53ea5f66f..03406e3a4 100644
+--- a/README.md
++++ b/README.md
+@@ -37,6 +37,8 @@
+ <br/>
+ <br/>
+ 
++> Zod 3.23 is out! View the [release notes](https://github.com/colinhacks/zod/releases/tag/v3.23.0).
++
+ > These docs have been translated into [Chinese](./README_ZH.md).
+ 
+ ## Table of contents
+diff --git a/deno/lib/README.md b/deno/lib/README.md
+index 53ea5f66f..03406e3a4 100644
+--- a/deno/lib/README.md
++++ b/deno/lib/README.md
+@@ -37,6 +37,8 @@
+ <br/>
+ <br/>
+ 
++> Zod 3.23 is out! View the [release notes](https://github.com/colinhacks/zod/releases/tag/v3.23.0).
++
+ > These docs have been translated into [Chinese](./README_ZH.md).
+ 
+ ## Table of contents
+diff --git a/deno/lib/types.ts b/deno/lib/types.ts
+index e31d63de8..10633145b 100644
+--- a/deno/lib/types.ts
++++ b/deno/lib/types.ts
+@@ -168,7 +168,7 @@ export type SafeParseReturnType<Input, Output> =
+ export abstract class ZodType<
+   Output = any,
+   Def extends ZodTypeDef = ZodTypeDef,
+-  Input = any
++  Input = Output
+ > {
+   readonly _type!: Output;
+   readonly _output!: Output;
+diff --git a/package.json b/package.json
+index 00d6f2e58..acea309be 100644
+--- a/package.json
++++ b/package.json
+@@ -1,6 +1,6 @@
+ {
+   "name": "zod",
+-  "version": "3.23.3",
++  "version": "3.23.4",
+   "author": "Colin McDonnell <colin@colinhacks.com>",
+   "repository": {
+     "type": "git",
+diff --git a/src/types.ts b/src/types.ts
+index f103e4cf3..e62e61f12 100644
+--- a/src/types.ts
++++ b/src/types.ts
+@@ -168,7 +168,7 @@ export type SafeParseReturnType<Input, Output> =
+ export abstract class ZodType<
+   Output = any,
+   Def extends ZodTypeDef = ZodTypeDef,
+-  Input = any
++  Input = Output
+ > {
+   readonly _type!: Output;
+   readonly _output!: Output;

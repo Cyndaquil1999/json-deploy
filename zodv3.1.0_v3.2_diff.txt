@@ -1,0 +1,527 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 708095940..d92b7d8a0 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -1,5 +1,20 @@
+ # Changelog
+ 
++### 3.2
++
++- Certain methods (`.or`, `.transform`) now return a new instance that wrap the current instance, instead of trying to avoid additional nesting. For example:
++
++```ts
++z.union([z.string(), z.number()]).or(z.boolean());
++// previously
++// => ZodUnion<[ZodString, ZodNumber, ZodBoolean]>
++
++// now
++// => ZodUnion<[ZodUnion<[ZodString, ZodNumber]>, ZodBoolean]>
++```
++
++This change was made due to recursion limitations in TypeScript 4.3 that made it impossible to properly type these methods.
++
+ ### 3.0.0-beta.1
+ 
+ - Moved default value logic into ZodDefault. Implemented `.nullish()` method.
+diff --git a/coverage.svg b/coverage.svg
+index cbf6681df..7502af879 100644
+--- a/coverage.svg
++++ b/coverage.svg
+@@ -1 +1 @@
+-<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="116" height="20" role="img" aria-label="Coverage: 89.67%"><title>Coverage: 89.67%</title><linearGradient id="s" x2="0" y2="100%"><stop offset="0" stop-color="#bbb" stop-opacity=".1"/><stop offset="1" stop-opacity=".1"/></linearGradient><clipPath id="r"><rect width="116" height="20" rx="3" fill="#fff"/></clipPath><g clip-path="url(#r)"><rect width="63" height="20" fill="#555"/><rect x="63" width="53" height="20" fill="#dfb317"/><rect width="116" height="20" fill="url(#s)"/></g><g fill="#fff" text-anchor="middle" font-family="Verdana,Geneva,DejaVu Sans,sans-serif" text-rendering="geometricPrecision" font-size="110"><text aria-hidden="true" x="325" y="150" fill="#010101" fill-opacity=".3" transform="scale(.1)" textLength="530">Coverage</text><text x="325" y="140" transform="scale(.1)" fill="#fff" textLength="530">Coverage</text><text aria-hidden="true" x="885" y="150" fill="#010101" fill-opacity=".3" transform="scale(.1)" textLength="430">89.67%</text><text x="885" y="140" transform="scale(.1)" fill="#fff" textLength="430">89.67%</text></g></svg>
+\ No newline at end of file
++<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="116" height="20" role="img" aria-label="Coverage: 89.76%"><title>Coverage: 89.76%</title><linearGradient id="s" x2="0" y2="100%"><stop offset="0" stop-color="#bbb" stop-opacity=".1"/><stop offset="1" stop-opacity=".1"/></linearGradient><clipPath id="r"><rect width="116" height="20" rx="3" fill="#fff"/></clipPath><g clip-path="url(#r)"><rect width="63" height="20" fill="#555"/><rect x="63" width="53" height="20" fill="#dfb317"/><rect width="116" height="20" fill="url(#s)"/></g><g fill="#fff" text-anchor="middle" font-family="Verdana,Geneva,DejaVu Sans,sans-serif" text-rendering="geometricPrecision" font-size="110"><text aria-hidden="true" x="325" y="150" fill="#010101" fill-opacity=".3" transform="scale(.1)" textLength="530">Coverage</text><text x="325" y="140" transform="scale(.1)" fill="#fff" textLength="530">Coverage</text><text aria-hidden="true" x="885" y="150" fill="#010101" fill-opacity=".3" transform="scale(.1)" textLength="430">89.76%</text><text x="885" y="140" transform="scale(.1)" fill="#fff" textLength="430">89.76%</text></g></svg>
+\ No newline at end of file
+diff --git a/deno/lib/ZodError.ts b/deno/lib/ZodError.ts
+index ba5e8db1b..688856ac0 100644
+--- a/deno/lib/ZodError.ts
++++ b/deno/lib/ZodError.ts
+@@ -93,10 +93,8 @@ export type DenormalizedError = { [k: string]: DenormalizedError | string[] };
+ 
+ export type ZodIssueOptionalMessage =
+   | ZodInvalidTypeIssue
+-  // | ZodNonEmptyArrayIsEmptyIssue
+   | ZodUnrecognizedKeysIssue
+   | ZodInvalidUnionIssue
+-  // | ZodInvalidLiteralValueIssue
+   | ZodInvalidEnumValueIssue
+   | ZodInvalidArgumentsIssue
+   | ZodInvalidReturnTypeIssue
+@@ -110,17 +108,20 @@ export type ZodIssueOptionalMessage =
+ export type ZodIssue = ZodIssueOptionalMessage & { message: string };
+ 
+ export const quotelessJson = (obj: any) => {
+-  const json = JSON.stringify(obj, null, 2); // {"name":"John Smith"}
++  const json = JSON.stringify(obj, null, 2);
+   return json.replace(/"([^"]+)":/g, "$1:");
+ };
+ 
+-export type ZodFormattedError<T> = T extends [any, ...any]
+-  ? { [K in keyof T]?: ZodFormattedError<T[K]> } & { _errors: string[] }
++export type ZodFormattedError<T> = { _errors: string[] } & (T extends [
++  any,
++  ...any
++]
++  ? { [K in keyof T]?: ZodFormattedError<T[K]> }
+   : T extends any[]
+-  ? ZodFormattedError<T[number]>[] & { _errors: string[] }
++  ? ZodFormattedError<T[number]>[]
+   : T extends object
+-  ? { [K in keyof T]?: ZodFormattedError<T[K]> } & { _errors: string[] }
+-  : { _errors: string[] };
++  ? { [K in keyof T]?: ZodFormattedError<T[K]> }
++  : { _errors: string[] });
+ 
+ export class ZodError<T = any> extends Error {
+   issues: ZodIssue[] = [];
+@@ -148,7 +149,7 @@ export class ZodError<T = any> extends Error {
+         } else if (issue.code === "invalid_arguments") {
+           processError(issue.argumentsError);
+         } else if (issue.path.length === 0) {
+-          fieldErrors._errors.push(issue.message);
++          (fieldErrors as any)._errors.push(issue.message);
+         } else {
+           let curr: any = fieldErrors;
+           let i = 0;
+diff --git a/deno/lib/__tests__/error.test.ts b/deno/lib/__tests__/error.test.ts
+index f640c657d..5ef8ee2ba 100644
+--- a/deno/lib/__tests__/error.test.ts
++++ b/deno/lib/__tests__/error.test.ts
+@@ -223,6 +223,7 @@ test("custom path", () => {
+ 
+   expect(result.success).toEqual(false);
+   if (!result.success) {
++    // nested errors
+     const error = result.error.format();
+     expect(error._errors).toEqual([]);
+     expect(error.password?._errors).toEqual(undefined);
+diff --git a/deno/lib/__tests__/transformer.test.ts b/deno/lib/__tests__/transformer.test.ts
+index 0aa0d86f0..445c18d19 100644
+--- a/deno/lib/__tests__/transformer.test.ts
++++ b/deno/lib/__tests__/transformer.test.ts
+@@ -120,9 +120,3 @@ test("multiple transformers", () => {
+   });
+   expect(doubler.parse("5")).toEqual(10);
+ });
+-
+-test("no nesting", () => {
+-  expect(() => {
+-    z.transformer(z.transformer(z.string()));
+-  }).toThrow();
+-});
+diff --git a/deno/lib/playground.ts b/deno/lib/playground.ts
+index 4b13f906b..f96b6e003 100644
+--- a/deno/lib/playground.ts
++++ b/deno/lib/playground.ts
+@@ -1,4 +1,5 @@
+ import { z } from "./index.ts";
++
+ const run = async () => {
+   z;
+ };
+diff --git a/deno/lib/types.ts b/deno/lib/types.ts
+index ac6be0614..47bb43edb 100644
+--- a/deno/lib/types.ts
++++ b/deno/lib/types.ts
+@@ -277,17 +277,6 @@ export abstract class ZodType<
+     });
+   };
+ 
+-  // _refinement: (refinement: InternalCheck<Output>["refinement"]) => this = (
+-  //   refinement
+-  // ) => {
+-  //   return new (this as any).constructor({
+-  //     ...this._def,
+-  //     effects: [
+-  //       // ...(this._def.effects || []),
+-  //       { type: "check", check: refinement },
+-  //     ],
+-  //   }) as this;
+-  // };
+   _refinement<This extends this>(
+     refinement: InternalCheck<Output>["refinement"]
+   ): ZodEffectsType<This> {
+@@ -326,16 +315,7 @@ export abstract class ZodType<
+ 
+   array: () => ZodArray<this> = () => ZodArray.create(this);
+ 
+-  or<T extends ZodTypeAny, This extends this = this>(
+-    option: T
+-  ): This extends ZodUnion<infer Opts>
+-    ? [...Opts, T] extends ZodUnionOptions
+-      ? ZodUnion<[...Opts, T]>
+-      : never
+-    : ZodUnion<[This, T]> {
+-    if (this instanceof ZodUnion) {
+-      return ZodUnion.create([...this.options, option] as any) as any;
+-    }
++  or<T extends ZodTypeAny>(option: T): ZodUnion<[this, T]> {
+     return ZodUnion.create([this, option]) as any;
+   }
+ 
+@@ -343,27 +323,13 @@ export abstract class ZodType<
+     return ZodIntersection.create(this, incoming);
+   }
+ 
+-  transform<NewOut, This extends this>(
++  transform<NewOut>(
+     transform: (arg: Output) => NewOut | Promise<NewOut>
+-  ): This extends ZodEffects<infer T, any>
+-    ? ZodEffects<T, NewOut>
+-    : ZodEffects<This, NewOut> {
+-    let returnType;
+-    if (this instanceof ZodEffects) {
+-      returnType = new ZodEffects({
+-        ...this._def,
+-        effects: [
+-          ...(this._def.effects || []),
+-          { type: "transform", transform },
+-        ],
+-      }) as any;
+-    } else {
+-      returnType = new ZodEffects({
+-        schema: this,
+-        effects: [{ type: "transform", transform }],
+-      }) as any;
+-    }
+-    return returnType;
++  ): ZodEffects<this, NewOut> {
++    return new ZodEffects({
++      schema: this,
++      effects: [{ type: "transform", transform }],
++    }) as any;
+   }
+ 
+   default<This extends this = this>(
+@@ -2572,11 +2538,8 @@ export class ZodPromise<T extends ZodTypeAny> extends ZodType<
+ //////////                          //////////
+ //////////////////////////////////////////////
+ //////////////////////////////////////////////
+-type ZodEffectsType<T extends ZodTypeAny> = T extends ZodEffects<
+-  infer Inner,
+-  infer Out
+->
+-  ? ZodEffects<Inner, Out>
++type ZodEffectsType<T extends ZodTypeAny> = T extends ZodEffects<any, any>
++  ? T
+   : ZodEffects<T, T["_output"]>;
+ 
+ export type InternalCheck<T> = {
+@@ -2603,6 +2566,15 @@ export class ZodEffects<
+     return this._def.schema;
+   }
+ 
++  // transform<NewOut, Inner extends ZodTypeAny = T>(
++  //   transform: (arg: Output) => NewOut | Promise<NewOut>
++  // ): ZodEffects<Inner, NewOut> {
++  //   return new ZodEffects({
++  //     ...this._def,
++  //     effects: [...(this._def.effects || []), { type: "transform", transform }],
++  //   }) as any;
++  // }
++
+   _parse(ctx: ParseContext): any {
+     const isSync = ctx.async === false || this instanceof ZodPromise;
+     const effects = this._def.effects || [];
+@@ -2640,12 +2612,6 @@ export class ZodEffects<
+               PseudoPromise.resolve(data),
+               PseudoPromise.resolve(data).then(() => {
+                 const result = effect.refinement(data, checkCtx);
+-                // try {
+-                //   result = effect.refinement(data, checkCtx);
+-                // } catch (err) {
+-                //   throw err;
+-                //   // if (refinementError === null) refinementError = err;
+-                // }
+ 
+                 if (isSync && result instanceof Promise)
+                   throw new Error(
+@@ -2688,9 +2654,9 @@ export class ZodEffects<
+ 
+   constructor(def: ZodEffectsDef<T>) {
+     super(def);
+-    if (def.schema instanceof ZodEffects) {
+-      throw new Error("ZodEffectss cannot be nested.");
+-    }
++    // if (def.schema instanceof ZodEffects) {
++    //   throw new Error("ZodEffects cannot be nested.");
++    // }
+   }
+ 
+   static create = <I extends ZodTypeAny>(
+diff --git a/package.json b/package.json
+index 9e312b266..b9e538e84 100644
+--- a/package.json
++++ b/package.json
+@@ -1,6 +1,6 @@
+ {
+   "name": "zod",
+-  "version": "3.1.0",
++  "version": "3.2.0",
+   "description": "TypeScript-first schema declaration and validation library with static type inference",
+   "main": "./lib/index.js",
+   "types": "./lib/index.d.ts",
+@@ -79,7 +79,7 @@
+     "ts-jest": "^26.4.4",
+     "ts-node": "^9.1.0",
+     "tslib": "^2.1.0",
+-    "typescript": "^4.2.4"
++    "typescript": "^4.3.2"
+   },
+   "husky": {
+     "hooks": {
+diff --git a/rollup.config.js b/rollup.config.js
+index adccf9fa5..ffc061dd4 100644
+--- a/rollup.config.js
++++ b/rollup.config.js
+@@ -8,11 +8,14 @@ export default [
+       {
+         file: "lib/index.mjs",
+         format: "es",
++        sourcemap: true,
+       },
+     ],
++
+     plugins: [
+       typescript({
+         tsconfig: "tsconfig.esm.json",
++        sourceMap: true,
+       }),
+     ],
+   },
+diff --git a/src/ZodError.ts b/src/ZodError.ts
+index 4cb0c26c9..8c7a7d884 100644
+--- a/src/ZodError.ts
++++ b/src/ZodError.ts
+@@ -93,10 +93,8 @@ export type DenormalizedError = { [k: string]: DenormalizedError | string[] };
+ 
+ export type ZodIssueOptionalMessage =
+   | ZodInvalidTypeIssue
+-  // | ZodNonEmptyArrayIsEmptyIssue
+   | ZodUnrecognizedKeysIssue
+   | ZodInvalidUnionIssue
+-  // | ZodInvalidLiteralValueIssue
+   | ZodInvalidEnumValueIssue
+   | ZodInvalidArgumentsIssue
+   | ZodInvalidReturnTypeIssue
+@@ -110,17 +108,20 @@ export type ZodIssueOptionalMessage =
+ export type ZodIssue = ZodIssueOptionalMessage & { message: string };
+ 
+ export const quotelessJson = (obj: any) => {
+-  const json = JSON.stringify(obj, null, 2); // {"name":"John Smith"}
++  const json = JSON.stringify(obj, null, 2);
+   return json.replace(/"([^"]+)":/g, "$1:");
+ };
+ 
+-export type ZodFormattedError<T> = T extends [any, ...any]
+-  ? { [K in keyof T]?: ZodFormattedError<T[K]> } & { _errors: string[] }
++export type ZodFormattedError<T> = { _errors: string[] } & (T extends [
++  any,
++  ...any
++]
++  ? { [K in keyof T]?: ZodFormattedError<T[K]> }
+   : T extends any[]
+-  ? ZodFormattedError<T[number]>[] & { _errors: string[] }
++  ? ZodFormattedError<T[number]>[]
+   : T extends object
+-  ? { [K in keyof T]?: ZodFormattedError<T[K]> } & { _errors: string[] }
+-  : { _errors: string[] };
++  ? { [K in keyof T]?: ZodFormattedError<T[K]> }
++  : { _errors: string[] });
+ 
+ export class ZodError<T = any> extends Error {
+   issues: ZodIssue[] = [];
+@@ -148,7 +149,7 @@ export class ZodError<T = any> extends Error {
+         } else if (issue.code === "invalid_arguments") {
+           processError(issue.argumentsError);
+         } else if (issue.path.length === 0) {
+-          fieldErrors._errors.push(issue.message);
++          (fieldErrors as any)._errors.push(issue.message);
+         } else {
+           let curr: any = fieldErrors;
+           let i = 0;
+diff --git a/src/__tests__/error.test.ts b/src/__tests__/error.test.ts
+index 4ad4d34b6..56f0f4efd 100644
+--- a/src/__tests__/error.test.ts
++++ b/src/__tests__/error.test.ts
+@@ -222,6 +222,7 @@ test("custom path", () => {
+ 
+   expect(result.success).toEqual(false);
+   if (!result.success) {
++    // nested errors
+     const error = result.error.format();
+     expect(error._errors).toEqual([]);
+     expect(error.password?._errors).toEqual(undefined);
+diff --git a/src/__tests__/transformer.test.ts b/src/__tests__/transformer.test.ts
+index d5e1c1016..7221d5fdf 100644
+--- a/src/__tests__/transformer.test.ts
++++ b/src/__tests__/transformer.test.ts
+@@ -119,9 +119,3 @@ test("multiple transformers", () => {
+   });
+   expect(doubler.parse("5")).toEqual(10);
+ });
+-
+-test("no nesting", () => {
+-  expect(() => {
+-    z.transformer(z.transformer(z.string()));
+-  }).toThrow();
+-});
+diff --git a/src/playground.ts b/src/playground.ts
+index 71b311599..746f94e03 100644
+--- a/src/playground.ts
++++ b/src/playground.ts
+@@ -1,4 +1,5 @@
+ import { z } from "./index";
++
+ const run = async () => {
+   z;
+ };
+diff --git a/src/types.ts b/src/types.ts
+index b082a0bb5..a649e814d 100644
+--- a/src/types.ts
++++ b/src/types.ts
+@@ -277,17 +277,6 @@ export abstract class ZodType<
+     });
+   };
+ 
+-  // _refinement: (refinement: InternalCheck<Output>["refinement"]) => this = (
+-  //   refinement
+-  // ) => {
+-  //   return new (this as any).constructor({
+-  //     ...this._def,
+-  //     effects: [
+-  //       // ...(this._def.effects || []),
+-  //       { type: "check", check: refinement },
+-  //     ],
+-  //   }) as this;
+-  // };
+   _refinement<This extends this>(
+     refinement: InternalCheck<Output>["refinement"]
+   ): ZodEffectsType<This> {
+@@ -326,16 +315,7 @@ export abstract class ZodType<
+ 
+   array: () => ZodArray<this> = () => ZodArray.create(this);
+ 
+-  or<T extends ZodTypeAny, This extends this = this>(
+-    option: T
+-  ): This extends ZodUnion<infer Opts>
+-    ? [...Opts, T] extends ZodUnionOptions
+-      ? ZodUnion<[...Opts, T]>
+-      : never
+-    : ZodUnion<[This, T]> {
+-    if (this instanceof ZodUnion) {
+-      return ZodUnion.create([...this.options, option] as any) as any;
+-    }
++  or<T extends ZodTypeAny>(option: T): ZodUnion<[this, T]> {
+     return ZodUnion.create([this, option]) as any;
+   }
+ 
+@@ -343,27 +323,13 @@ export abstract class ZodType<
+     return ZodIntersection.create(this, incoming);
+   }
+ 
+-  transform<NewOut, This extends this>(
++  transform<NewOut>(
+     transform: (arg: Output) => NewOut | Promise<NewOut>
+-  ): This extends ZodEffects<infer T, any>
+-    ? ZodEffects<T, NewOut>
+-    : ZodEffects<This, NewOut> {
+-    let returnType;
+-    if (this instanceof ZodEffects) {
+-      returnType = new ZodEffects({
+-        ...this._def,
+-        effects: [
+-          ...(this._def.effects || []),
+-          { type: "transform", transform },
+-        ],
+-      }) as any;
+-    } else {
+-      returnType = new ZodEffects({
+-        schema: this,
+-        effects: [{ type: "transform", transform }],
+-      }) as any;
+-    }
+-    return returnType;
++  ): ZodEffects<this, NewOut> {
++    return new ZodEffects({
++      schema: this,
++      effects: [{ type: "transform", transform }],
++    }) as any;
+   }
+ 
+   default<This extends this = this>(
+@@ -2572,11 +2538,8 @@ export class ZodPromise<T extends ZodTypeAny> extends ZodType<
+ //////////                          //////////
+ //////////////////////////////////////////////
+ //////////////////////////////////////////////
+-type ZodEffectsType<T extends ZodTypeAny> = T extends ZodEffects<
+-  infer Inner,
+-  infer Out
+->
+-  ? ZodEffects<Inner, Out>
++type ZodEffectsType<T extends ZodTypeAny> = T extends ZodEffects<any, any>
++  ? T
+   : ZodEffects<T, T["_output"]>;
+ 
+ export type InternalCheck<T> = {
+@@ -2603,6 +2566,15 @@ export class ZodEffects<
+     return this._def.schema;
+   }
+ 
++  // transform<NewOut, Inner extends ZodTypeAny = T>(
++  //   transform: (arg: Output) => NewOut | Promise<NewOut>
++  // ): ZodEffects<Inner, NewOut> {
++  //   return new ZodEffects({
++  //     ...this._def,
++  //     effects: [...(this._def.effects || []), { type: "transform", transform }],
++  //   }) as any;
++  // }
++
+   _parse(ctx: ParseContext): any {
+     const isSync = ctx.async === false || this instanceof ZodPromise;
+     const effects = this._def.effects || [];
+@@ -2640,12 +2612,6 @@ export class ZodEffects<
+               PseudoPromise.resolve(data),
+               PseudoPromise.resolve(data).then(() => {
+                 const result = effect.refinement(data, checkCtx);
+-                // try {
+-                //   result = effect.refinement(data, checkCtx);
+-                // } catch (err) {
+-                //   throw err;
+-                //   // if (refinementError === null) refinementError = err;
+-                // }
+ 
+                 if (isSync && result instanceof Promise)
+                   throw new Error(
+@@ -2688,9 +2654,9 @@ export class ZodEffects<
+ 
+   constructor(def: ZodEffectsDef<T>) {
+     super(def);
+-    if (def.schema instanceof ZodEffects) {
+-      throw new Error("ZodEffectss cannot be nested.");
+-    }
++    // if (def.schema instanceof ZodEffects) {
++    //   throw new Error("ZodEffects cannot be nested.");
++    // }
+   }
+ 
+   static create = <I extends ZodTypeAny>(
+diff --git a/yarn.lock b/yarn.lock
+index bb141ba88..64dba0afd 100644
+--- a/yarn.lock
++++ b/yarn.lock
+@@ -5327,10 +5327,10 @@ typedarray-to-buffer@^3.1.5:
+   dependencies:
+     is-typedarray "^1.0.0"
+ 
+-typescript@^4.2.4:
+-  version "4.2.4"
+-  resolved "https://registry.yarnpkg.com/typescript/-/typescript-4.2.4.tgz#8610b59747de028fda898a8aef0e103f156d0961"
+-  integrity sha512-V+evlYHZnQkaz8TRBuxTA92yZBPotr5H+WhQ7bD3hZUndx5tGOa1fuCgeSjxAzM1RiN5IzvadIXTVefuuwZCRg==
++typescript@^4.3.2:
++  version "4.3.2"
++  resolved "https://registry.yarnpkg.com/typescript/-/typescript-4.3.2.tgz#399ab18aac45802d6f2498de5054fcbbe716a805"
++  integrity sha512-zZ4hShnmnoVnAHpVHWpTcxdv7dWP60S2FsydQLV8V5PbS3FifjWFFRiHSWpDJahly88PRyV5teTSLoq4eG7mKw==
+ 
+ uglify-js@^3.1.4:
+   version "3.12.1"

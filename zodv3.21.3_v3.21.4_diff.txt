@@ -1,0 +1,165 @@
+diff --git a/deno/lib/__tests__/custom.test.ts b/deno/lib/__tests__/custom.test.ts
+index a6f20bad9..ff8b9577c 100644
+--- a/deno/lib/__tests__/custom.test.ts
++++ b/deno/lib/__tests__/custom.test.ts
+@@ -9,3 +9,11 @@ test("passing validations", () => {
+   example1.parse(1234);
+   expect(() => example1.parse({})).toThrow();
+ });
++
++test("string params", () => {
++  const example1 = z.custom<number>((x) => typeof x !== "number", "customerr");
++  const result = example1.safeParse(1234);
++  expect(result.success).toEqual(false);
++  // @ts-ignore
++  expect(JSON.stringify(result.error)).toContain("customerr");
++});
+diff --git a/deno/lib/helpers/util.ts b/deno/lib/helpers/util.ts
+index 21fe37338..85419b695 100644
+--- a/deno/lib/helpers/util.ts
++++ b/deno/lib/helpers/util.ts
+@@ -114,7 +114,7 @@ export namespace objectUtil {
+     T extends object,
+     R extends keyof T = requiredKeys<T>
+     // O extends keyof T = optionalKeys<T>
+-  > = Pick<T, R> & Partial<T>;
++  > = Pick<Required<T>, R> & Partial<T>;
+   //  = { [k in O]?: T[k] } & { [k in R]: T[k] };
+ 
+   export type identity<T> = T;
+diff --git a/deno/lib/types.ts b/deno/lib/types.ts
+index 7b3ee92cb..8606ba0ba 100644
+--- a/deno/lib/types.ts
++++ b/deno/lib/types.ts
+@@ -4743,14 +4743,28 @@ export class ZodPipeline<
+ type CustomParams = CustomErrorParams & { fatal?: boolean };
+ export const custom = <T>(
+   check?: (data: unknown) => any,
+-  params: CustomParams | ((input: any) => CustomParams) = {},
+-  /* @deprecated */
++  params: string | CustomParams | ((input: any) => CustomParams) = {},
++  /*
++   * @deprecated
++   *
++   * Pass `fatal` into the params object instead:
++   *
++   * ```ts
++   * z.string().custom((val) => val.length > 5, { fatal: false })
++   * ```
++   *
++   */
+   fatal?: boolean
+ ): ZodType<T> => {
+   if (check)
+     return ZodAny.create().superRefine((data, ctx) => {
+       if (!check(data)) {
+-        const p = typeof params === "function" ? params(data) : params;
++        const p =
++          typeof params === "function"
++            ? params(data)
++            : typeof params === "string"
++            ? { message: params }
++            : params;
+         const _fatal = p.fatal ?? fatal ?? true;
+         const p2 = typeof p === "string" ? { message: p } : p;
+         ctx.addIssue({ code: "custom", ...p2, fatal: _fatal });
+diff --git a/package.json b/package.json
+index 9a44f634a..2f47ce4fb 100644
+--- a/package.json
++++ b/package.json
+@@ -1,6 +1,6 @@
+ {
+   "name": "zod",
+-  "version": "3.21.3",
++  "version": "3.21.4",
+   "author": "Colin McDonnell <colin@colinhacks.com>",
+   "repository": {
+     "type": "git",
+diff --git a/playground.ts b/playground.ts
+index b22662a96..d17b18eb4 100644
+--- a/playground.ts
++++ b/playground.ts
+@@ -1,18 +1,2 @@
+ import { z } from "./src";
+ z;
+-
+-const baseCategorySchema = z.object({
+-  name: z.string().brand("CategoryName"),
+-});
+-
+-type CategoryInput = z.input<typeof baseCategorySchema> & {
+-  subcategories: CategoryInput[];
+-};
+-type CategoryOutput = z.output<typeof baseCategorySchema> & {
+-  subcategories: CategoryOutput[];
+-};
+-
+-const categorySchema: z.ZodType<CategoryOutput, any, CategoryInput> =
+-  baseCategorySchema.extend({
+-    subcategories: z.lazy(() => categorySchema.array()),
+-  });
+diff --git a/src/__tests__/custom.test.ts b/src/__tests__/custom.test.ts
+index 6a3eb2858..7292a87a6 100644
+--- a/src/__tests__/custom.test.ts
++++ b/src/__tests__/custom.test.ts
+@@ -8,3 +8,11 @@ test("passing validations", () => {
+   example1.parse(1234);
+   expect(() => example1.parse({})).toThrow();
+ });
++
++test("string params", () => {
++  const example1 = z.custom<number>((x) => typeof x !== "number", "customerr");
++  const result = example1.safeParse(1234);
++  expect(result.success).toEqual(false);
++  // @ts-ignore
++  expect(JSON.stringify(result.error)).toContain("customerr");
++});
+diff --git a/src/helpers/util.ts b/src/helpers/util.ts
+index 21fe37338..85419b695 100644
+--- a/src/helpers/util.ts
++++ b/src/helpers/util.ts
+@@ -114,7 +114,7 @@ export namespace objectUtil {
+     T extends object,
+     R extends keyof T = requiredKeys<T>
+     // O extends keyof T = optionalKeys<T>
+-  > = Pick<T, R> & Partial<T>;
++  > = Pick<Required<T>, R> & Partial<T>;
+   //  = { [k in O]?: T[k] } & { [k in R]: T[k] };
+ 
+   export type identity<T> = T;
+diff --git a/src/types.ts b/src/types.ts
+index 81c2dcde5..5a99d04b9 100644
+--- a/src/types.ts
++++ b/src/types.ts
+@@ -4743,14 +4743,28 @@ export class ZodPipeline<
+ type CustomParams = CustomErrorParams & { fatal?: boolean };
+ export const custom = <T>(
+   check?: (data: unknown) => any,
+-  params: CustomParams | ((input: any) => CustomParams) = {},
+-  /* @deprecated */
++  params: string | CustomParams | ((input: any) => CustomParams) = {},
++  /*
++   * @deprecated
++   *
++   * Pass `fatal` into the params object instead:
++   *
++   * ```ts
++   * z.string().custom((val) => val.length > 5, { fatal: false })
++   * ```
++   *
++   */
+   fatal?: boolean
+ ): ZodType<T> => {
+   if (check)
+     return ZodAny.create().superRefine((data, ctx) => {
+       if (!check(data)) {
+-        const p = typeof params === "function" ? params(data) : params;
++        const p =
++          typeof params === "function"
++            ? params(data)
++            : typeof params === "string"
++            ? { message: params }
++            : params;
+         const _fatal = p.fatal ?? fatal ?? true;
+         const p2 = typeof p === "string" ? { message: p } : p;
+         ctx.addIssue({ code: "custom", ...p2, fatal: _fatal });

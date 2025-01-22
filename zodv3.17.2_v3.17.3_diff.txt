@@ -1,0 +1,78 @@
+diff --git a/deno/lib/helpers/parseUtil.ts b/deno/lib/helpers/parseUtil.ts
+index 46d12a704..4f81a3874 100644
+--- a/deno/lib/helpers/parseUtil.ts
++++ b/deno/lib/helpers/parseUtil.ts
+@@ -1,11 +1,6 @@
+-import {
+-  type IssueData,
+-  type ZodErrorMap,
+-  type ZodIssue,
+-  defaultErrorMap,
+-  overrideErrorMap,
+-} from "../ZodError.ts";
+-import { type ZodParsedType } from "./util.ts";
++import type { IssueData, ZodErrorMap, ZodIssue } from "../ZodError.ts";
++import { defaultErrorMap, overrideErrorMap } from "../ZodError.ts";
++import type { ZodParsedType } from "./util.ts";
+ 
+ export const makeIssue = (params: {
+   data: any;
+diff --git a/package.json b/package.json
+index 1c574418d..815b45aa9 100644
+--- a/package.json
++++ b/package.json
+@@ -1,6 +1,6 @@
+ {
+   "name": "zod",
+-  "version": "3.17.2",
++  "version": "3.17.3",
+   "description": "TypeScript-first schema declaration and validation library with static type inference",
+   "main": "./lib/index.js",
+   "types": "./index.d.ts",
+@@ -90,7 +90,7 @@
+     "ts-morph": "^14.0.0",
+     "ts-node": "^10.7.0",
+     "tslib": "^2.3.1",
+-    "typescript": "^4.6.2"
++    "typescript": "4.1"
+   },
+   "lint-staged": {
+     "src/*.ts": [
+diff --git a/src/helpers/parseUtil.ts b/src/helpers/parseUtil.ts
+index 75eae31dd..2416d376d 100644
+--- a/src/helpers/parseUtil.ts
++++ b/src/helpers/parseUtil.ts
+@@ -1,11 +1,6 @@
+-import {
+-  type IssueData,
+-  type ZodErrorMap,
+-  type ZodIssue,
+-  defaultErrorMap,
+-  overrideErrorMap,
+-} from "../ZodError";
+-import { type ZodParsedType } from "./util";
++import type { IssueData, ZodErrorMap, ZodIssue } from "../ZodError";
++import { defaultErrorMap, overrideErrorMap } from "../ZodError";
++import type { ZodParsedType } from "./util";
+ 
+ export const makeIssue = (params: {
+   data: any;
+diff --git a/yarn.lock b/yarn.lock
+index b544138e5..d58bb7a8e 100644
+--- a/yarn.lock
++++ b/yarn.lock
+@@ -4783,10 +4783,10 @@ typedarray-to-buffer@^3.1.5:
+   dependencies:
+     is-typedarray "^1.0.0"
+ 
+-typescript@^4.6.2:
+-  version "4.6.2"
+-  resolved "https://registry.yarnpkg.com/typescript/-/typescript-4.6.2.tgz#fe12d2727b708f4eef40f51598b3398baa9611d4"
+-  integrity sha512-HM/hFigTBHZhLXshn9sN37H085+hQGeJHJ/X7LpBWLID/fbc2acUMfU+lGD98X81sKP+pFa9f0DZmCwB9GnbAg==
++typescript@4.1:
++  version "4.1.6"
++  resolved "https://registry.yarnpkg.com/typescript/-/typescript-4.1.6.tgz#1becd85d77567c3c741172339e93ce2e69932138"
++  integrity sha512-pxnwLxeb/Z5SP80JDRzVjh58KsM6jZHRAOtTpS7sXLS4ogXNKC9ANxHHZqLLeVHZN35jCtI4JdmLLbLiC1kBow==
+ 
+ uglify-js@^3.1.4:
+   version "3.14.3"

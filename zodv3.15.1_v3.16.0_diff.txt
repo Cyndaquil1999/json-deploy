@@ -1,0 +1,620 @@
+diff --git a/README.md b/README.md
+index 4ca9838bf..b0f19fed7 100644
+--- a/README.md
++++ b/README.md
+@@ -293,6 +293,9 @@ There are a growing number of tools that are built atop or support Zod natively!
+ - [`fastify-type-provider-zod`](https://github.com/turkerdev/fastify-type-provider-zod): Create Fastify type providers from Zod schemas
+ - [`Supervillain`](https://github.com/Southclaws/supervillain): Generate Zod schemas from your Go structs
+ - [`zod-to-openapi`](https://github.com/asteasolutions/zod-to-openapi): Generate full OpenAPI (Swagger) docs from Zod, including schemas, endpoints & parameters
++- [`prisma-zod-generator`](https://github.com/omar-dulaimi/prisma-zod-generator): Emit Zod schemas from your Prisma schema.
++- [`prisma-trpc-generator`](https://github.com/omar-dulaimi/prisma-trpc-generator): Emit fully implemented tRPC routers and their validation schemas using Zod.
++- [`nestjs-graphql-zod`](https://github.com/incetarik/nestjs-graphql-zod): Generates NestJS GraphQL model classes from Zod schemas dynamically and provides GraphQL method decorators working with Zod schemas.
+ 
+ ### Form integrations
+ 
+@@ -1602,7 +1605,28 @@ const stringToNumber = z.string().transform((val) => myString.length);
+ stringToNumber.parse("string"); // => 6
+ ```
+ 
+-> ⚠️ Transform functions must not throw. Make sure to use refinements before the transform to make sure the input can be parsed by the transform.
++> ⚠️ Transform functions must not throw. Make sure to use refinements before the transform or addIssue within the transform to make sure the input can be parsed by the transform.
++
++#### Validating during transform
++
++Similar to `superRefine`, `transform` can optionally take a `ctx`. This allows you to simultaneously
++validate and transform the value, which can be simpler than chaining `refine` and `validate`. 
++When calling `ctx.addIssue` make sure to still return a value of the correct type otherwise the inferred type will include `undefined`.
++
++```ts
++const Strings = z
++  .string()
++  .transform((val, ctx) => {
++    const parsed = parseInt(val);
++    if (isNaN(parsed)) {
++      ctx.addIssue({
++        code: z.ZodIssueCode.custom,
++        message: "Not a number",
++      });
++    }
++    return parsed;
++  });
++```
+ 
+ #### Chaining order
+ 
+diff --git a/deno/lib/ZodError.ts b/deno/lib/ZodError.ts
+index 61db68caa..91a96dbcb 100644
+--- a/deno/lib/ZodError.ts
++++ b/deno/lib/ZodError.ts
+@@ -68,6 +68,7 @@ export interface ZodInvalidUnionDiscriminatorIssue extends ZodIssueBase {
+ }
+ 
+ export interface ZodInvalidEnumValueIssue extends ZodIssueBase {
++  received: string | number;
+   code: typeof ZodIssueCode.invalid_enum_value;
+   options: (string | number)[];
+ }
+@@ -304,7 +305,7 @@ export const defaultErrorMap = (
+   let message: string;
+   switch (issue.code) {
+     case ZodIssueCode.invalid_type:
+-      if (issue.received === "undefined") {
++      if (issue.received === ZodParsedType.undefined) {
+         message = "Required";
+       } else {
+         message = `Expected ${issue.expected}, received ${issue.received}`;
+@@ -316,22 +317,23 @@ export const defaultErrorMap = (
+       )}`;
+       break;
+     case ZodIssueCode.unrecognized_keys:
+-      message = `Unrecognized key(s) in object: ${issue.keys
+-        .map((k) => `'${k}'`)
+-        .join(", ")}`;
++      message = `Unrecognized key(s) in object: ${util.joinValues(
++        issue.keys,
++        ", "
++      )}`;
+       break;
+     case ZodIssueCode.invalid_union:
+       message = `Invalid input`;
+       break;
+     case ZodIssueCode.invalid_union_discriminator:
+-      message = `Invalid discriminator value. Expected ${issue.options
+-        .map((val) => (typeof val === "string" ? `'${val}'` : val))
+-        .join(" | ")}`;
++      message = `Invalid discriminator value. Expected ${util.joinValues(
++        issue.options
++      )}`;
+       break;
+     case ZodIssueCode.invalid_enum_value:
+-      message = `Invalid enum value. Expected ${issue.options
+-        .map((val) => (typeof val === "string" ? `'${val}'` : val))
+-        .join(" | ")}`;
++      message = `Invalid enum value. Expected ${util.joinValues(
++        issue.options
++      )}, received '${issue.received}'`;
+       break;
+     case ZodIssueCode.invalid_arguments:
+       message = `Invalid function arguments`;
+diff --git a/deno/lib/__tests__/error.test.ts b/deno/lib/__tests__/error.test.ts
+index 2d889d0aa..60eb09f73 100644
+--- a/deno/lib/__tests__/error.test.ts
++++ b/deno/lib/__tests__/error.test.ts
+@@ -410,16 +410,43 @@ test("strict error message", () => {
+   }
+ });
+ 
+-test("enum default error message", () => {
++test("enum error message, invalid enum elementstring", () => {
+   try {
+     z.enum(["Tuna", "Trout"]).parse("Salmon");
+   } catch (err) {
+     const zerr: z.ZodError = err as any;
+     expect(zerr.issues.length).toEqual(1);
+     expect(zerr.issues[0].message).toEqual(
+-      "Invalid enum value. Expected 'Tuna' | 'Trout'"
++      "Invalid enum value. Expected 'Tuna' | 'Trout', received 'Salmon'"
++    );
++  }
++});
++
++test("enum error message, invalid type", () => {
++  try {
++    z.enum(["Tuna", "Trout"]).parse(12);
++  } catch (err) {
++    const zerr: z.ZodError = err as any;
++    expect(zerr.issues.length).toEqual(1);
++    expect(zerr.issues[0].message).toEqual(
++      "Expected 'Tuna' | 'Trout', received number"
++    );
++  }
++});
++
++test("nativeEnum default error message", () => {
++  enum Fish {
++    Tuna = "Tuna",
++    Trout = "Trout",
++  }
++  try {
++    z.nativeEnum(Fish).parse("Salmon");
++  } catch (err) {
++    const zerr: z.ZodError = err as any;
++    expect(zerr.issues.length).toEqual(1);
++    expect(zerr.issues[0].message).toEqual(
++      "Invalid enum value. Expected 'Tuna' | 'Trout', received 'Salmon'"
+     );
+-    expect(zerr.issues[0].message).not.toContain("Salmon");
+   }
+ });
+ 
+diff --git a/deno/lib/__tests__/transformer.test.ts b/deno/lib/__tests__/transformer.test.ts
+index fb1e48c34..bb513b117 100644
+--- a/deno/lib/__tests__/transformer.test.ts
++++ b/deno/lib/__tests__/transformer.test.ts
+@@ -11,7 +11,7 @@ const stringToNumber = z.string().transform((arg) => parseFloat(arg));
+ //   .transform((n) => String(n));
+ const asyncNumberToString = z.number().transform(async (n) => String(n));
+ 
+-test("transform ctx.addIssue", () => {
++test("transform ctx.addIssue with parse", () => {
+   const strs = ["foo", "bar"];
+ 
+   expect(() => {
+@@ -42,6 +42,38 @@ test("transform ctx.addIssue", () => {
+   );
+ });
+ 
++test("transform ctx.addIssue with parseAsync", async () => {
++  const strs = ["foo", "bar"];
++
++  const result = await z
++    .string()
++    .transform((data, ctx) => {
++      const i = strs.indexOf(data);
++      if (i === -1) {
++        ctx.addIssue({
++          code: "custom",
++          message: `${data} is not one of our allowed strings`,
++        });
++      }
++      return data.length;
++    })
++    .safeParseAsync("asdf");
++
++  expect(JSON.parse(JSON.stringify(result))).toEqual({
++    success: false,
++    error: {
++      issues: [
++        {
++          code: "custom",
++          message: "asdf is not one of our allowed strings",
++          path: [],
++        },
++      ],
++      name: "ZodError",
++    },
++  });
++});
++
+ test("basic transformations", () => {
+   const r1 = z
+     .string()
+diff --git a/deno/lib/helpers/util.ts b/deno/lib/helpers/util.ts
+index 1cf41a09a..2373de715 100644
+--- a/deno/lib/helpers/util.ts
++++ b/deno/lib/helpers/util.ts
+@@ -73,4 +73,13 @@ export namespace util {
+       ? (val) => Number.isInteger(val) // eslint-disable-line ban/ban
+       : (val) =>
+           typeof val === "number" && isFinite(val) && Math.floor(val) === val;
++
++  export function joinValues<T extends any[]>(
++    array: T,
++    separator = " | "
++  ): string {
++    return array
++      .map((val) => (typeof val === "string" ? `'${val}'` : val))
++      .join(separator);
++  }
+ }
+diff --git a/deno/lib/types.ts b/deno/lib/types.ts
+index 0c3c160b8..bb75caa81 100644
+--- a/deno/lib/types.ts
++++ b/deno/lib/types.ts
+@@ -1363,13 +1363,18 @@ export namespace objectUtil {
+     [k in Exclude<keyof U, keyof V>]: U[k];
+   } & V;
+ 
+-  export type requiredKeys<T extends object> = {
++  type optionalKeys<T extends object> = {
++    [k in keyof T]: undefined extends T[k] ? k : never;
++  }[keyof T];
++
++  type requiredKeys<T extends object> = {
+     [k in keyof T]: undefined extends T[k] ? never : k;
+   }[keyof T];
+ 
+-  export type addQuestionMarks<T extends object> = {
+-    [k in keyof T]?: T[k];
+-  } & { [k in requiredKeys<T>]: T[k] };
++  export type addQuestionMarks<T extends object> = Partial<
++    Pick<T, optionalKeys<T>>
++  > &
++    Pick<T, requiredKeys<T>>;
+ 
+   export type identity<T> = T;
+   export type flatten<T extends object> = identity<{ [k in keyof T]: T[k] }>;
+@@ -3021,11 +3026,25 @@ export class ZodEnum<T extends [string, ...string[]]> extends ZodType<
+   ZodEnumDef<T>
+ > {
+   _parse(input: ParseInput): ParseReturnType<this["_output"]> {
++    if (typeof input.data !== "string") {
++      const ctx = this._getOrReturnCtx(input);
++      const expectedValues = this._def.values;
++      addIssueToContext(ctx, {
++        expected: util.joinValues(expectedValues) as "string",
++        received: ctx.parsedType,
++        code: ZodIssueCode.invalid_type,
++      });
++      return INVALID;
++    }
++
+     if (this._def.values.indexOf(input.data) === -1) {
+       const ctx = this._getOrReturnCtx(input);
++      const expectedValues = this._def.values;
++
+       addIssueToContext(ctx, {
++        received: ctx.data,
+         code: ZodIssueCode.invalid_enum_value,
+-        options: this._def.values,
++        options: expectedValues,
+       });
+       return INVALID;
+     }
+@@ -3084,15 +3103,32 @@ export class ZodNativeEnum<T extends EnumLike> extends ZodType<
+ > {
+   _parse(input: ParseInput): ParseReturnType<T[keyof T]> {
+     const nativeEnumValues = util.getValidEnumValues(this._def.values);
++
++    const ctx = this._getOrReturnCtx(input);
++    if (
++      ctx.parsedType !== ZodParsedType.string &&
++      ctx.parsedType !== ZodParsedType.number
++    ) {
++      const expectedValues = util.objectValues(nativeEnumValues);
++      addIssueToContext(ctx, {
++        expected: util.joinValues(expectedValues) as "string",
++        received: ctx.parsedType,
++        code: ZodIssueCode.invalid_type,
++      });
++      return INVALID;
++    }
++
+     if (nativeEnumValues.indexOf(input.data) === -1) {
+-      const ctx = this._getOrReturnCtx(input);
++      const expectedValues = util.objectValues(nativeEnumValues);
++
+       addIssueToContext(ctx, {
++        received: ctx.data,
+         code: ZodIssueCode.invalid_enum_value,
+-        options: util.objectValues(nativeEnumValues),
++        options: expectedValues,
+       });
+       return INVALID;
+     }
+-    return OK(input.data);
++    return OK(input.data as any);
+   }
+ 
+   get enum() {
+@@ -3328,7 +3364,7 @@ export class ZodEffects<
+             //   return { status: "dirty", value: base.value };
+             // }
+             return Promise.resolve(effect.transform(base.value, checkCtx)).then(
+-              OK
++              (result) => ({ status: status.value, value: result })
+             );
+           });
+       }
+diff --git a/package.json b/package.json
+index 4f7b9cb30..469001706 100644
+--- a/package.json
++++ b/package.json
+@@ -1,6 +1,6 @@
+ {
+   "name": "zod",
+-  "version": "3.15.1",
++  "version": "3.16.0",
+   "description": "TypeScript-first schema declaration and validation library with static type inference",
+   "main": "./lib/index.js",
+   "types": "./index.d.ts",
+diff --git a/src/ZodError.ts b/src/ZodError.ts
+index 1319844f8..2f2d66fe7 100644
+--- a/src/ZodError.ts
++++ b/src/ZodError.ts
+@@ -68,6 +68,7 @@ export interface ZodInvalidUnionDiscriminatorIssue extends ZodIssueBase {
+ }
+ 
+ export interface ZodInvalidEnumValueIssue extends ZodIssueBase {
++  received: string | number;
+   code: typeof ZodIssueCode.invalid_enum_value;
+   options: (string | number)[];
+ }
+@@ -304,7 +305,7 @@ export const defaultErrorMap = (
+   let message: string;
+   switch (issue.code) {
+     case ZodIssueCode.invalid_type:
+-      if (issue.received === "undefined") {
++      if (issue.received === ZodParsedType.undefined) {
+         message = "Required";
+       } else {
+         message = `Expected ${issue.expected}, received ${issue.received}`;
+@@ -316,22 +317,23 @@ export const defaultErrorMap = (
+       )}`;
+       break;
+     case ZodIssueCode.unrecognized_keys:
+-      message = `Unrecognized key(s) in object: ${issue.keys
+-        .map((k) => `'${k}'`)
+-        .join(", ")}`;
++      message = `Unrecognized key(s) in object: ${util.joinValues(
++        issue.keys,
++        ", "
++      )}`;
+       break;
+     case ZodIssueCode.invalid_union:
+       message = `Invalid input`;
+       break;
+     case ZodIssueCode.invalid_union_discriminator:
+-      message = `Invalid discriminator value. Expected ${issue.options
+-        .map((val) => (typeof val === "string" ? `'${val}'` : val))
+-        .join(" | ")}`;
++      message = `Invalid discriminator value. Expected ${util.joinValues(
++        issue.options
++      )}`;
+       break;
+     case ZodIssueCode.invalid_enum_value:
+-      message = `Invalid enum value. Expected ${issue.options
+-        .map((val) => (typeof val === "string" ? `'${val}'` : val))
+-        .join(" | ")}`;
++      message = `Invalid enum value. Expected ${util.joinValues(
++        issue.options
++      )}, received '${issue.received}'`;
+       break;
+     case ZodIssueCode.invalid_arguments:
+       message = `Invalid function arguments`;
+diff --git a/src/__tests__/error.test.ts b/src/__tests__/error.test.ts
+index 4ec5169a0..759035879 100644
+--- a/src/__tests__/error.test.ts
++++ b/src/__tests__/error.test.ts
+@@ -409,16 +409,43 @@ test("strict error message", () => {
+   }
+ });
+ 
+-test("enum default error message", () => {
++test("enum error message, invalid enum elementstring", () => {
+   try {
+     z.enum(["Tuna", "Trout"]).parse("Salmon");
+   } catch (err) {
+     const zerr: z.ZodError = err as any;
+     expect(zerr.issues.length).toEqual(1);
+     expect(zerr.issues[0].message).toEqual(
+-      "Invalid enum value. Expected 'Tuna' | 'Trout'"
++      "Invalid enum value. Expected 'Tuna' | 'Trout', received 'Salmon'"
++    );
++  }
++});
++
++test("enum error message, invalid type", () => {
++  try {
++    z.enum(["Tuna", "Trout"]).parse(12);
++  } catch (err) {
++    const zerr: z.ZodError = err as any;
++    expect(zerr.issues.length).toEqual(1);
++    expect(zerr.issues[0].message).toEqual(
++      "Expected 'Tuna' | 'Trout', received number"
++    );
++  }
++});
++
++test("nativeEnum default error message", () => {
++  enum Fish {
++    Tuna = "Tuna",
++    Trout = "Trout",
++  }
++  try {
++    z.nativeEnum(Fish).parse("Salmon");
++  } catch (err) {
++    const zerr: z.ZodError = err as any;
++    expect(zerr.issues.length).toEqual(1);
++    expect(zerr.issues[0].message).toEqual(
++      "Invalid enum value. Expected 'Tuna' | 'Trout', received 'Salmon'"
+     );
+-    expect(zerr.issues[0].message).not.toContain("Salmon");
+   }
+ });
+ 
+diff --git a/src/__tests__/languageServerFeatures.test.ts b/src/__tests__/languageServerFeatures.test.ts
+index 0d065f760..5dbe9ec46 100644
+--- a/src/__tests__/languageServerFeatures.test.ts
++++ b/src/__tests__/languageServerFeatures.test.ts
+@@ -1,8 +1,9 @@
+ // @ts-ignore TS6133
+ import { expect, fit } from "@jest/globals";
+-import { filePath } from "./languageServerFeatures.source";
+-import { Project, Node, SyntaxKind } from "ts-morph";
+ import path from "path";
++import { Node, Project, SyntaxKind } from "ts-morph";
++
++import { filePath } from "./languageServerFeatures.source";
+ 
+ // The following tool is helpful for understanding the TypeScript AST associated with these tests:
+ // https://ts-ast-viewer.com/ (just copy the contents of languageServerFeatures.source into the viewer)
+diff --git a/src/__tests__/transformer.test.ts b/src/__tests__/transformer.test.ts
+index 725802365..8686f032b 100644
+--- a/src/__tests__/transformer.test.ts
++++ b/src/__tests__/transformer.test.ts
+@@ -10,7 +10,7 @@ const stringToNumber = z.string().transform((arg) => parseFloat(arg));
+ //   .transform((n) => String(n));
+ const asyncNumberToString = z.number().transform(async (n) => String(n));
+ 
+-test("transform ctx.addIssue", () => {
++test("transform ctx.addIssue with parse", () => {
+   const strs = ["foo", "bar"];
+ 
+   expect(() => {
+@@ -41,6 +41,38 @@ test("transform ctx.addIssue", () => {
+   );
+ });
+ 
++test("transform ctx.addIssue with parseAsync", async () => {
++  const strs = ["foo", "bar"];
++
++  const result = await z
++    .string()
++    .transform((data, ctx) => {
++      const i = strs.indexOf(data);
++      if (i === -1) {
++        ctx.addIssue({
++          code: "custom",
++          message: `${data} is not one of our allowed strings`,
++        });
++      }
++      return data.length;
++    })
++    .safeParseAsync("asdf");
++
++  expect(JSON.parse(JSON.stringify(result))).toEqual({
++    success: false,
++    error: {
++      issues: [
++        {
++          code: "custom",
++          message: "asdf is not one of our allowed strings",
++          path: [],
++        },
++      ],
++      name: "ZodError",
++    },
++  });
++});
++
+ test("basic transformations", () => {
+   const r1 = z
+     .string()
+diff --git a/src/helpers/util.ts b/src/helpers/util.ts
+index 1cf41a09a..2373de715 100644
+--- a/src/helpers/util.ts
++++ b/src/helpers/util.ts
+@@ -73,4 +73,13 @@ export namespace util {
+       ? (val) => Number.isInteger(val) // eslint-disable-line ban/ban
+       : (val) =>
+           typeof val === "number" && isFinite(val) && Math.floor(val) === val;
++
++  export function joinValues<T extends any[]>(
++    array: T,
++    separator = " | "
++  ): string {
++    return array
++      .map((val) => (typeof val === "string" ? `'${val}'` : val))
++      .join(separator);
++  }
+ }
+diff --git a/src/types.ts b/src/types.ts
+index 8d4018e75..c5dc00989 100644
+--- a/src/types.ts
++++ b/src/types.ts
+@@ -1363,13 +1363,18 @@ export namespace objectUtil {
+     [k in Exclude<keyof U, keyof V>]: U[k];
+   } & V;
+ 
+-  export type requiredKeys<T extends object> = {
++  type optionalKeys<T extends object> = {
++    [k in keyof T]: undefined extends T[k] ? k : never;
++  }[keyof T];
++
++  type requiredKeys<T extends object> = {
+     [k in keyof T]: undefined extends T[k] ? never : k;
+   }[keyof T];
+ 
+-  export type addQuestionMarks<T extends object> = {
+-    [k in keyof T]?: T[k];
+-  } & { [k in requiredKeys<T>]: T[k] };
++  export type addQuestionMarks<T extends object> = Partial<
++    Pick<T, optionalKeys<T>>
++  > &
++    Pick<T, requiredKeys<T>>;
+ 
+   export type identity<T> = T;
+   export type flatten<T extends object> = identity<{ [k in keyof T]: T[k] }>;
+@@ -3021,11 +3026,25 @@ export class ZodEnum<T extends [string, ...string[]]> extends ZodType<
+   ZodEnumDef<T>
+ > {
+   _parse(input: ParseInput): ParseReturnType<this["_output"]> {
++    if (typeof input.data !== "string") {
++      const ctx = this._getOrReturnCtx(input);
++      const expectedValues = this._def.values;
++      addIssueToContext(ctx, {
++        expected: util.joinValues(expectedValues) as "string",
++        received: ctx.parsedType,
++        code: ZodIssueCode.invalid_type,
++      });
++      return INVALID;
++    }
++
+     if (this._def.values.indexOf(input.data) === -1) {
+       const ctx = this._getOrReturnCtx(input);
++      const expectedValues = this._def.values;
++
+       addIssueToContext(ctx, {
++        received: ctx.data,
+         code: ZodIssueCode.invalid_enum_value,
+-        options: this._def.values,
++        options: expectedValues,
+       });
+       return INVALID;
+     }
+@@ -3084,15 +3103,32 @@ export class ZodNativeEnum<T extends EnumLike> extends ZodType<
+ > {
+   _parse(input: ParseInput): ParseReturnType<T[keyof T]> {
+     const nativeEnumValues = util.getValidEnumValues(this._def.values);
++
++    const ctx = this._getOrReturnCtx(input);
++    if (
++      ctx.parsedType !== ZodParsedType.string &&
++      ctx.parsedType !== ZodParsedType.number
++    ) {
++      const expectedValues = util.objectValues(nativeEnumValues);
++      addIssueToContext(ctx, {
++        expected: util.joinValues(expectedValues) as "string",
++        received: ctx.parsedType,
++        code: ZodIssueCode.invalid_type,
++      });
++      return INVALID;
++    }
++
+     if (nativeEnumValues.indexOf(input.data) === -1) {
+-      const ctx = this._getOrReturnCtx(input);
++      const expectedValues = util.objectValues(nativeEnumValues);
++
+       addIssueToContext(ctx, {
++        received: ctx.data,
+         code: ZodIssueCode.invalid_enum_value,
+-        options: util.objectValues(nativeEnumValues),
++        options: expectedValues,
+       });
+       return INVALID;
+     }
+-    return OK(input.data);
++    return OK(input.data as any);
+   }
+ 
+   get enum() {
+@@ -3328,7 +3364,7 @@ export class ZodEffects<
+             //   return { status: "dirty", value: base.value };
+             // }
+             return Promise.resolve(effect.transform(base.value, checkCtx)).then(
+-              OK
++              (result) => ({ status: status.value, value: result })
+             );
+           });
+       }

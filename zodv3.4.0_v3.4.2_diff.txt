@@ -1,0 +1,177 @@
+diff --git a/coverage.svg b/coverage.svg
+index 6a842024b..1dc972cc8 100644
+--- a/coverage.svg
++++ b/coverage.svg
+@@ -1 +1 @@
+-<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="116" height="20" role="img" aria-label="Coverage: 89.17%"><title>Coverage: 89.17%</title><linearGradient id="s" x2="0" y2="100%"><stop offset="0" stop-color="#bbb" stop-opacity=".1"/><stop offset="1" stop-opacity=".1"/></linearGradient><clipPath id="r"><rect width="116" height="20" rx="3" fill="#fff"/></clipPath><g clip-path="url(#r)"><rect width="63" height="20" fill="#555"/><rect x="63" width="53" height="20" fill="#dfb317"/><rect width="116" height="20" fill="url(#s)"/></g><g fill="#fff" text-anchor="middle" font-family="Verdana,Geneva,DejaVu Sans,sans-serif" text-rendering="geometricPrecision" font-size="110"><text aria-hidden="true" x="325" y="150" fill="#010101" fill-opacity=".3" transform="scale(.1)" textLength="530">Coverage</text><text x="325" y="140" transform="scale(.1)" fill="#fff" textLength="530">Coverage</text><text aria-hidden="true" x="885" y="150" fill="#010101" fill-opacity=".3" transform="scale(.1)" textLength="430">89.17%</text><text x="885" y="140" transform="scale(.1)" fill="#fff" textLength="430">89.17%</text></g></svg>
+\ No newline at end of file
++<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="116" height="20" role="img" aria-label="Coverage: 89.19%"><title>Coverage: 89.19%</title><linearGradient id="s" x2="0" y2="100%"><stop offset="0" stop-color="#bbb" stop-opacity=".1"/><stop offset="1" stop-opacity=".1"/></linearGradient><clipPath id="r"><rect width="116" height="20" rx="3" fill="#fff"/></clipPath><g clip-path="url(#r)"><rect width="63" height="20" fill="#555"/><rect x="63" width="53" height="20" fill="#dfb317"/><rect width="116" height="20" fill="url(#s)"/></g><g fill="#fff" text-anchor="middle" font-family="Verdana,Geneva,DejaVu Sans,sans-serif" text-rendering="geometricPrecision" font-size="110"><text aria-hidden="true" x="325" y="150" fill="#010101" fill-opacity=".3" transform="scale(.1)" textLength="530">Coverage</text><text x="325" y="140" transform="scale(.1)" fill="#fff" textLength="530">Coverage</text><text aria-hidden="true" x="885" y="150" fill="#010101" fill-opacity=".3" transform="scale(.1)" textLength="430">89.19%</text><text x="885" y="140" transform="scale(.1)" fill="#fff" textLength="430">89.19%</text></g></svg>
+\ No newline at end of file
+diff --git a/deno/lib/__tests__/refine.test.ts b/deno/lib/__tests__/refine.test.ts
+index 8cdaca187..443372e8c 100644
+--- a/deno/lib/__tests__/refine.test.ts
++++ b/deno/lib/__tests__/refine.test.ts
+@@ -93,3 +93,31 @@ test("use path in refinement context", async () => {
+     );
+   }
+ });
++
++test("superRefine", () => {
++  const Strings = z.array(z.string()).superRefine((val, ctx) => {
++    if (val.length > 3) {
++      ctx.addIssue({
++        code: z.ZodIssueCode.too_big,
++        maximum: 3,
++        type: "array",
++        inclusive: true,
++        message: "Too many items 😡",
++      });
++    }
++
++    if (val.length !== new Set(val).size) {
++      ctx.addIssue({
++        code: z.ZodIssueCode.custom,
++        message: `No duplicates allowed.`,
++      });
++    }
++  });
++
++  const result = Strings.safeParse(["asfd", "asfd", "asfd", "asfd"]);
++
++  expect(result.success).toEqual(false);
++  if (!result.success) expect(result.error.issues.length).toEqual(2);
++
++  Strings.parse(["asfd", "qwer"]);
++});
+diff --git a/deno/lib/types.ts b/deno/lib/types.ts
+index 70288087b..da4081e11 100644
+--- a/deno/lib/types.ts
++++ b/deno/lib/types.ts
+@@ -40,6 +40,7 @@ import {
+ export type RefinementCtx = {
+   addIssue: (arg: MakeErrorData) => void;
+   path: (string | number)[];
++  issueFound: boolean;
+ };
+ export type ZodRawShape = { [k: string]: ZodTypeAny };
+ export type ZodTypeAny = ZodType<any, any, any>;
+@@ -2716,7 +2717,9 @@ export class ZodEffects<
+     const isSync = ctx.params.async === false;
+     const effects = this._def.effects || [];
+     const checkCtx: RefinementCtx = {
+-      addIssue: (arg: MakeErrorData) => {
++      issueFound: false,
++      addIssue: function (arg: MakeErrorData) {
++        this.issueFound = true;
+         ctx.addIssue(data, arg);
+       },
+       get path() {
+@@ -2738,13 +2741,15 @@ export class ZodEffects<
+                 "You can't use .parse() on a schema containing async refinements. Use .parseAsync instead."
+               );
+             } else {
+-              return result.then((res) => {
+-                invalid = invalid || !res;
++              return result.then((_res) => {
++                const issueFound = checkCtx.issueFound;
++                invalid = invalid || issueFound;
+                 return acc;
+               });
+             }
+           } else {
+-            invalid = invalid || !result;
++            const issueFound = checkCtx.issueFound;
++            invalid = invalid || issueFound;
+             return acc;
+           }
+         case "transform":
+diff --git a/package.json b/package.json
+index bc6c4296c..8210ad1c4 100644
+--- a/package.json
++++ b/package.json
+@@ -1,6 +1,6 @@
+ {
+   "name": "zod",
+-  "version": "3.4.0",
++  "version": "3.4.2",
+   "description": "TypeScript-first schema declaration and validation library with static type inference",
+   "main": "./lib/index.js",
+   "types": "./lib/index.d.ts",
+diff --git a/src/__tests__/refine.test.ts b/src/__tests__/refine.test.ts
+index 8b1313bf4..d785d48f0 100644
+--- a/src/__tests__/refine.test.ts
++++ b/src/__tests__/refine.test.ts
+@@ -92,3 +92,31 @@ test("use path in refinement context", async () => {
+     );
+   }
+ });
++
++test("superRefine", () => {
++  const Strings = z.array(z.string()).superRefine((val, ctx) => {
++    if (val.length > 3) {
++      ctx.addIssue({
++        code: z.ZodIssueCode.too_big,
++        maximum: 3,
++        type: "array",
++        inclusive: true,
++        message: "Too many items 😡",
++      });
++    }
++
++    if (val.length !== new Set(val).size) {
++      ctx.addIssue({
++        code: z.ZodIssueCode.custom,
++        message: `No duplicates allowed.`,
++      });
++    }
++  });
++
++  const result = Strings.safeParse(["asfd", "asfd", "asfd", "asfd"]);
++
++  expect(result.success).toEqual(false);
++  if (!result.success) expect(result.error.issues.length).toEqual(2);
++
++  Strings.parse(["asfd", "qwer"]);
++});
+diff --git a/src/types.ts b/src/types.ts
+index 5e3d797e1..264c5d550 100644
+--- a/src/types.ts
++++ b/src/types.ts
+@@ -40,6 +40,7 @@ import {
+ export type RefinementCtx = {
+   addIssue: (arg: MakeErrorData) => void;
+   path: (string | number)[];
++  issueFound: boolean;
+ };
+ export type ZodRawShape = { [k: string]: ZodTypeAny };
+ export type ZodTypeAny = ZodType<any, any, any>;
+@@ -2716,7 +2717,9 @@ export class ZodEffects<
+     const isSync = ctx.params.async === false;
+     const effects = this._def.effects || [];
+     const checkCtx: RefinementCtx = {
+-      addIssue: (arg: MakeErrorData) => {
++      issueFound: false,
++      addIssue: function (arg: MakeErrorData) {
++        this.issueFound = true;
+         ctx.addIssue(data, arg);
+       },
+       get path() {
+@@ -2738,13 +2741,15 @@ export class ZodEffects<
+                 "You can't use .parse() on a schema containing async refinements. Use .parseAsync instead."
+               );
+             } else {
+-              return result.then((res) => {
+-                invalid = invalid || !res;
++              return result.then((_res) => {
++                const issueFound = checkCtx.issueFound;
++                invalid = invalid || issueFound;
+                 return acc;
+               });
+             }
+           } else {
+-            invalid = invalid || !result;
++            const issueFound = checkCtx.issueFound;
++            invalid = invalid || issueFound;
+             return acc;
+           }
+         case "transform":

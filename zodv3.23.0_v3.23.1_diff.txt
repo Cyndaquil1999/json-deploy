@@ -1,0 +1,44 @@
+diff --git a/deno/lib/types.ts b/deno/lib/types.ts
+index bbc414ed4..e31d63de8 100644
+--- a/deno/lib/types.ts
++++ b/deno/lib/types.ts
+@@ -166,9 +166,9 @@ export type SafeParseReturnType<Input, Output> =
+   | SafeParseError<Input>;
+ 
+ export abstract class ZodType<
+-  Output = unknown,
++  Output = any,
+   Def extends ZodTypeDef = ZodTypeDef,
+-  Input = unknown
++  Input = any
+ > {
+   readonly _type!: Output;
+   readonly _output!: Output;
+diff --git a/package.json b/package.json
+index f987dec42..6eec30149 100644
+--- a/package.json
++++ b/package.json
+@@ -1,6 +1,6 @@
+ {
+   "name": "zod",
+-  "version": "3.23.0",
++  "version": "3.23.1",
+   "author": "Colin McDonnell <colin@colinhacks.com>",
+   "repository": {
+     "type": "git",
+diff --git a/src/types.ts b/src/types.ts
+index 172d767c3..f103e4cf3 100644
+--- a/src/types.ts
++++ b/src/types.ts
+@@ -166,9 +166,9 @@ export type SafeParseReturnType<Input, Output> =
+   | SafeParseError<Input>;
+ 
+ export abstract class ZodType<
+-  Output = unknown,
++  Output = any,
+   Def extends ZodTypeDef = ZodTypeDef,
+-  Input = unknown
++  Input = any
+ > {
+   readonly _type!: Output;
+   readonly _output!: Output;

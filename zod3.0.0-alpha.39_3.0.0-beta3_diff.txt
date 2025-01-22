@@ -1,0 +1,1550 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 5afb7e4e6..708095940 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -1,5 +1,9 @@
+ # Changelog
+ 
++### 3.0.0-beta.1
++
++- Moved default value logic into ZodDefault. Implemented `.nullish()` method.
++
+ ### 3.0.0-alpha.33
+ 
+ - Added `.returnType` and `.parameters` methods to ZodFunction
+diff --git a/README.md b/README.md
+index e647645c7..47de5f3d3 100644
+--- a/README.md
++++ b/README.md
+@@ -11,22 +11,26 @@
+ 
+ </p>
+ <p align="center">
+-if you're happy and you know it, star this repo ⭐
++don't forget to <del>smash that like button</del> leave a star
+ </p>
+ 
+ <br/>
+ 
+-## Zod v3 is in alpha
++### Introducing tRPC
++
++If you like Zod, you'll love my new library [`tRPC`](https://github.com/trpc/trpc), a toolkit for building end-to-end typesafe APIs — no GraphQL or code generation required. It makes it easy to validate API payloads with Zod schemas (or other libraries). It's the best way to build a fully typed API, especially for Next.js users. Check it out: [github.com/trpc/trpc](https://github.com/trpc/trpc).
++
++## Zod v3 is in beta!
+ 
+ #### New features
+ 
+-- Transformers! But better! See the "breaking changes" section to understand the syntax changes.
++- **A new implementation of transformers**. See the "breaking changes" section to understand the syntax changes.
+ - You can now import Zod like `import { z } from 'zod';` instead of using `import * as` syntax.
+-- Added the `format` method to ZodError to convert the error into a strongly-typed, nested object: [format method](#error-formatting)
+-- Added the `or` method to ZodType (the base class for all Zod schemas) to easily create union types like `z.string().or(z.number())`
+-- Added the `and` method to ZodType (the base class for all Zod schemas) to easily create intersection types
+-- Added `z.setErrorMap`, an easier way to _globally_ customize the error messages produced by Zod: [setErrorMap](ERROR_HANDLING.md#customizing-errors-with-zoderrormap)
+-- ZodOptional and ZodNullable now have a `.unwrap()` method for retrieving the schema they wrap
++- **Structured error messages**. Use the `.format()` method to ZodError to convert the error into a strongly-typed, nested object: [format method](#error-formatting)
++- **Easier unions**. Use the `or` method to ZodType (the base class for all Zod schemas) to easily create union types like `z.string().or(z.number())`
++- **Easier intersections**. Use the `and` method to ZodType (the base class for all Zod schemas) to easily create intersection types
++- **Global error customization**. Use `z.setErrorMap(myErrorMap)` to _globally_ customize the error messages produced by Zod: [setErrorMap](ERROR_HANDLING.md#customizing-errors-with-zoderrormap)
++- **Optional and nullable unwrapping**. ZodOptional and ZodNullable now have a `.unwrap()` method for retrieving the schema they wrap.
+ 
+ #### Breaking changes in v3
+ 
+@@ -34,11 +38,15 @@ if you're happy and you know it, star this repo ⭐
+ 
+ - **Transformers syntax**. Previously, creating a transformer required an input schema, an output schema, and a function to tranform between them. You created transformers like `z.transform(A, B, func)`, where `A` and `B` are Zod schemas. This is no longer the case. Accordingly:
+ 
+-  The old syntax (`z.transformer(A, B, func)`) is no longer available.
++  The old syntax is no longer available:
+ 
+-  The convenience method `A.transform(B, func)` is no longer available.
++  ```ts
++  # not available
++  z.transformer(A, B, func);
++  A.transform(B, func)
++  ```
+ 
+-  Instead, you apply transformations by simply using the `.transform()` method that exists on all Zod schemas.
++  Instead, apply transformations by simply using the `.transform()` method that exists on all Zod schemas.
+ 
+   ```ts
+   z.string().transform((val) => val.length);
+@@ -58,13 +66,16 @@ if you're happy and you know it, star this repo ⭐
+ 
+ - **Type guards** (the `.check()` method) have been removed. Type guards interact with transformers in unintuitive ways so they were removed. Use `.safeParse` instead.
+ - Object merging now behaves differently. If you merge two object schema (`A.merge(B)`), the fields of B will overwrite the fields of A if there are shared keys. This is how the `.extend` method already works. If you're looking to create an intersection of the two types, use `z.intersection(A, B)` or use the new `.and` method (`A.and(B)`).
+-- There have been small internal changes to the ZodIssue type. This may impact user who have written a custom error maps. Most users will not be affected.
++- **Default values**: default value logic is now implemented inside a `ZodDefault` class, instead of using transformers. (In a previous alpha version of Zod 3, default values were implemented inside the ZodOptional class.)
++- There have been small internal changes to the ZodIssue subtypes. See the new subtypes in the [Error Handling guide](ERROR_HANDLING.md). This may impact user who have written a custom error maps. Most users will not be affected.
++
++### Migration guide
+ 
+-#### Migrating from v1
++**From v1 -> v3**
+ 
+ If you're upgrading straight to v3 from v1, you'll need to be aware of the breaking changes introduced in both v2 and v3. The v1->v2 migration guide is [here](https://github.com/colinhacks/zod/tree/v2#migration-from-v1).
+ 
+-#### Migrating from v2
++**From v2 -> v3**
+ 
+ Zod 2 is being retired and will not leave beta. This is due to some issues with it's implementation of transformers: details [here](https://github.com/colinhacks/zod/issues/264). Zod 3 is currently in alpha — install it at `zod@next`. (Zod 2 will continue to be available with `zod@beta` for the time being.)
+ 
+@@ -125,6 +136,7 @@ yarn add zod@next
+   - [.default](#default)
+   - [.optional](#optional)
+   - [.nullable](#nullable)
++  - [.nullish](#nullish)
+   - [.array](#array)
+   - [.or](#or)
+   - [.and](#and)
+@@ -163,6 +175,15 @@ Sponsorship at any level is appreciated and encouraged. Zod is maintained by a s
+ 
+ <table>
+   <tr>
++   <td align="center">
++      <a href="https://deletype.com/">
++        <img src="https://avatars0.githubusercontent.com/u/15068039?s=200&v=4" width="100px;" alt="" />
++      </a>
++      <br>
++      <b>Deletype</b>
++      <br>
++      <a href="https://deletype.com/">https://deletype.com/</a>
++    </td>
+   <td align="center">
+       <a href="https://github.com/kevinsimper">
+         <img src="https://avatars1.githubusercontent.com/u/1126497?s=460&v=4" width="100px;" alt="" />
+@@ -183,6 +204,9 @@ Sponsorship at any level is appreciated and encouraged. Zod is maintained by a s
+       <span>creator of <a href="https://blitzjs.com">Blitz.js</a></span>
+       <br />
+     </td>
++    
++  </tr>
++  <tr>
+     <td align="center">
+       <a href="https://www.bamboocreative.nz/">
+         <img src="https://avatars1.githubusercontent.com/u/41406870?s=460&v=4" width="100px;" alt="" />
+@@ -192,6 +216,24 @@ Sponsorship at any level is appreciated and encouraged. Zod is maintained by a s
+       <br>
+       <a href="https://www.bamboocreative.nz/">https://bamboocreative.nz</a>
+     </td>
++    <td align="center">
++      <a href="https://github.com/jeremyBanks">
++        <img src="https://avatars.githubusercontent.com/u/18020?s=400&u=dba6c1402ae1746a276a5d256e01d68e774a0e9d&v=4" width="100px;" alt="" />
++      </a>
++      <br>
++      <b>Jeremy Banks</b>
++      <br>
++      <a href="https://github.com/jeremyBanks">github.com/jeremyBanks</a>
++    </td>
++     <td align="center">
++      <a href="https://marcatopartners.com/">
++        <img src="https://avatars.githubusercontent.com/u/84106192?s=200&v=4" width="100px;" alt="Marcato Partners" />
++      </a>
++      <br>
++      <b>Marcato Partners</b>
++      <br>
++      <a href="https://marcatopartners.com/">marcatopartners.com</a>
++    </td>
+   </tr>
+ </table>
+ 
+@@ -228,11 +270,11 @@ npm install zod@next
+ 
+ There are a growing number of tools that are built atop or support Zod natively! If you've built a tool or library on top of Zod, tell me about it [on Twitter](https://twitter.com/colinhacks) or [start a Discussion](https://github.com/colinhacks/zod/discussions). I'll add it below and tweet it out.
+ 
++- [`react-hook-form`](https://github.com/react-hook-form/resolvers): Build type-safe forms easily with React Hook Form and the Zod resolver. I use this all the time and it's glorious.
+ - [`ts-to-zod`](https://github.com/fabien0102/ts-to-zod): Convert TypeScript definitions into Zod schemas.
+ - [`zod-mocking`](https://github.com/dipasqualew/zod-mocking): Generate mock data from your Zod schemas.
+-- [`react-hook-form`](https://github.com/react-hook-form/resolvers): Build type-safe forms easily with React Hook Form and the Zod resolver. I use this all the time and it's glorious.
+-
+-> If you like Zod, you'll love [`tRPC`](https://github.com/trpc/trpc), a toolkit for building end-to-end typesafe API without GraphQL or code generation...just plain TypeScript. It makes it easy to validate API payloads with Zod schemas (or other libraries). It's the best way to build a fully typed API, especially for Next.js users. I built the proof-of-concept, and it's currently actively maintained by [@katt](https://github.com/katt).
++- [`zod-fast-check`](https://github.com/DavidTimms/zod-fast-check): Generate `fast-check` arbitraries from Zod schemas.
++- [`zod-endpoints`](https://github.com/flock-community/zod-endpoints): Contract-first strictly typed endpoints with Zod. OpenAPI compatible.
+ 
+ # Basic usage
+ 
+@@ -307,13 +349,15 @@ const tru = z.literal(true);
+ Zod includes a handful of string-specific validations.
+ 
+ ```ts
+-z.string().min(5);
+ z.string().max(5);
++z.string().min(5);
+ z.string().length(5);
+ z.string().email();
+ z.string().url();
+ z.string().uuid();
+ z.string().regex(regex);
++
++// deprecated, equivalent to .min(1)
+ z.string().nonempty();
+ ```
+ 
+@@ -884,7 +928,24 @@ FruitEnum.parse("Cantaloupe"); // fails
+ 
+ <!-- > ⚠️ Intersections are deprecated. If you are trying to merge objects, use the `.merge` method instead. -->
+ 
+-Intersections are useful for creating "logical AND" types.
++Intersections are useful for creating "logical AND" types. This is useful for intersecting two object types.
++
++```ts
++const Person = z.object({
++  name: z.string(),
++});
++
++const Employee = z.object({
++  role: z.string(),
++});
++
++const EmployedPerson = z.intersection(Person, Employee);
++
++// equivalent to:
++const EmployedPerson = Person.and(Employee);
++```
++
++Though in many cases, it is recommended to use `A.merge(B)` to merge two objects. The `.merge` method returns a new `ZodObject` instance, whereas `A.and(B)` returns a less useful `ZodIntersection` instance that lacks common object methods like `pick` and `omit`.
+ 
+ ```ts
+ const a = z.union([z.number(), z.string()]);
+@@ -892,9 +953,6 @@ const b = z.union([z.number(), z.boolean()]);
+ const c = z.intersection(a, b);
+ 
+ type c = z.infer<typeof c>; // => number
+-
+-const stringAndNumber = z.intersection(z.string(), z.number());
+-type Never = z.infer<typeof stringAndNumber>; // => never
+ ```
+ 
+ <!-- Intersections in Zod are not smart. Whatever data you pass into `.parse()` gets passed into the two intersected schemas. Because Zod object schemas don't allow any unknown keys by default, there are some unintuitive behavior surrounding intersections of object schemas. -->
+@@ -1454,6 +1512,17 @@ const nullableString = z.string().nullable(); // string | null
+ z.nullable(z.string());
+ ```
+ 
++### `.nullish`
++
++A convenience method that returns a "nullish" version of a schema. Nullish schemas will accept both `undefined` and `null`. Read more about the concept of "nullish" [here](https://www.typescriptlang.org/docs/handbook/release-notes/typescript-3-7.html#nullish-coalescing).
++
++```ts
++const nullishString = z.string().nullish(); // string | null | undefined
++
++// equivalent to
++z.string().optional().nullable();
++```
++
+ ### `.array`
+ 
+ A convenience method that returns an array schema for the given type:
+diff --git a/coverage.svg b/coverage.svg
+index 2300ea257..980f48c1c 100644
+--- a/coverage.svg
++++ b/coverage.svg
+@@ -1 +1 @@
+-<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="110" height="20" role="img" aria-label="Coverage: 92.6%"><title>Coverage: 92.6%</title><linearGradient id="s" x2="0" y2="100%"><stop offset="0" stop-color="#bbb" stop-opacity=".1"/><stop offset="1" stop-opacity=".1"/></linearGradient><clipPath id="r"><rect width="110" height="20" rx="3" fill="#fff"/></clipPath><g clip-path="url(#r)"><rect width="63" height="20" fill="#555"/><rect x="63" width="47" height="20" fill="#4c1"/><rect width="110" height="20" fill="url(#s)"/></g><g fill="#fff" text-anchor="middle" font-family="Verdana,Geneva,DejaVu Sans,sans-serif" text-rendering="geometricPrecision" font-size="110"><text aria-hidden="true" x="325" y="150" fill="#010101" fill-opacity=".3" transform="scale(.1)" textLength="530">Coverage</text><text x="325" y="140" transform="scale(.1)" fill="#fff" textLength="530">Coverage</text><text aria-hidden="true" x="855" y="150" fill="#010101" fill-opacity=".3" transform="scale(.1)" textLength="370">92.6%</text><text x="855" y="140" transform="scale(.1)" fill="#fff" textLength="370">92.6%</text></g></svg>
+\ No newline at end of file
++<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="110" height="20" role="img" aria-label="Coverage: 92.5%"><title>Coverage: 92.5%</title><linearGradient id="s" x2="0" y2="100%"><stop offset="0" stop-color="#bbb" stop-opacity=".1"/><stop offset="1" stop-opacity=".1"/></linearGradient><clipPath id="r"><rect width="110" height="20" rx="3" fill="#fff"/></clipPath><g clip-path="url(#r)"><rect width="63" height="20" fill="#555"/><rect x="63" width="47" height="20" fill="#4c1"/><rect width="110" height="20" fill="url(#s)"/></g><g fill="#fff" text-anchor="middle" font-family="Verdana,Geneva,DejaVu Sans,sans-serif" text-rendering="geometricPrecision" font-size="110"><text aria-hidden="true" x="325" y="150" fill="#010101" fill-opacity=".3" transform="scale(.1)" textLength="530">Coverage</text><text x="325" y="140" transform="scale(.1)" fill="#fff" textLength="530">Coverage</text><text aria-hidden="true" x="855" y="150" fill="#010101" fill-opacity=".3" transform="scale(.1)" textLength="370">92.5%</text><text x="855" y="140" transform="scale(.1)" fill="#fff" textLength="370">92.5%</text></g></svg>
+\ No newline at end of file
+diff --git a/deno/lib/PseudoPromise.ts b/deno/lib/PseudoPromise.ts
+index a77ba31a8..a9ed5177b 100644
+--- a/deno/lib/PseudoPromise.ts
++++ b/deno/lib/PseudoPromise.ts
+@@ -7,7 +7,8 @@ type Catcher = (error: Error, ctx: { async: boolean }) => any;
+ type CatcherItem = { type: "catcher"; catcher: Catcher };
+ type Items = (FuncItem | CatcherItem)[];
+ 
+-export const NOSET = Symbol("no_set");
++export const NOSET = Object.freeze({ no_set: true });
++
+ export class PseudoPromise<PayloadType = undefined> {
+   readonly _return: PayloadType | undefined;
+   items: Items;
+diff --git a/deno/lib/ZodError.ts b/deno/lib/ZodError.ts
+index 854a589ac..ba5e8db1b 100644
+--- a/deno/lib/ZodError.ts
++++ b/deno/lib/ZodError.ts
+@@ -352,17 +352,17 @@ export const defaultErrorMap = (
+       else message = "Invalid input";
+       break;
+     case ZodIssueCode.custom:
+-      message = `Invalid input.`;
++      message = `Invalid input`;
+       break;
+     case ZodIssueCode.invalid_intersection_types:
+       message = `Intersections only support objects`;
+       break;
+     default:
+-      message = `Invalid input.`;
++      message = _ctx.defaultError;
+       util.assertNever(error);
+   }
+   return { message };
+-  // return `Invalid input.`;
++  // return `Invalid input`;
+ };
+ 
+ export let overrideErrorMap = defaultErrorMap;
+diff --git a/deno/lib/__tests__/default.test.ts b/deno/lib/__tests__/default.test.ts
+index b96d254e0..46f321f2f 100644
+--- a/deno/lib/__tests__/default.test.ts
++++ b/deno/lib/__tests__/default.test.ts
+@@ -15,7 +15,7 @@ test("default with transform", () => {
+     .transform((val) => val.toUpperCase())
+     .default("default");
+   expect(stringWithDefault.parse(undefined)).toBe("DEFAULT");
+-  expect(stringWithDefault).toBeInstanceOf(z.ZodOptional);
++  expect(stringWithDefault).toBeInstanceOf(z.ZodDefault);
+   expect(stringWithDefault._def.innerType).toBeInstanceOf(z.ZodEffects);
+   expect(stringWithDefault._def.innerType._def.schema).toBeInstanceOf(
+     z.ZodSchema
+@@ -32,15 +32,16 @@ test("default with transform", () => {
+ test("default on existing optional", () => {
+   const stringWithDefault = z.string().optional().default("asdf");
+   expect(stringWithDefault.parse(undefined)).toBe("asdf");
+-  expect(stringWithDefault).toBeInstanceOf(z.ZodOptional);
++  expect(stringWithDefault).toBeInstanceOf(z.ZodDefault);
+   expect(stringWithDefault._def.innerType).toBeInstanceOf(z.ZodOptional);
+   expect(stringWithDefault._def.innerType._def.innerType).toBeInstanceOf(
+     z.ZodString
+   );
++
+   type inp = z.input<typeof stringWithDefault>;
+   const f1: util.AssertEqual<inp, string | undefined> = true;
+   type out = z.output<typeof stringWithDefault>;
+-  const f2: util.AssertEqual<out, string | undefined> = true;
++  const f2: util.AssertEqual<out, string> = true;
+   f1;
+   f2;
+ });
+@@ -51,7 +52,7 @@ test("optional on default", () => {
+   type inp = z.input<typeof stringWithDefault>;
+   const f1: util.AssertEqual<inp, string | undefined> = true;
+   type out = z.output<typeof stringWithDefault>;
+-  const f2: util.AssertEqual<out, string> = true;
++  const f2: util.AssertEqual<out, string | undefined> = true;
+   f1;
+   f2;
+ });
+@@ -60,7 +61,6 @@ test("complex chain example", () => {
+   const complex = z
+     .string()
+     .default("asdf")
+-    .optional()
+     .transform((val) => val.toUpperCase())
+     .default("qwer")
+     .removeDefault()
+@@ -74,9 +74,8 @@ test("removeDefault", () => {
+   const stringWithRemovedDefault = z.string().default("asdf").removeDefault();
+ 
+   type out = z.output<typeof stringWithRemovedDefault>;
+-  const f2: util.AssertEqual<out, string | undefined> = true;
++  const f2: util.AssertEqual<out, string> = true;
+   f2;
+-  expect(stringWithRemovedDefault.parse(undefined)).toBe(undefined);
+ });
+ 
+ test("nested", () => {
+@@ -97,3 +96,9 @@ test("nested", () => {
+   expect(outer.parse({})).toEqual({ inner: "asdf" });
+   expect(outer.parse({ inner: undefined })).toEqual({ inner: "asdf" });
+ });
++
++test("chained defaults", () => {
++  const stringWithDefault = z.string().default("inner").default("outer");
++  const result = stringWithDefault.parse(undefined);
++  expect(result).toEqual("outer");
++});
+diff --git a/deno/lib/__tests__/error.test.ts b/deno/lib/__tests__/error.test.ts
+index bc3d3e5d5..f640c657d 100644
+--- a/deno/lib/__tests__/error.test.ts
++++ b/deno/lib/__tests__/error.test.ts
+@@ -85,7 +85,7 @@ test("default error message", () => {
+   } catch (err) {
+     const zerr: z.ZodError = err;
+     expect(zerr.issues.length).toEqual(1);
+-    expect(zerr.issues[0].message).toEqual("Invalid value.");
++    expect(zerr.issues[0].message).toEqual("Invalid input");
+   }
+ });
+ 
+@@ -226,7 +226,7 @@ test("custom path", () => {
+     const error = result.error.format();
+     expect(error._errors).toEqual([]);
+     expect(error.password?._errors).toEqual(undefined);
+-    expect(error.confirm?._errors).toEqual(["Invalid input."]);
++    expect(error.confirm?._errors).toEqual(["Invalid input"]);
+   }
+ });
+ 
+@@ -257,14 +257,14 @@ test("formatting", () => {
+     expect(error._errors).toEqual([]);
+     expect(error.inner?._errors).toEqual([]);
+     expect(error.inner?.name?._errors).toEqual([]);
+-    expect(error.inner?.name?.[0]._errors).toEqual(["Invalid value."]);
++    expect(error.inner?.name?.[0]._errors).toEqual(["Invalid input"]);
+     expect(error.inner?.name?.[1]).toEqual(undefined);
+   }
+   if (!result2.success) {
+     const error = result2.error.format();
+     expect(error._errors).toEqual([]);
+     expect(error.inner?._errors).toEqual([]);
+-    expect(error.inner?.name?._errors).toEqual(["Invalid value."]);
++    expect(error.inner?.name?._errors).toEqual(["Invalid input"]);
+     expect(error.inner?.name?.[0]).toEqual(undefined);
+     expect(error.inner?.name?.[1]).toEqual(undefined);
+     expect(error.inner?.name?.[2]).toEqual(undefined);
+diff --git a/deno/lib/__tests__/map.test.ts b/deno/lib/__tests__/map.test.ts
+index 4454df38a..ae5eacbea 100644
+--- a/deno/lib/__tests__/map.test.ts
++++ b/deno/lib/__tests__/map.test.ts
+@@ -33,7 +33,7 @@ test("throws when a Set is given", () => {
+   }
+ });
+ 
+-test("throws when the given map has invalid key and invalid value", () => {
++test("throws when the given map has invalid key and invalid input", () => {
+   const result = stringMap.safeParse(new Map([[42, Symbol()]]));
+   expect(result.success).toEqual(false);
+   if (result.success === false) {
+diff --git a/deno/lib/__tests__/partials.test.ts b/deno/lib/__tests__/partials.test.ts
+index 1058dc464..fdffaefc6 100644
+--- a/deno/lib/__tests__/partials.test.ts
++++ b/deno/lib/__tests__/partials.test.ts
+@@ -81,11 +81,11 @@ test("required", () => {
+   const object = z.object({
+     name: z.string(),
+     age: z.number().optional(),
+-    field: z.string().optional().default(undefined),
++    field: z.string().optional().default("asdf"),
+   });
+ 
+   const requiredObject = object.required();
+   expect(requiredObject.shape.name).toBeInstanceOf(z.ZodString);
+   expect(requiredObject.shape.age).toBeInstanceOf(z.ZodNumber);
+-  expect(requiredObject.shape.field).toBeInstanceOf(z.ZodString);
++  expect(requiredObject.shape.field).toBeInstanceOf(z.ZodDefault);
+ });
+diff --git a/deno/lib/__tests__/set.test.ts b/deno/lib/__tests__/set.test.ts
+index dfc248869..adb08812a 100644
+--- a/deno/lib/__tests__/set.test.ts
++++ b/deno/lib/__tests__/set.test.ts
+@@ -33,7 +33,7 @@ test("throws when a Map is given", () => {
+   }
+ });
+ 
+-test("throws when the given set has invalid value", () => {
++test("throws when the given set has invalid input", () => {
+   const result = stringSet.safeParse(new Set([Symbol()]));
+   expect(result.success).toEqual(false);
+   if (result.success === false) {
+diff --git a/deno/lib/defaultErrorMap.ts b/deno/lib/defaultErrorMap.ts
+deleted file mode 100644
+index 076ce2e02..000000000
+--- a/deno/lib/defaultErrorMap.ts
++++ /dev/null
+@@ -1,94 +0,0 @@
+-import { util } from "./helpers/util.ts";
+-import { ZodIssueCode, ZodIssueOptionalMessage } from "./ZodError.ts";
+-
+-type ErrorMapCtx = {
+-  defaultError: string;
+-  data: any;
+-};
+-
+-export type ZodErrorMap = typeof defaultErrorMap;
+-
+-export const defaultErrorMap = (
+-  error: ZodIssueOptionalMessage,
+-  _ctx: ErrorMapCtx
+-): { message: string } => {
+-  let message: string;
+-  switch (error.code) {
+-    case ZodIssueCode.invalid_type:
+-      if (error.received === "undefined") {
+-        message = "Required";
+-      } else {
+-        message = `Expected ${error.expected}, received ${error.received}`;
+-      }
+-      break;
+-    case ZodIssueCode.unrecognized_keys:
+-      message = `Unrecognized key(s) in object: ${error.keys
+-        .map((k) => `'${k}'`)
+-        .join(", ")}`;
+-      break;
+-    case ZodIssueCode.invalid_union:
+-      message = `Invalid input`;
+-      break;
+-    case ZodIssueCode.invalid_enum_value:
+-      message = `Invalid enum value. Expected ${error.options
+-        .map((val) => (typeof val === "string" ? `'${val}'` : val))
+-        .join(" | ")}, received ${
+-        typeof _ctx.data === "string" ? `'${_ctx.data}'` : _ctx.data
+-      }`;
+-      break;
+-    case ZodIssueCode.invalid_arguments:
+-      message = `Invalid function arguments`;
+-      break;
+-    case ZodIssueCode.invalid_return_type:
+-      message = `Invalid function return type`;
+-      break;
+-    case ZodIssueCode.invalid_date:
+-      message = `Invalid date`;
+-      break;
+-    case ZodIssueCode.invalid_string:
+-      if (error.validation !== "regex") message = `Invalid ${error.validation}`;
+-      else message = "Invalid";
+-      break;
+-    case ZodIssueCode.too_small:
+-      if (error.type === "array")
+-        message = `Should have ${error.inclusive ? `at least` : `more than`} ${
+-          error.minimum
+-        } item(s)`;
+-      else if (error.type === "string")
+-        message = `Should be ${error.inclusive ? `at least` : `over`} ${
+-          error.minimum
+-        } character(s) long`;
+-      else if (error.type === "number")
+-        message = `Should be greater than ${
+-          error.inclusive ? `or equal to ` : ``
+-        }${error.minimum}`;
+-      else message = "Invalid input";
+-      break;
+-    case ZodIssueCode.too_big:
+-      if (error.type === "array")
+-        message = `Should have ${error.inclusive ? `at most` : `less than`} ${
+-          error.maximum
+-        } items`;
+-      else if (error.type === "string")
+-        message = `Should be ${error.inclusive ? `at most` : `under`} ${
+-          error.maximum
+-        } characters long`;
+-      else if (error.type === "number")
+-        message = `Should be less than ${
+-          error.inclusive ? `or equal to ` : ``
+-        }${error.maximum}`;
+-      else message = "Invalid input";
+-      break;
+-    case ZodIssueCode.custom:
+-      message = `Invalid input.`;
+-      break;
+-    case ZodIssueCode.invalid_intersection_types:
+-      message = `Intersections only support objects`;
+-      break;
+-    default:
+-      message = `Invalid input.`;
+-      util.assertNever(error);
+-  }
+-  return { message };
+-  // return `Invalid input.`;
+-};
+diff --git a/deno/lib/helpers/parseUtil.ts b/deno/lib/helpers/parseUtil.ts
+index db117f3a5..4544a5c9f 100644
+--- a/deno/lib/helpers/parseUtil.ts
++++ b/deno/lib/helpers/parseUtil.ts
+@@ -73,14 +73,10 @@ export const issueHelpers = (error: ZodError, params: ParseParams) => {
+       path: [...params.path, ...(errorData.path || [])],
+     };
+ 
+-    const defaultError =
+-      // defaultErrorMap === params.errorMap
+-      //   ? { message: `Invalid value` }
+-      //   :
+-      defaultErrorMap(errorArg, {
+-        data: params.data,
+-        defaultError: `Invalid value`,
+-      });
++    const defaultError = defaultErrorMap(errorArg, {
++      data: params.data,
++      defaultError: `Invalid input`,
++    });
+     const issue = {
+       ...errorData,
+       path: [...params.path, ...(errorData.path || [])],
+diff --git a/deno/lib/helpers/util.ts b/deno/lib/helpers/util.ts
+index b9eefb772..53dc58c1c 100644
+--- a/deno/lib/helpers/util.ts
++++ b/deno/lib/helpers/util.ts
+@@ -1,4 +1,4 @@
+-export const INVALID = Symbol("invalid_data");
++export const INVALID = Object.freeze({ invalid_data: true });
+ export type INVALID = typeof INVALID;
+ export namespace util {
+   export type AssertEqual<T, Expected> = [T] extends [Expected]
+diff --git a/deno/lib/playground.ts b/deno/lib/playground.ts
+index f96b6e003..5aa39bfed 100644
+--- a/deno/lib/playground.ts
++++ b/deno/lib/playground.ts
+@@ -2,6 +2,15 @@ import { z } from "./index.ts";
+ 
+ const run = async () => {
+   z;
++  z.instanceof(File);
++  const schema = z
++    .string()
++    .nullable()
++    .default("null")
++    .transform((val) => val ?? undefined);
++
++  const value = schema.parse(null);
++  console.log(value);
+ };
+ 
+ run();
+diff --git a/deno/lib/types.ts b/deno/lib/types.ts
+index eec0e4259..ea4784aea 100644
+--- a/deno/lib/types.ts
++++ b/deno/lib/types.ts
+@@ -44,12 +44,7 @@ export type CustomErrorParams = Partial<util.Omit<ZodCustomIssue, "code">>;
+ export interface ZodTypeDef {}
+ 
+ type ParseReturnType<T> = T | INVALID | PseudoPromise<T | INVALID>;
+-type ZodEffectsType<T extends ZodTypeAny> = T extends ZodEffects<
+-  infer Inner,
+-  infer Out
+->
+-  ? ZodEffects<Inner, Out>
+-  : ZodEffects<T, T["_output"]>;
++
+ export abstract class ZodType<
+   Output,
+   Def extends ZodTypeDef = ZodTypeDef,
+@@ -206,8 +201,8 @@ export abstract class ZodType<
+   refine: <Func extends (arg: Output) => any, This extends this = this>(
+     check: Func,
+     message?: string | CustomErrorParams | ((arg: Output) => CustomErrorParams)
+-  ) => ZodEffectsType<This> = (check, message = "Invalid value.") => {
+-    if (typeof message === "string") {
++  ) => ZodEffectsType<This> = (check, message) => {
++    if (typeof message === "string" || typeof message === "undefined") {
+       return this._refinement((val, ctx) => {
+         const result = check(val);
+         const setError = () =>
+@@ -321,10 +316,13 @@ export abstract class ZodType<
+     this.default = this.default.bind(this);
+   }
+ 
+-  optional: <This extends this = this>() => ZodOptionalType<This> = () =>
++  optional: <This extends this = this>() => ZodOptional<This> = () =>
+     ZodOptional.create(this) as any;
+-  nullable: <This extends this = this>() => ZodNullableType<This> = () =>
++  nullable: <This extends this = this>() => ZodNullable<This> = () =>
+     ZodNullable.create(this) as any;
++  nullish: <This extends this = this>() => ZodNullable<
++    ZodOptional<This>
++  > = () => this.optional().nullable();
+ 
+   array: () => ZodArray<this> = () => ZodArray.create(this);
+ 
+@@ -359,12 +357,12 @@ export abstract class ZodType<
+     return returnType;
+   }
+ 
+-  default<T extends Input, This extends this = this>(
+-    def: T
+-  ): ZodOptional<This, true>;
+-  default<T extends () => Input, This extends this = this>(
+-    def: T
+-  ): ZodOptional<This, true>;
++  default<This extends this = this>(
++    def: util.noUndefined<Input>
++  ): ZodDefault<This>;
++  default<This extends this = this>(
++    def: () => util.noUndefined<Input>
++  ): ZodDefault<This>;
+   default(def: any) {
+     const defaultValueFunc = typeof def === "function" ? def : () => def;
+     // if (this instanceof ZodOptional) {
+@@ -373,7 +371,7 @@ export abstract class ZodType<
+     //     defaultValue: defaultValueFunc,
+     //   }) as any;
+     // }
+-    return new ZodOptional({
++    return new ZodDefault({
+       innerType: this,
+       defaultValue: defaultValueFunc,
+     }) as any;
+@@ -403,7 +401,7 @@ export interface ZodStringDef extends ZodTypeDef {
+   maxLength: { value: number; message?: string } | null;
+ }
+ 
+-const uuidRegex = /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89aAbB][a-f0-9]{3}-[a-f0-9]{12}$/;
++const uuidRegex = /^[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i;
+ // from https://stackoverflow.com/a/46181/1550155
+ // old version: too slow, didn't support unicode
+ // const emailRegex = /^((([a-z]|\d|[!#\$%&'\*\+\-\/=\?\^_`{\|}~]|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])+(\.([a-z]|\d|[!#\$%&'\*\+\-\/=\?\^_`{\|}~]|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])+)*)|((\x22)((((\x20|\x09)*(\x0d\x0a))?(\x20|\x09)+)?(([\x01-\x08\x0b\x0c\x0e-\x1f\x7f]|\x21|[\x23-\x5b]|[\x5d-\x7e]|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])|(\\([\x01-\x09\x0b\x0c\x0d-\x7f]|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF]))))*(((\x20|\x09)*(\x0d\x0a))?(\x20|\x09)+)?(\x22)))@((([a-z]|\d|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])|(([a-z]|\d|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])([a-z]|\d|-|\.|_|~|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])*([a-z]|\d|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])))\.)+(([a-z]|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])|(([a-z]|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])([a-z]|\d|-|\.|_|~|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])*([a-z]|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])))$/i;
+@@ -532,6 +530,10 @@ export class ZodString extends ZodType<string, ZodStringDef> {
+     return this.min(len, message).max(len, message);
+   }
+ 
++  /**
++   * Deprecated.
++   * Use z.string().min(1) instead.
++   */
+   nonempty = (message?: errorUtil.ErrMessage) =>
+     this.min(1, errorUtil.errToObj(message));
+ 
+@@ -1298,7 +1300,7 @@ export type objectInputType<
+       baseObjectInputType<Shape> & { [k: string]: Catchall["_input"] }
+     >;
+ 
+-type deoptional<T extends ZodTypeAny> = T extends ZodOptional<infer U, any>
++type deoptional<T extends ZodTypeAny> = T extends ZodOptional<infer U>
+   ? deoptional<U>
+   : T;
+ 
+@@ -1578,7 +1580,7 @@ export class ZodObject<
+       const fieldSchema = this.shape[key];
+       let newField = fieldSchema;
+       while (newField instanceof ZodOptional) {
+-        newField = (newField as ZodOptional<any, any>)._def.innerType;
++        newField = (newField as ZodOptional<any>)._def.innerType;
+       }
+ 
+       newShape[key] = newField;
+@@ -2460,10 +2462,17 @@ export class ZodPromise<T extends ZodTypeAny> extends ZodType<
+ //////////////////////////////////////////////
+ //////////////////////////////////////////////
+ //////////                          //////////
+-//////////      ZodEffects      //////////
++//////////        ZodEffects        //////////
+ //////////                          //////////
+ //////////////////////////////////////////////
+ //////////////////////////////////////////////
++type ZodEffectsType<T extends ZodTypeAny> = T extends ZodEffects<
++  infer Inner,
++  infer Out
++>
++  ? ZodEffects<Inner, Out>
++  : ZodEffects<T, T["_output"]>;
++
+ export type InternalCheck<T> = {
+   type: "refinement";
+   refinement: (arg: T, ctx: RefinementCtx) => any;
+@@ -2484,6 +2493,10 @@ export class ZodEffects<
+   T extends ZodTypeAny,
+   Output = T["_type"]
+ > extends ZodType<Output, ZodEffectsDef<T>, T["_input"]> {
++  innerType() {
++    return this._def.schema;
++  }
++
+   _parse(ctx: ParseContext): any {
+     const isSync = ctx.async === false || this instanceof ZodPromise;
+     const effects = this._def.effects || [];
+@@ -2597,40 +2610,19 @@ export { ZodEffects as ZodTransformer };
+ export interface ZodOptionalDef<T extends ZodTypeAny = ZodTypeAny>
+   extends ZodTypeDef {
+   innerType: T;
+-  defaultValue: undefined | (() => T["_input"]);
+ }
+ 
+-export type addDefaultToOptional<
+-  T extends ZodOptional<any, any>
+-> = T extends ZodOptional<infer U, any> ? ZodOptional<U, true> : never;
+-
+-export type removeDefaultFromOptional<
+-  T extends ZodOptional<any, any>
+-> = T extends ZodOptional<infer U, any> ? ZodOptional<U, false> : never;
+-
+-export type ZodOptionalType<T extends ZodTypeAny> = T extends ZodOptional<
+-  infer U,
+-  infer H
+->
+-  ? ZodOptional<U, H>
+-  : ZodOptional<T, false>; // no default by default
++export type ZodOptionalType<T extends ZodTypeAny> = ZodOptional<T>;
+ 
+-export class ZodOptional<
+-  T extends ZodTypeAny,
+-  HasDefault extends boolean = false
+-> extends ZodType<
+-  HasDefault extends true ? T["_output"] : T["_output"] | undefined,
++export class ZodOptional<T extends ZodTypeAny> extends ZodType<
++  T["_output"] | undefined,
+   ZodOptionalDef<T>,
+   T["_input"] | undefined
+ > {
+   _parse(ctx: ParseContext): any {
+-    let data = ctx.data;
++    const data = ctx.data;
+     if (ctx.parsedType === ZodParsedType.undefined) {
+-      if (this._def.defaultValue !== undefined) {
+-        data = this._def.defaultValue();
+-      } else {
+-        return undefined;
+-      }
++      return undefined;
+     }
+ 
+     return new PseudoPromise().then(() => {
+@@ -2645,18 +2637,9 @@ export class ZodOptional<
+     return this._def.innerType;
+   }
+ 
+-  removeDefault(): ZodOptional<T, false> {
+-    return new ZodOptional({
+-      ...this._def,
+-      defaultValue: undefined,
+-    });
+-  }
+-
+-  static create = <T extends ZodTypeAny>(type: T): ZodOptionalType<T> => {
+-    if (type instanceof ZodOptional) return type as any;
++  static create = <T extends ZodTypeAny>(type: T): ZodOptional<T> => {
+     return new ZodOptional({
+       innerType: type,
+-      defaultValue: undefined,
+     }) as any;
+   };
+ }
+@@ -2673,12 +2656,7 @@ export interface ZodNullableDef<T extends ZodTypeAny = ZodTypeAny>
+   innerType: T;
+ }
+ 
+-// This type allows for nullable flattening
+-export type ZodNullableType<T extends ZodTypeAny> = T extends ZodNullable<
+-  infer U
+->
+-  ? ZodNullable<U>
+-  : ZodNullable<T>;
++export type ZodNullableType<T extends ZodTypeAny> = ZodNullable<T>;
+ 
+ export class ZodNullable<T extends ZodTypeAny> extends ZodType<
+   T["_output"] | null,
+@@ -2702,15 +2680,56 @@ export class ZodNullable<T extends ZodTypeAny> extends ZodType<
+     return this._def.innerType;
+   }
+ 
+-  static create = <T extends ZodTypeAny>(type: T): ZodNullableType<T> => {
+-    // An nullable nullable is the original nullable
+-    if (type instanceof ZodNullable) return type as any;
++  static create = <T extends ZodTypeAny>(type: T): ZodNullable<T> => {
+     return new ZodNullable({
+       innerType: type,
+     }) as any;
+   };
+ }
+ 
++////////////////////////////////////////////
++////////////////////////////////////////////
++//////////                        //////////
++//////////       ZodDefault       //////////
++//////////                        //////////
++////////////////////////////////////////////
++////////////////////////////////////////////
++export interface ZodDefaultDef<T extends ZodTypeAny = ZodTypeAny>
++  extends ZodTypeDef {
++  innerType: T;
++  defaultValue: () => util.noUndefined<T["_input"]>;
++}
++
++export class ZodDefault<T extends ZodTypeAny> extends ZodType<
++  util.noUndefined<T["_output"]>,
++  ZodDefaultDef<T>,
++  T["_input"] | undefined
++> {
++  _parse(ctx: ParseContext): any {
++    let data = ctx.data;
++    if (ctx.parsedType === ZodParsedType.undefined) {
++      data = this._def.defaultValue();
++    }
++
++    return new PseudoPromise().then(() => {
++      return this._def.innerType._parseWithInvalidFallback(data, {
++        ...ctx,
++        parentError: ctx.currentError,
++      });
++    });
++  }
++
++  removeDefault() {
++    return this._def.innerType;
++  }
++
++  static create = <T extends ZodTypeAny>(type: T): ZodOptional<T> => {
++    return new ZodOptional({
++      innerType: type,
++    }) as any;
++  };
++}
++
+ export const custom = <T>(
+   check?: (data: unknown) => any,
+   params?: Parameters<ZodTypeAny["refine"]>[1]
+@@ -2751,8 +2770,9 @@ export type ZodFirstPartySchemaTypes =
+   | ZodEnum<any>
+   | ZodEffects<any>
+   | ZodNativeEnum<any>
+-  | ZodOptional<any, any>
++  | ZodOptional<any>
+   | ZodNullable<any>
++  | ZodDefault<any>
+   | ZodPromise<any>;
+ 
+ const instanceOfType = <T extends new (...args: any[]) => any>(
+diff --git a/package.json b/package.json
+index c47e4027e..bcaa69e42 100644
+--- a/package.json
++++ b/package.json
+@@ -1,6 +1,6 @@
+ {
+   "name": "zod",
+-  "version": "3.0.0-alpha.39",
++  "version": "3.0.0-beta.3",
+   "description": "TypeScript-first schema declaration and validation library with static type inference",
+   "main": "./lib/index.js",
+   "types": "./lib/index.d.ts",
+@@ -93,4 +93,4 @@
+       "yarn fix:format"
+     ]
+   }
+-}
+\ No newline at end of file
++}
+diff --git a/src/PseudoPromise.ts b/src/PseudoPromise.ts
+index 36feb96ee..60f4647d2 100644
+--- a/src/PseudoPromise.ts
++++ b/src/PseudoPromise.ts
+@@ -7,7 +7,8 @@ type Catcher = (error: Error, ctx: { async: boolean }) => any;
+ type CatcherItem = { type: "catcher"; catcher: Catcher };
+ type Items = (FuncItem | CatcherItem)[];
+ 
+-export const NOSET = Symbol("no_set");
++export const NOSET = Object.freeze({ no_set: true });
++
+ export class PseudoPromise<PayloadType = undefined> {
+   readonly _return: PayloadType | undefined;
+   items: Items;
+diff --git a/src/ZodError.ts b/src/ZodError.ts
+index f09d53544..4cb0c26c9 100644
+--- a/src/ZodError.ts
++++ b/src/ZodError.ts
+@@ -352,17 +352,17 @@ export const defaultErrorMap = (
+       else message = "Invalid input";
+       break;
+     case ZodIssueCode.custom:
+-      message = `Invalid input.`;
++      message = `Invalid input`;
+       break;
+     case ZodIssueCode.invalid_intersection_types:
+       message = `Intersections only support objects`;
+       break;
+     default:
+-      message = `Invalid input.`;
++      message = _ctx.defaultError;
+       util.assertNever(error);
+   }
+   return { message };
+-  // return `Invalid input.`;
++  // return `Invalid input`;
+ };
+ 
+ export let overrideErrorMap = defaultErrorMap;
+diff --git a/src/__tests__/default.test.ts b/src/__tests__/default.test.ts
+index 2cc79f58a..8716e888f 100644
+--- a/src/__tests__/default.test.ts
++++ b/src/__tests__/default.test.ts
+@@ -14,7 +14,7 @@ test("default with transform", () => {
+     .transform((val) => val.toUpperCase())
+     .default("default");
+   expect(stringWithDefault.parse(undefined)).toBe("DEFAULT");
+-  expect(stringWithDefault).toBeInstanceOf(z.ZodOptional);
++  expect(stringWithDefault).toBeInstanceOf(z.ZodDefault);
+   expect(stringWithDefault._def.innerType).toBeInstanceOf(z.ZodEffects);
+   expect(stringWithDefault._def.innerType._def.schema).toBeInstanceOf(
+     z.ZodSchema
+@@ -31,15 +31,16 @@ test("default with transform", () => {
+ test("default on existing optional", () => {
+   const stringWithDefault = z.string().optional().default("asdf");
+   expect(stringWithDefault.parse(undefined)).toBe("asdf");
+-  expect(stringWithDefault).toBeInstanceOf(z.ZodOptional);
++  expect(stringWithDefault).toBeInstanceOf(z.ZodDefault);
+   expect(stringWithDefault._def.innerType).toBeInstanceOf(z.ZodOptional);
+   expect(stringWithDefault._def.innerType._def.innerType).toBeInstanceOf(
+     z.ZodString
+   );
++
+   type inp = z.input<typeof stringWithDefault>;
+   const f1: util.AssertEqual<inp, string | undefined> = true;
+   type out = z.output<typeof stringWithDefault>;
+-  const f2: util.AssertEqual<out, string | undefined> = true;
++  const f2: util.AssertEqual<out, string> = true;
+   f1;
+   f2;
+ });
+@@ -50,7 +51,7 @@ test("optional on default", () => {
+   type inp = z.input<typeof stringWithDefault>;
+   const f1: util.AssertEqual<inp, string | undefined> = true;
+   type out = z.output<typeof stringWithDefault>;
+-  const f2: util.AssertEqual<out, string> = true;
++  const f2: util.AssertEqual<out, string | undefined> = true;
+   f1;
+   f2;
+ });
+@@ -59,7 +60,6 @@ test("complex chain example", () => {
+   const complex = z
+     .string()
+     .default("asdf")
+-    .optional()
+     .transform((val) => val.toUpperCase())
+     .default("qwer")
+     .removeDefault()
+@@ -73,9 +73,8 @@ test("removeDefault", () => {
+   const stringWithRemovedDefault = z.string().default("asdf").removeDefault();
+ 
+   type out = z.output<typeof stringWithRemovedDefault>;
+-  const f2: util.AssertEqual<out, string | undefined> = true;
++  const f2: util.AssertEqual<out, string> = true;
+   f2;
+-  expect(stringWithRemovedDefault.parse(undefined)).toBe(undefined);
+ });
+ 
+ test("nested", () => {
+@@ -96,3 +95,9 @@ test("nested", () => {
+   expect(outer.parse({})).toEqual({ inner: "asdf" });
+   expect(outer.parse({ inner: undefined })).toEqual({ inner: "asdf" });
+ });
++
++test("chained defaults", () => {
++  const stringWithDefault = z.string().default("inner").default("outer");
++  const result = stringWithDefault.parse(undefined);
++  expect(result).toEqual("outer");
++});
+diff --git a/src/__tests__/error.test.ts b/src/__tests__/error.test.ts
+index 62e8d9d50..4ad4d34b6 100644
+--- a/src/__tests__/error.test.ts
++++ b/src/__tests__/error.test.ts
+@@ -84,7 +84,7 @@ test("default error message", () => {
+   } catch (err) {
+     const zerr: z.ZodError = err;
+     expect(zerr.issues.length).toEqual(1);
+-    expect(zerr.issues[0].message).toEqual("Invalid value.");
++    expect(zerr.issues[0].message).toEqual("Invalid input");
+   }
+ });
+ 
+@@ -225,7 +225,7 @@ test("custom path", () => {
+     const error = result.error.format();
+     expect(error._errors).toEqual([]);
+     expect(error.password?._errors).toEqual(undefined);
+-    expect(error.confirm?._errors).toEqual(["Invalid input."]);
++    expect(error.confirm?._errors).toEqual(["Invalid input"]);
+   }
+ });
+ 
+@@ -256,14 +256,14 @@ test("formatting", () => {
+     expect(error._errors).toEqual([]);
+     expect(error.inner?._errors).toEqual([]);
+     expect(error.inner?.name?._errors).toEqual([]);
+-    expect(error.inner?.name?.[0]._errors).toEqual(["Invalid value."]);
++    expect(error.inner?.name?.[0]._errors).toEqual(["Invalid input"]);
+     expect(error.inner?.name?.[1]).toEqual(undefined);
+   }
+   if (!result2.success) {
+     const error = result2.error.format();
+     expect(error._errors).toEqual([]);
+     expect(error.inner?._errors).toEqual([]);
+-    expect(error.inner?.name?._errors).toEqual(["Invalid value."]);
++    expect(error.inner?.name?._errors).toEqual(["Invalid input"]);
+     expect(error.inner?.name?.[0]).toEqual(undefined);
+     expect(error.inner?.name?.[1]).toEqual(undefined);
+     expect(error.inner?.name?.[2]).toEqual(undefined);
+diff --git a/src/__tests__/map.test.ts b/src/__tests__/map.test.ts
+index f3775246c..04697c711 100644
+--- a/src/__tests__/map.test.ts
++++ b/src/__tests__/map.test.ts
+@@ -32,7 +32,7 @@ test("throws when a Set is given", () => {
+   }
+ });
+ 
+-test("throws when the given map has invalid key and invalid value", () => {
++test("throws when the given map has invalid key and invalid input", () => {
+   const result = stringMap.safeParse(new Map([[42, Symbol()]]));
+   expect(result.success).toEqual(false);
+   if (result.success === false) {
+diff --git a/src/__tests__/partials.test.ts b/src/__tests__/partials.test.ts
+index 2a60d4f4e..b47cec69e 100644
+--- a/src/__tests__/partials.test.ts
++++ b/src/__tests__/partials.test.ts
+@@ -80,11 +80,11 @@ test("required", () => {
+   const object = z.object({
+     name: z.string(),
+     age: z.number().optional(),
+-    field: z.string().optional().default(undefined),
++    field: z.string().optional().default("asdf"),
+   });
+ 
+   const requiredObject = object.required();
+   expect(requiredObject.shape.name).toBeInstanceOf(z.ZodString);
+   expect(requiredObject.shape.age).toBeInstanceOf(z.ZodNumber);
+-  expect(requiredObject.shape.field).toBeInstanceOf(z.ZodString);
++  expect(requiredObject.shape.field).toBeInstanceOf(z.ZodDefault);
+ });
+diff --git a/src/__tests__/set.test.ts b/src/__tests__/set.test.ts
+index 3365233f7..18bad9435 100644
+--- a/src/__tests__/set.test.ts
++++ b/src/__tests__/set.test.ts
+@@ -32,7 +32,7 @@ test("throws when a Map is given", () => {
+   }
+ });
+ 
+-test("throws when the given set has invalid value", () => {
++test("throws when the given set has invalid input", () => {
+   const result = stringSet.safeParse(new Set([Symbol()]));
+   expect(result.success).toEqual(false);
+   if (result.success === false) {
+diff --git a/src/defaultErrorMap.ts b/src/defaultErrorMap.ts
+deleted file mode 100644
+index 1916497ea..000000000
+--- a/src/defaultErrorMap.ts
++++ /dev/null
+@@ -1,94 +0,0 @@
+-import { util } from "./helpers/util";
+-import { ZodIssueCode, ZodIssueOptionalMessage } from "./ZodError";
+-
+-type ErrorMapCtx = {
+-  defaultError: string;
+-  data: any;
+-};
+-
+-export type ZodErrorMap = typeof defaultErrorMap;
+-
+-export const defaultErrorMap = (
+-  error: ZodIssueOptionalMessage,
+-  _ctx: ErrorMapCtx
+-): { message: string } => {
+-  let message: string;
+-  switch (error.code) {
+-    case ZodIssueCode.invalid_type:
+-      if (error.received === "undefined") {
+-        message = "Required";
+-      } else {
+-        message = `Expected ${error.expected}, received ${error.received}`;
+-      }
+-      break;
+-    case ZodIssueCode.unrecognized_keys:
+-      message = `Unrecognized key(s) in object: ${error.keys
+-        .map((k) => `'${k}'`)
+-        .join(", ")}`;
+-      break;
+-    case ZodIssueCode.invalid_union:
+-      message = `Invalid input`;
+-      break;
+-    case ZodIssueCode.invalid_enum_value:
+-      message = `Invalid enum value. Expected ${error.options
+-        .map((val) => (typeof val === "string" ? `'${val}'` : val))
+-        .join(" | ")}, received ${
+-        typeof _ctx.data === "string" ? `'${_ctx.data}'` : _ctx.data
+-      }`;
+-      break;
+-    case ZodIssueCode.invalid_arguments:
+-      message = `Invalid function arguments`;
+-      break;
+-    case ZodIssueCode.invalid_return_type:
+-      message = `Invalid function return type`;
+-      break;
+-    case ZodIssueCode.invalid_date:
+-      message = `Invalid date`;
+-      break;
+-    case ZodIssueCode.invalid_string:
+-      if (error.validation !== "regex") message = `Invalid ${error.validation}`;
+-      else message = "Invalid";
+-      break;
+-    case ZodIssueCode.too_small:
+-      if (error.type === "array")
+-        message = `Should have ${error.inclusive ? `at least` : `more than`} ${
+-          error.minimum
+-        } item(s)`;
+-      else if (error.type === "string")
+-        message = `Should be ${error.inclusive ? `at least` : `over`} ${
+-          error.minimum
+-        } character(s) long`;
+-      else if (error.type === "number")
+-        message = `Should be greater than ${
+-          error.inclusive ? `or equal to ` : ``
+-        }${error.minimum}`;
+-      else message = "Invalid input";
+-      break;
+-    case ZodIssueCode.too_big:
+-      if (error.type === "array")
+-        message = `Should have ${error.inclusive ? `at most` : `less than`} ${
+-          error.maximum
+-        } items`;
+-      else if (error.type === "string")
+-        message = `Should be ${error.inclusive ? `at most` : `under`} ${
+-          error.maximum
+-        } characters long`;
+-      else if (error.type === "number")
+-        message = `Should be less than ${
+-          error.inclusive ? `or equal to ` : ``
+-        }${error.maximum}`;
+-      else message = "Invalid input";
+-      break;
+-    case ZodIssueCode.custom:
+-      message = `Invalid input.`;
+-      break;
+-    case ZodIssueCode.invalid_intersection_types:
+-      message = `Intersections only support objects`;
+-      break;
+-    default:
+-      message = `Invalid input.`;
+-      util.assertNever(error);
+-  }
+-  return { message };
+-  // return `Invalid input.`;
+-};
+diff --git a/src/helpers/parseUtil.ts b/src/helpers/parseUtil.ts
+index ce32edf0c..bcac61164 100644
+--- a/src/helpers/parseUtil.ts
++++ b/src/helpers/parseUtil.ts
+@@ -73,14 +73,10 @@ export const issueHelpers = (error: ZodError, params: ParseParams) => {
+       path: [...params.path, ...(errorData.path || [])],
+     };
+ 
+-    const defaultError =
+-      // defaultErrorMap === params.errorMap
+-      //   ? { message: `Invalid value` }
+-      //   :
+-      defaultErrorMap(errorArg, {
+-        data: params.data,
+-        defaultError: `Invalid value`,
+-      });
++    const defaultError = defaultErrorMap(errorArg, {
++      data: params.data,
++      defaultError: `Invalid input`,
++    });
+     const issue = {
+       ...errorData,
+       path: [...params.path, ...(errorData.path || [])],
+diff --git a/src/helpers/util.ts b/src/helpers/util.ts
+index b9eefb772..53dc58c1c 100644
+--- a/src/helpers/util.ts
++++ b/src/helpers/util.ts
+@@ -1,4 +1,4 @@
+-export const INVALID = Symbol("invalid_data");
++export const INVALID = Object.freeze({ invalid_data: true });
+ export type INVALID = typeof INVALID;
+ export namespace util {
+   export type AssertEqual<T, Expected> = [T] extends [Expected]
+diff --git a/src/playground.ts b/src/playground.ts
+index 746f94e03..2c14269de 100644
+--- a/src/playground.ts
++++ b/src/playground.ts
+@@ -2,6 +2,15 @@ import { z } from "./index";
+ 
+ const run = async () => {
+   z;
++  z.instanceof(File);
++  const schema = z
++    .string()
++    .nullable()
++    .default("null")
++    .transform((val) => val ?? undefined);
++
++  const value = schema.parse(null);
++  console.log(value);
+ };
+ 
+ run();
+diff --git a/src/types.ts b/src/types.ts
+index bca6361e2..5fd03f4f6 100644
+--- a/src/types.ts
++++ b/src/types.ts
+@@ -44,12 +44,7 @@ export type CustomErrorParams = Partial<util.Omit<ZodCustomIssue, "code">>;
+ export interface ZodTypeDef {}
+ 
+ type ParseReturnType<T> = T | INVALID | PseudoPromise<T | INVALID>;
+-type ZodEffectsType<T extends ZodTypeAny> = T extends ZodEffects<
+-  infer Inner,
+-  infer Out
+->
+-  ? ZodEffects<Inner, Out>
+-  : ZodEffects<T, T["_output"]>;
++
+ export abstract class ZodType<
+   Output,
+   Def extends ZodTypeDef = ZodTypeDef,
+@@ -206,8 +201,8 @@ export abstract class ZodType<
+   refine: <Func extends (arg: Output) => any, This extends this = this>(
+     check: Func,
+     message?: string | CustomErrorParams | ((arg: Output) => CustomErrorParams)
+-  ) => ZodEffectsType<This> = (check, message = "Invalid value.") => {
+-    if (typeof message === "string") {
++  ) => ZodEffectsType<This> = (check, message) => {
++    if (typeof message === "string" || typeof message === "undefined") {
+       return this._refinement((val, ctx) => {
+         const result = check(val);
+         const setError = () =>
+@@ -321,10 +316,13 @@ export abstract class ZodType<
+     this.default = this.default.bind(this);
+   }
+ 
+-  optional: <This extends this = this>() => ZodOptionalType<This> = () =>
++  optional: <This extends this = this>() => ZodOptional<This> = () =>
+     ZodOptional.create(this) as any;
+-  nullable: <This extends this = this>() => ZodNullableType<This> = () =>
++  nullable: <This extends this = this>() => ZodNullable<This> = () =>
+     ZodNullable.create(this) as any;
++  nullish: <This extends this = this>() => ZodNullable<
++    ZodOptional<This>
++  > = () => this.optional().nullable();
+ 
+   array: () => ZodArray<this> = () => ZodArray.create(this);
+ 
+@@ -359,12 +357,12 @@ export abstract class ZodType<
+     return returnType;
+   }
+ 
+-  default<T extends Input, This extends this = this>(
+-    def: T
+-  ): ZodOptional<This, true>;
+-  default<T extends () => Input, This extends this = this>(
+-    def: T
+-  ): ZodOptional<This, true>;
++  default<This extends this = this>(
++    def: util.noUndefined<Input>
++  ): ZodDefault<This>;
++  default<This extends this = this>(
++    def: () => util.noUndefined<Input>
++  ): ZodDefault<This>;
+   default(def: any) {
+     const defaultValueFunc = typeof def === "function" ? def : () => def;
+     // if (this instanceof ZodOptional) {
+@@ -373,7 +371,7 @@ export abstract class ZodType<
+     //     defaultValue: defaultValueFunc,
+     //   }) as any;
+     // }
+-    return new ZodOptional({
++    return new ZodDefault({
+       innerType: this,
+       defaultValue: defaultValueFunc,
+     }) as any;
+@@ -403,7 +401,7 @@ export interface ZodStringDef extends ZodTypeDef {
+   maxLength: { value: number; message?: string } | null;
+ }
+ 
+-const uuidRegex = /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89aAbB][a-f0-9]{3}-[a-f0-9]{12}$/;
++const uuidRegex = /^[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i;
+ // from https://stackoverflow.com/a/46181/1550155
+ // old version: too slow, didn't support unicode
+ // const emailRegex = /^((([a-z]|\d|[!#\$%&'\*\+\-\/=\?\^_`{\|}~]|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])+(\.([a-z]|\d|[!#\$%&'\*\+\-\/=\?\^_`{\|}~]|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])+)*)|((\x22)((((\x20|\x09)*(\x0d\x0a))?(\x20|\x09)+)?(([\x01-\x08\x0b\x0c\x0e-\x1f\x7f]|\x21|[\x23-\x5b]|[\x5d-\x7e]|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])|(\\([\x01-\x09\x0b\x0c\x0d-\x7f]|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF]))))*(((\x20|\x09)*(\x0d\x0a))?(\x20|\x09)+)?(\x22)))@((([a-z]|\d|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])|(([a-z]|\d|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])([a-z]|\d|-|\.|_|~|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])*([a-z]|\d|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])))\.)+(([a-z]|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])|(([a-z]|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])([a-z]|\d|-|\.|_|~|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])*([a-z]|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])))$/i;
+@@ -532,6 +530,10 @@ export class ZodString extends ZodType<string, ZodStringDef> {
+     return this.min(len, message).max(len, message);
+   }
+ 
++  /**
++   * Deprecated.
++   * Use z.string().min(1) instead.
++   */
+   nonempty = (message?: errorUtil.ErrMessage) =>
+     this.min(1, errorUtil.errToObj(message));
+ 
+@@ -1298,7 +1300,7 @@ export type objectInputType<
+       baseObjectInputType<Shape> & { [k: string]: Catchall["_input"] }
+     >;
+ 
+-type deoptional<T extends ZodTypeAny> = T extends ZodOptional<infer U, any>
++type deoptional<T extends ZodTypeAny> = T extends ZodOptional<infer U>
+   ? deoptional<U>
+   : T;
+ 
+@@ -1578,7 +1580,7 @@ export class ZodObject<
+       const fieldSchema = this.shape[key];
+       let newField = fieldSchema;
+       while (newField instanceof ZodOptional) {
+-        newField = (newField as ZodOptional<any, any>)._def.innerType;
++        newField = (newField as ZodOptional<any>)._def.innerType;
+       }
+ 
+       newShape[key] = newField;
+@@ -2460,10 +2462,17 @@ export class ZodPromise<T extends ZodTypeAny> extends ZodType<
+ //////////////////////////////////////////////
+ //////////////////////////////////////////////
+ //////////                          //////////
+-//////////      ZodEffects      //////////
++//////////        ZodEffects        //////////
+ //////////                          //////////
+ //////////////////////////////////////////////
+ //////////////////////////////////////////////
++type ZodEffectsType<T extends ZodTypeAny> = T extends ZodEffects<
++  infer Inner,
++  infer Out
++>
++  ? ZodEffects<Inner, Out>
++  : ZodEffects<T, T["_output"]>;
++
+ export type InternalCheck<T> = {
+   type: "refinement";
+   refinement: (arg: T, ctx: RefinementCtx) => any;
+@@ -2484,6 +2493,10 @@ export class ZodEffects<
+   T extends ZodTypeAny,
+   Output = T["_type"]
+ > extends ZodType<Output, ZodEffectsDef<T>, T["_input"]> {
++  innerType() {
++    return this._def.schema;
++  }
++
+   _parse(ctx: ParseContext): any {
+     const isSync = ctx.async === false || this instanceof ZodPromise;
+     const effects = this._def.effects || [];
+@@ -2597,40 +2610,19 @@ export { ZodEffects as ZodTransformer };
+ export interface ZodOptionalDef<T extends ZodTypeAny = ZodTypeAny>
+   extends ZodTypeDef {
+   innerType: T;
+-  defaultValue: undefined | (() => T["_input"]);
+ }
+ 
+-export type addDefaultToOptional<
+-  T extends ZodOptional<any, any>
+-> = T extends ZodOptional<infer U, any> ? ZodOptional<U, true> : never;
+-
+-export type removeDefaultFromOptional<
+-  T extends ZodOptional<any, any>
+-> = T extends ZodOptional<infer U, any> ? ZodOptional<U, false> : never;
+-
+-export type ZodOptionalType<T extends ZodTypeAny> = T extends ZodOptional<
+-  infer U,
+-  infer H
+->
+-  ? ZodOptional<U, H>
+-  : ZodOptional<T, false>; // no default by default
++export type ZodOptionalType<T extends ZodTypeAny> = ZodOptional<T>;
+ 
+-export class ZodOptional<
+-  T extends ZodTypeAny,
+-  HasDefault extends boolean = false
+-> extends ZodType<
+-  HasDefault extends true ? T["_output"] : T["_output"] | undefined,
++export class ZodOptional<T extends ZodTypeAny> extends ZodType<
++  T["_output"] | undefined,
+   ZodOptionalDef<T>,
+   T["_input"] | undefined
+ > {
+   _parse(ctx: ParseContext): any {
+-    let data = ctx.data;
++    const data = ctx.data;
+     if (ctx.parsedType === ZodParsedType.undefined) {
+-      if (this._def.defaultValue !== undefined) {
+-        data = this._def.defaultValue();
+-      } else {
+-        return undefined;
+-      }
++      return undefined;
+     }
+ 
+     return new PseudoPromise().then(() => {
+@@ -2645,18 +2637,9 @@ export class ZodOptional<
+     return this._def.innerType;
+   }
+ 
+-  removeDefault(): ZodOptional<T, false> {
+-    return new ZodOptional({
+-      ...this._def,
+-      defaultValue: undefined,
+-    });
+-  }
+-
+-  static create = <T extends ZodTypeAny>(type: T): ZodOptionalType<T> => {
+-    if (type instanceof ZodOptional) return type as any;
++  static create = <T extends ZodTypeAny>(type: T): ZodOptional<T> => {
+     return new ZodOptional({
+       innerType: type,
+-      defaultValue: undefined,
+     }) as any;
+   };
+ }
+@@ -2673,12 +2656,7 @@ export interface ZodNullableDef<T extends ZodTypeAny = ZodTypeAny>
+   innerType: T;
+ }
+ 
+-// This type allows for nullable flattening
+-export type ZodNullableType<T extends ZodTypeAny> = T extends ZodNullable<
+-  infer U
+->
+-  ? ZodNullable<U>
+-  : ZodNullable<T>;
++export type ZodNullableType<T extends ZodTypeAny> = ZodNullable<T>;
+ 
+ export class ZodNullable<T extends ZodTypeAny> extends ZodType<
+   T["_output"] | null,
+@@ -2702,15 +2680,56 @@ export class ZodNullable<T extends ZodTypeAny> extends ZodType<
+     return this._def.innerType;
+   }
+ 
+-  static create = <T extends ZodTypeAny>(type: T): ZodNullableType<T> => {
+-    // An nullable nullable is the original nullable
+-    if (type instanceof ZodNullable) return type as any;
++  static create = <T extends ZodTypeAny>(type: T): ZodNullable<T> => {
+     return new ZodNullable({
+       innerType: type,
+     }) as any;
+   };
+ }
+ 
++////////////////////////////////////////////
++////////////////////////////////////////////
++//////////                        //////////
++//////////       ZodDefault       //////////
++//////////                        //////////
++////////////////////////////////////////////
++////////////////////////////////////////////
++export interface ZodDefaultDef<T extends ZodTypeAny = ZodTypeAny>
++  extends ZodTypeDef {
++  innerType: T;
++  defaultValue: () => util.noUndefined<T["_input"]>;
++}
++
++export class ZodDefault<T extends ZodTypeAny> extends ZodType<
++  util.noUndefined<T["_output"]>,
++  ZodDefaultDef<T>,
++  T["_input"] | undefined
++> {
++  _parse(ctx: ParseContext): any {
++    let data = ctx.data;
++    if (ctx.parsedType === ZodParsedType.undefined) {
++      data = this._def.defaultValue();
++    }
++
++    return new PseudoPromise().then(() => {
++      return this._def.innerType._parseWithInvalidFallback(data, {
++        ...ctx,
++        parentError: ctx.currentError,
++      });
++    });
++  }
++
++  removeDefault() {
++    return this._def.innerType;
++  }
++
++  static create = <T extends ZodTypeAny>(type: T): ZodOptional<T> => {
++    return new ZodOptional({
++      innerType: type,
++    }) as any;
++  };
++}
++
+ export const custom = <T>(
+   check?: (data: unknown) => any,
+   params?: Parameters<ZodTypeAny["refine"]>[1]
+@@ -2751,8 +2770,9 @@ export type ZodFirstPartySchemaTypes =
+   | ZodEnum<any>
+   | ZodEffects<any>
+   | ZodNativeEnum<any>
+-  | ZodOptional<any, any>
++  | ZodOptional<any>
+   | ZodNullable<any>
++  | ZodDefault<any>
+   | ZodPromise<any>;
+ 
+ const instanceOfType = <T extends new (...args: any[]) => any>(
+diff --git a/tsconfig.base.json b/tsconfig.base.json
+index 7364c0a90..33fbd208c 100644
+--- a/tsconfig.base.json
++++ b/tsconfig.base.json
+@@ -26,4 +26,4 @@
+     "./src/**/*",
+     "./.eslintrc.js"
+   ]
+-}
+\ No newline at end of file
++}
