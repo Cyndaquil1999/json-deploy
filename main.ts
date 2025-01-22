@@ -8,7 +8,7 @@ async function getFileList(dir: string, extension: string): Promise<string[]> {
   const files: string[] = [];
   for await (const entry of Deno.readDir(dir)) {
     if (entry.isFile && entry.name.endsWith(extension)) {
-      files.push(entry.name.replace(extension, "")); // 拡張子を除外
+      files.push(entry.name); // 拡張子を含めたファイル名を保持
     }
   }
   return files;
@@ -51,17 +51,12 @@ serve(async (req) => {
   }
 
   if (path === "/data") {
-    // `/data` ページ: ディレクトリ内のファイルリンクを表示
+    // `/data` ページ: ディレクトリ内のテキストファイルリンクを表示
     try {
-      const jsonFiles = await getFileList(DATA_DIR, ".json");
       const txtFiles = await getFileList(DATA_DIR, ".txt");
 
-      const jsonLinks = jsonFiles
-        .map((file) => `<li><a href="/data/${file}.json">${file}</a></li>`)
-        .join("");
-
       const txtLinks = txtFiles
-        .map((file) => `<li><a href="/data/${file}.txt">${file}</a></li>`)
+        .map((file) => `<li><a href="/data/${file}">${file}</a></li>`)
         .join("");
 
       return new Response(
@@ -72,7 +67,6 @@ serve(async (req) => {
           <body>
             <h1>Data Files</h1>
             <ul>
-              ${jsonLinks}
               ${txtLinks}
             </ul>
           </body>
@@ -89,10 +83,16 @@ serve(async (req) => {
   }
 
   if (path.startsWith("/data/")) {
+    // ディレクトリへのアクセスをリダイレクト
+    if (path.endsWith("/")) {
+      const newPath = path.slice(0, -1); // 最後のスラッシュを削除
+      return Response.redirect(new URL(newPath, req.url).toString(), 301);
+    }
+
     // ファイル名からデータを取得し表示
     const filename = path.replace("/data/", ""); // パスからファイル名を取得
     console.log(filename);
-    const filePath = `${DATA_DIR}/${filename}`; // ファイル名に拡張子を追加
+    const filePath = `${DATA_DIR}/${filename}`;
 
     try {
       const content = await Deno.readTextFile(filePath);
