@@ -4,14 +4,25 @@ import { serve } from "https://deno.land/std@0.193.0/http/server.ts";
 const DATA_DIR = "./data";
 
 // ヘルパー関数: ディレクトリ内のファイル一覧を取得
-async function getFileList(dir: string): Promise<string[]> {
+async function getFileList(dir: string, extension: string): Promise<string[]> {
   const files: string[] = [];
   for await (const entry of Deno.readDir(dir)) {
-    if (entry.isFile && entry.name.endsWith(".json")) {
-      files.push(entry.name.replace(".json", "")); // 拡張子を除外
+    if (entry.isFile && entry.name.endsWith(extension)) {
+      files.push(entry.name.replace(extension, "")); // 拡張子を除外
     }
   }
   return files;
+}
+
+// ヘルパー関数: テキストファイルの内容を取得
+async function getTextFileContent(filePath: string): Promise<string> {
+  try {
+    const content = await Deno.readTextFile(filePath);
+    return content;
+  } catch (error) {
+    console.error(`Error reading file ${filePath}:`, error);
+    return "";
+  }
 }
 
 serve(async (req) => {
@@ -42,9 +53,15 @@ serve(async (req) => {
   if (path === "/data") {
     // `/data` ページ: ディレクトリ内のファイルリンクを表示
     try {
-      const files = await getFileList(DATA_DIR);
-      const links = files
-        .map((file) => `<li><a href="/data/${file}">${file}</a></li>`)
+      const jsonFiles = await getFileList(DATA_DIR, ".json");
+      const txtFiles = await getFileList(DATA_DIR, ".txt");
+
+      const jsonLinks = jsonFiles
+        .map((file) => `<li><a href="/data/${file}.json">${file}</a></li>`)
+        .join("");
+
+      const txtLinks = txtFiles
+        .map((file) => `<li><a href="/data/${file}.txt">${file}</a></li>`)
         .join("");
 
       return new Response(
@@ -55,7 +72,8 @@ serve(async (req) => {
           <body>
             <h1>Data Files</h1>
             <ul>
-              ${links}
+              ${jsonLinks}
+              ${txtLinks}
             </ul>
           </body>
         </html>
@@ -74,7 +92,7 @@ serve(async (req) => {
     // ファイル名からデータを取得し表示
     const filename = path.replace("/data/", ""); // パスからファイル名を取得
     console.log(filename);
-    const filePath = `${DATA_DIR}/${filename}.json`; // ファイル名に拡張子を追加
+    const filePath = `${DATA_DIR}/${filename}`; // ファイル名に拡張子を追加
 
     try {
       const content = await Deno.readTextFile(filePath);
